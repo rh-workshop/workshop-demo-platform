@@ -1,0 +1,7 @@
+# Nunca versionar credenciales ni ficheros de entorno
+.env
+*.env
+vault-password*
+*-secret.yaml
+*.key
+*.pem

@@ -1,0 +1,98 @@
+---
+# Clientes de Keycloak.
+#
+# POR QUE ESTO NO ES GITOPS: el CR `Keycloak` y el `KeycloakRealmImport` SI son
+# declarativos y los reconcilia Argo CD (estan en keycloak/gitops/). Pero un
+# cliente creado despues del arranque —o cuyo secreto hay que rotar— vive dentro
+# de la base de datos de Keycloak y solo se toca por su API de administracion.
+# Ese es el trabajo de este playbook, y es idempotente.
+#
+# CREDENCIALES: se leen del entorno, nunca de un fichero versionado.
+#
+#   export KEYCLOAK_HOST=<host-de-keycloak>
+#   export KEYCLOAK_ADMIN=<usuario-admin>
+#   export KEYCLOAK_PASSWORD=<contrasena>
+#   ansible-playbook keycloak/ansible/clientes.yml
+
+- name: Configurar clientes de Keycloak
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    keycloak_host: "{{ lookup('env', 'KEYCLOAK_HOST') }}"
+    keycloak_admin: "{{ lookup('env', 'KEYCLOAK_ADMIN') }}"
+    keycloak_password: "{{ lookup('env', 'KEYCLOAK_PASSWORD') }}"
+    keycloak_url: "https://{{ keycloak_host }}"
+    realm: sso
+    validar_certificados: false
+
+    # El "que" de este playbook: lo unico que se edita al anadir una aplicacion.
+    clientes:
+      - id: servicio-demo
+        nombre: Servicio de ejemplo
+        # Flujo maquina-a-maquina: la aplicacion pide el token con su propio
+        # identificador y secreto, sin intervencion de una persona.
+        service_account: true
+        acceso_publico: false
+
+  tasks:
+    - name: Comprobar que hay credenciales
+      ansible.builtin.assert:
+        that:
+          - keycloak_host | length > 0
+          - keycloak_admin | length > 0
+          - keycloak_password | length > 0
+        fail_msg: >-
+          Faltan KEYCLOAK_HOST, KEYCLOAK_ADMIN o KEYCLOAK_PASSWORD en el
+          entorno. Exportalos antes de ejecutar; nunca los escribas aqui.
+
+    - name: Obtener el token de administracion
+      ansible.builtin.uri:
+        url: "{{ keycloak_url }}/realms/master/protocol/openid-connect/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: password
+          client_id: admin-cli
+          username: "{{ keycloak_admin }}"
+          password: "{{ keycloak_password }}"
+        validate_certs: "{{ validar_certificados }}"
+      register: respuesta_token
+      no_log: true
+
+    - name: Guardar el token en una variable
+      ansible.builtin.set_fact:
+        admin_token: "{{ respuesta_token.json.access_token }}"
+      no_log: true
+
+    - name: Crear cada cliente del realm
+      ansible.builtin.uri:
+        url: "{{ keycloak_url }}/admin/realms/{{ realm }}/clients"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ admin_token }}"
+        body_format: json
+        body:
+          clientId: "{{ item.id }}"
+          name: "{{ item.nombre }}"
+          enabled: true
+          publicClient: "{{ item.acceso_publico }}"
+          serviceAccountsEnabled: "{{ item.service_account }}"
+          standardFlowEnabled: false
+          directAccessGrantsEnabled: false
+        # 201 = creado; 409 = ya existe. Ambas son exito: el playbook es
+        # idempotente.
+        status_code: [201, 409]
+        validate_certs: "{{ validar_certificados }}"
+      loop: "{{ clientes }}"
+      loop_control:
+        label: "{{ item.id }}"
+
+    - name: Recordar como se obtiene el secreto del cliente
+      ansible.builtin.debug:
+        msg: >-
+          Clientes listos. El secreto de cada uno se consulta con GET
+          /admin/realms/{{ realm }}/clients/<uuid>/client-secret y se guarda como
+          Secret en el cluster para que lo consuma la aplicacion. Nunca se
+          versiona en Git.

@@ -1,0 +1,129 @@
+---
+# Organizaciones, repositorios y cuentas robot de Quay.
+#
+# POR QUE ESTO NO ES GITOPS: una organizacion de Quay no es un recurso de
+# Kubernetes. Vive dentro de la base de datos de Quay y solo existe llamando a
+# su API REST. No hay CRD que la represente, asi que Argo CD no tiene nada que
+# reconciliar. Este playbook hace ese trabajo, y es idempotente: se puede
+# reejecutar sin duplicar nada.
+#
+# CREDENCIALES: el token OAuth se lee de una variable de entorno, nunca de un
+# fichero versionado. Se genera en la consola de Quay, en la organizacion, en
+# Applications -> Create new application -> Generate token.
+#
+#   export QUAY_HOST=<host-de-quay>
+#   export QUAY_TOKEN=<token-oauth>
+#   ansible-playbook quay/ansible/organizaciones.yml
+
+- name: Configurar organizaciones y robots de Quay
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
+    quay_token: "{{ lookup('env', 'QUAY_TOKEN') }}"
+    quay_api: "https://{{ quay_host }}/api/v1"
+    validar_certificados: false
+
+    # El "que" de este playbook: lo unico que se edita al anadir un dominio.
+    organizaciones:
+      - nombre: produbank
+        correo: plataforma@example.com
+        repositorios:
+          - nombre: servicio-demo
+            descripcion: Imagen del servicio de ejemplo
+            visibilidad: private
+        robots:
+          - nombre: puller
+            descripcion: Cuenta de solo lectura para descargar imagenes
+            permiso: read
+          - nombre: pusher
+            descripcion: Cuenta del pipeline de CI para publicar imagenes
+            permiso: write
+
+  tasks:
+    - name: Comprobar que hay credenciales
+      ansible.builtin.assert:
+        that:
+          - quay_host | length > 0
+          - quay_token | length > 0
+        fail_msg: >-
+          Faltan QUAY_HOST o QUAY_TOKEN en el entorno. Exportalos antes de
+          ejecutar; nunca los escribas en este fichero.
+
+    - name: Crear la organizacion
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          name: "{{ item.nombre }}"
+          email: "{{ item.correo }}"
+        # 201 = creada; 400 = ya existe. Ambas son exito para un playbook
+        # idempotente.
+        status_code: [201, 400]
+        validate_certs: "{{ validar_certificados }}"
+      loop: "{{ organizaciones }}"
+      loop_control:
+        label: "{{ item.nombre }}"
+
+    - name: Crear los repositorios de cada organizacion
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/repository"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          namespace: "{{ item.0.nombre }}"
+          repository: "{{ item.1.nombre }}"
+          description: "{{ item.1.descripcion }}"
+          visibility: "{{ item.1.visibilidad }}"
+          repo_kind: image
+        status_code: [201, 400]
+        validate_certs: "{{ validar_certificados }}"
+      loop: "{{ organizaciones | subelements('repositorios') }}"
+      loop_control:
+        label: "{{ item.0.nombre }}/{{ item.1.nombre }}"
+
+    - name: Crear las cuentas robot
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.0.nombre }}/robots/{{ item.1.nombre }}"
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          description: "{{ item.1.descripcion }}"
+        status_code: [201, 400]
+        validate_certs: "{{ validar_certificados }}"
+      loop: "{{ organizaciones | subelements('robots') }}"
+      loop_control:
+        label: "{{ item.0.nombre }}+{{ item.1.nombre }}"
+
+    - name: Dar a cada robot su permiso sobre el repositorio
+      ansible.builtin.uri:
+        url: >-
+          {{ quay_api }}/repository/{{ item.0.nombre }}/{{ item.0.repositorios[0].nombre }}/permissions/user/{{ item.0.nombre }}+{{ item.1.nombre }}
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          role: "{{ item.1.permiso }}"
+        status_code: [200, 201]
+        validate_certs: "{{ validar_certificados }}"
+      loop: "{{ organizaciones | subelements('robots') }}"
+      loop_control:
+        label: "{{ item.0.nombre }}+{{ item.1.nombre }} -> {{ item.1.permiso }}"
+
+    - name: Recordar como se obtiene el token del robot
+      ansible.builtin.debug:
+        msg: >-
+          Organizaciones y robots listos. El token de cada robot se consulta en
+          la consola de Quay (o con GET
+          /api/v1/organization/<org>/robots/<robot>) y se guarda como pull
+          secret en el cluster. Nunca se versiona en Git.

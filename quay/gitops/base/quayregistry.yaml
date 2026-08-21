@@ -1,0 +1,37 @@
+# Instancia de Quay. El operador reconcilia este CR: crea el despliegue, la base
+# de datos, Redis, la ruta y los certificados segun los componentes marcados.
+#
+# `managed: true` = lo gestiona el operador. `managed: false` = queda fuera
+# (aqui: Clair, replicacion y autoescalado no se usan en este entorno).
+apiVersion: quay.redhat.com/v1
+kind: QuayRegistry
+metadata:
+  name: bank-quay
+  namespace: quay-enterprise
+spec:
+  # El Secret con la configuracion se referencia POR NOMBRE: su contenido nunca
+  # se versiona en Git.
+  configBundleSecret: quay-config-bundle
+  components:
+    - kind: quay
+      managed: true
+    - kind: postgres
+      managed: true
+    - kind: redis
+      managed: true
+    - kind: objectstorage
+      managed: true
+    - kind: route
+      managed: true
+    - kind: tls
+      managed: true
+    - kind: clair
+      managed: false
+    - kind: clairpostgres
+      managed: false
+    - kind: mirror
+      managed: false
+    - kind: monitoring
+      managed: false
+    - kind: horizontalpodautoscaler
+      managed: false
