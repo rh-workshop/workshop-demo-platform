@@ -1,0 +1,18 @@
+# Politicas RBAC de Developer Hub, en formato Casbin (CSV).
+#
+# POR QUE VA AQUI Y NO POR API: el RBAC se puede gestionar por CSV (declarativo)
+# o por la REST API, pero Developer Hub asocia cada politica a UNA sola fuente.
+# Si se define por CSV, no se debe tocar por la API o entran en conflicto. Para
+# GitOps la fuente es este fichero; la API queda solo como salida de emergencia.
+#
+# g = asignacion de rol a un grupo/usuario; p = permiso de un rol sobre un recurso.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rbac-policy-rhdh
+  namespace: developer-hub
+data:
+  rbac-policy.csv: |
+    p, role:default/lector, catalog-entity, read, allow
+    p, role:default/lector, catalog.entity.read, read, allow
+    g, group:default/desarrollo, role:default/lector

@@ -1,0 +1,21 @@
+# Plugins dinamicos de Developer Hub.
+#
+# Un plugin dinamico se carga en arranque sin recompilar el portal. Se arranca
+# con los plugins por defecto de RHDH (dynamic-plugins.default.yaml), que ya
+# incluyen el catalogo, las plantillas (scaffolder) y la integracion con
+# OpenShift/Kubernetes.
+#
+# Argo CD y Tekton se anaden como imagenes OCI cuando se necesiten (ver README):
+# el plugin de Argo CD requiere DOS paquetes (backend RoadieHQ + frontend Red Hat)
+# y sus etiquetas de version cambian por release, por eso se referencian por OCI y
+# no por ruta local del dist (que depende de lo preempaquetado en cada version).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dynamic-plugins-rhdh
+  namespace: developer-hub
+data:
+  dynamic-plugins.yaml: |
+    includes:
+      - dynamic-plugins.default.yaml
+    plugins: []

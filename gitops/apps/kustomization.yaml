@@ -6,5 +6,6 @@ resources:
   - hub/quay-application.yaml
   - hub/acs-application.yaml
   - hub/pipelines-application.yaml
+  - hub/developer-hub-application.yaml
   - ../clusters
   - ../appsets

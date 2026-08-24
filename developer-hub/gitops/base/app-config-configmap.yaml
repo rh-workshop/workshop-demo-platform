@@ -1,0 +1,21 @@
+# Configuracion de la aplicacion Developer Hub (app-config.yaml).
+#
+# Este ConfigMap sobreescribe los valores por defecto del portal. El CR Backstage
+# lo referencia por nombre. Aqui se define el catalogo (de donde el portal
+# descubre componentes y Software Templates, el golden path que genera apps).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-rhdh
+  namespace: developer-hub
+data:
+  app-config.yaml: |
+    app:
+      title: Portal del taller
+    catalog:
+      # De donde el portal descubre componentes, APIs y plantillas.
+      locations:
+        - type: url
+          target: https://github.com/rh-workshop/workshop-demo-app/blob/main/catalog-info.yaml
+      rules:
+        - allow: [Component, API, Template, System]

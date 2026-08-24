@@ -1,0 +1,25 @@
+# Application de Developer Hub (solo hub): el portal centralizado.
+#
+# Es hub-only por diseno: el hub de ACM es el cluster que gestiona, no el que
+# corre cargas. Una sola instancia ve las apps de todos los spokes via sus
+# plugins. No se hace fan-out con ApplicationSet.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: developer-hub
+  namespace: openshift-gitops
+spec:
+  project: workshop-platform
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform.git
+    targetRevision: main
+    path: developer-hub/gitops/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: developer-hub
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

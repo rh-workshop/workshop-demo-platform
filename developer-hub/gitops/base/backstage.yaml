@@ -1,0 +1,20 @@
+# La instancia de Red Hat Developer Hub (el Backstage de Red Hat).
+#
+# El operador la reconcilia: crea el Deployment, el Service, la Route y una base
+# de datos PostgreSQL por defecto. Toda la configuracion se inyecta por
+# referencia a ConfigMaps, para que sea declarativa y la gobierne Argo CD:
+#   - appConfig: el app-config.yaml (catalogo, integraciones, auth)
+#   - dynamicPluginsConfigMapName: que plugins se cargan (Argo CD, Tekton...)
+apiVersion: rhdh.redhat.com/v1alpha5
+kind: Backstage
+metadata:
+  name: developer-hub
+  namespace: developer-hub
+spec:
+  application:
+    appConfig:
+      configMaps:
+        - name: app-config-rhdh
+    dynamicPluginsConfigMapName: dynamic-plugins-rhdh
+    route:
+      enabled: true

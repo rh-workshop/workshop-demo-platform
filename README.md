@@ -28,7 +28,7 @@ Los productos se dividen en dos grupos según dónde viven:
 | Grupo | Productos | Dónde se despliega |
 |---|---|---|
 | **Workload** | keycloak, connectivity-link, cert-manager, metallb | A los spokes por ambiente, vía `ApplicationSet` |
-| **Hub** | acm, quay, acs, pipelines | Solo al hub, vía `Application` directa |
+| **Hub** | acm, quay, acs, pipelines, developer-hub | Solo al hub, vía `Application` directa |
 
 > **Por qué pipelines es hub-only.** El CI construye la imagen y la publica en
 > el registro; el CD le pide a Argo que sincronice. Ninguna de las dos cosas
@@ -100,6 +100,7 @@ se fija en el overlay del ambiente, nunca en la base.
 | **Pipelines** | `TektonConfig` (con Chains) | claves de firma cosign *(fuera de Git)* |
 | **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** |
 | **ACM** | `MultiClusterHub`, `Policy`/`Placement`/`PlacementBinding` | — |
+| **Developer Hub** | CR `Backstage` + ConfigMaps (app-config, plugins, RBAC csv), Software Templates | — *(todo declarativo)* |
 
 ## Reglas que no se rompen
 
