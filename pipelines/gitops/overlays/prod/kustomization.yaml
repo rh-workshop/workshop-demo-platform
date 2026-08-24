@@ -1,6 +1,0 @@
-# Overlay de produccion de pipelines. Igual que la base por ahora; los ajustes
-# especificos de prod (replicas, limites) se parchean aqui sin tocar la base.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - ../../base

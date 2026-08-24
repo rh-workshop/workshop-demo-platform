@@ -1,0 +1,26 @@
+# Application de pipelines (solo hub): el motor Tekton + la firma con Chains.
+#
+# Tekton se instala UNICAMENTE en el hub. El pipeline de CI construye la imagen y
+# la publica en el registro, y el de CD le pide a Argo que sincronice; ninguna de
+# las dos cosas necesita correr dentro de los spokes. Es Argo quien despliega a
+# dev/prod. Por eso pipelines es hub-only, no un producto workload con fan-out.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pipelines
+  namespace: openshift-gitops
+spec:
+  project: workshop-platform
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-platform.git
+    targetRevision: main
+    path: pipelines/gitops/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-pipelines
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

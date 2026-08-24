@@ -27,8 +27,13 @@ Los productos se dividen en dos grupos según dónde viven:
 
 | Grupo | Productos | Dónde se despliega |
 |---|---|---|
-| **Workload** | keycloak, connectivity-link, cert-manager, metallb, pipelines | A los spokes por ambiente, vía `ApplicationSet` |
-| **Hub** | acm, quay, acs | Solo al hub, vía `Application` directa |
+| **Workload** | keycloak, connectivity-link, cert-manager, metallb | A los spokes por ambiente, vía `ApplicationSet` |
+| **Hub** | acm, quay, acs, pipelines | Solo al hub, vía `Application` directa |
+
+> **Por qué pipelines es hub-only.** El CI construye la imagen y la publica en
+> el registro; el CD le pide a Argo que sincronice. Ninguna de las dos cosas
+> corre dentro de un spoke: quien despliega a dev/prod es Argo CD. Un solo Tekton
+> en el hub basta — no hace falta instalarlo en cada cluster.
 
 ## La otra frontera: GitOps vs Ansible
 

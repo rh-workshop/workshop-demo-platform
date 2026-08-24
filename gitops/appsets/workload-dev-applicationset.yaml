@@ -36,8 +36,6 @@ spec:
             namespace: cert-manager
           - producto: metallb
             namespace: metallb-system
-          - producto: pipelines
-            namespace: openshift-pipelines
   template:
     metadata:
       name: '{{.producto}}-dev'
