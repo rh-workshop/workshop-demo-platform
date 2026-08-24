@@ -35,6 +35,26 @@ Los productos se dividen en dos grupos según dónde viven:
 > corre dentro de un spoke: quien despliega a dev/prod es Argo CD. Un solo Tekton
 > en el hub basta — no hace falta instalarlo en cada cluster.
 
+## Quién instala vs quién configura: ACM vs Argo
+
+Instalar operadores por Argo CD es fragil — OLM resuelve dependencias a su ritmo y
+Argo pelea con eso (Subscriptions `OutOfSync`, hooks imperativos). El patron de
+referencia de Red Hat separa las dos cosas:
+
+| Tarea | Herramienta | Donde |
+|---|---|---|
+| **Instalar el operador** (+ fijar canal) | **ACM Policy** (`OperatorPolicy`) | `acm/gitops/base/operadores/` |
+| **Configurar el operando** (los CR) | **Argo CD** | `<producto>/gitops/` |
+
+`OperatorPolicy` es superior a una `Subscription` a secas: no solo crea el objeto,
+**verifica que el operador quedo sano** (CSV instalado, deployment disponible, CRD
+presente). Se agrupan en dos Policies por destino — `instalar-operadores-hub`
+(quay, acs, developer-hub, pipelines) e `instalar-operadores-workload` (keycloak,
+metallb, cert-manager, connectivity-link) — cada una con su Placement por rol.
+
+Asi, un cluster nuevo importado por ACM recibe sus operadores por politica, y Argo
+solo se ocupa de la configuracion.
+
 ## La otra frontera: GitOps vs Ansible
 
 Dentro de cada producto, no todo se puede declarar en Git. Hay dos planos:

@@ -1,0 +1,14 @@
+# Selecciona el cluster hub (role=hub) para los operadores de management.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: operadores-hub
+  namespace: open-cluster-management
+spec:
+  clusterSets:
+    - default
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            role: hub

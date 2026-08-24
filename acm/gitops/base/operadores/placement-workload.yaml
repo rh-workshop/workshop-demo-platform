@@ -1,0 +1,17 @@
+# Selecciona los clusters de carga (environment dev o prod), no el hub.
+# Los predicados de un Placement se combinan con O: dev O prod.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: operadores-workload
+  namespace: open-cluster-management
+spec:
+  clusterSets:
+    - default
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: environment
+              operator: In
+              values: [dev, prod]

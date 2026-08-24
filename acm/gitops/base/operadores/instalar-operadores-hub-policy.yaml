@@ -1,0 +1,82 @@
+# Instalacion de los operadores del HUB, por ACM.
+#
+# POR QUE ACM Y NO ARGO: instalar operadores por Argo CD es fragil — OLM resuelve
+# dependencias a su ritmo y Argo pelea con eso (Subscriptions que quedan
+# OutOfSync, hooks imperativos). El patron de referencia de Red Hat separa:
+#   - ACM instala los operadores (esta Policy)
+#   - Argo CD configura los operandos (los CR en <producto>/gitops/)
+#
+# Cada operador va en un OperatorPolicy: se le dice el paquete y el canal, y ACM
+# resuelve la Subscription y VERIFICA que el operador quedo sano (no solo que el
+# objeto existe, como haria una Policy de Subscription a secas).
+#
+# remediationAction: enforce -> ACM instala el operador donde no este.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: instalar-operadores-hub
+  namespace: open-cluster-management
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: quay-operator
+        spec:
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: None
+          subscription:
+            name: quay-operator
+            namespace: quay-enterprise
+            channel: stable-3.17
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: rhacs-operator
+        spec:
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: None
+          subscription:
+            name: rhacs-operator
+            namespace: rhacs-operator
+            channel: stable
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: rhdh-operator
+        spec:
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: None
+          subscription:
+            name: rhdh
+            namespace: rhdh-operator
+            channel: fast-1.10
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: openshift-pipelines-operator
+        spec:
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: None
+          subscription:
+            name: openshift-pipelines-operator-rh
+            namespace: openshift-operators
+            channel: latest
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
