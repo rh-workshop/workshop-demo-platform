@@ -1,0 +1,9 @@
+# Namespace del Gateway compartido. Los Services de negocio no viven aqui: se
+# enganchan al Gateway por etiqueta (shared-gateway-access) desde su propio
+# namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-gateway
+  labels:
+    shared-gateway-access: 'true'

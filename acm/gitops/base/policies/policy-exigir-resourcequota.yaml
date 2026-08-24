@@ -1,0 +1,39 @@
+# Policy de gobierno: exige que exista una ResourceQuota en el namespace.
+#
+# Una Policy de ACM es una regla que el hub evalua sobre los clusters que le
+# indique el Placement. Esta comprueba (musthave) que el namespace tenga una
+# ResourceQuota con topes de CPU y memoria: sin ella, una carga defectuosa podria
+# consumir todo el cluster.
+#
+# remediationAction: inform -> solo REPORTA si se cumple o no; no crea nada. Es
+# lo prudente para empezar: primero se ve el mapa de cumplimiento y luego, si se
+# decide, se cambia a enforce para que ACM cree la cuota donde falte.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: exigir-resourcequota
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: exigir-resourcequota-config
+      spec:
+        remediationAction: inform
+        severity: low
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: cuota-de-plataforma
+              namespace: default
+            spec:
+              hard:
+                requests.cpu: '4'
+                requests.memory: 8Gi

@@ -1,0 +1,24 @@
+# En dev el comodin apunta al dominio de apps de este cluster.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shared-gateway
+  namespace: platform-gateway
+spec:
+  listeners:
+  - name: https
+    port: 443
+    protocol: HTTPS
+    hostname: '*.apps.cluster-dev.ejemplo.com'
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchLabels:
+            shared-gateway-access: 'true'
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - group: ''
+        kind: Secret
+        name: shared-gateway-https

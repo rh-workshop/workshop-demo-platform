@@ -1,0 +1,6 @@
+# Overlay de ambiente. El rango de IPs depende de la red de cada cluster; si en
+# dev es distinto, se parchea aqui sin tocar la base.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base

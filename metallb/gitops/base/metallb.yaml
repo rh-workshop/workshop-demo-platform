@@ -1,0 +1,14 @@
+# Instancia de MetalLB.
+#
+# MetalLB da direcciones IP de tipo LoadBalancer en clusters sin un balanceador
+# de la nube (bare-metal o entornos como este). Sin el, un Service de tipo
+# LoadBalancer se quedaria en <pending> para siempre. Es el que le da al Gateway
+# de Connectivity Link su IP externa.
+#
+# El CR MetalLB no lleva configuracion: solo enciende el operador. El "cuanto" y
+# el "donde" viven en el IPAddressPool y el L2Advertisement.
+apiVersion: metallb.io/v1beta1
+kind: MetalLB
+metadata:
+  name: metallb
+  namespace: metallb-system

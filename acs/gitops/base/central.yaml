@@ -1,0 +1,15 @@
+# Central de ACS: el cerebro de la seguridad de contenedores.
+#
+# Central guarda las politicas, recibe los datos de los clusters vigilados y
+# expone la consola y la API. Con la ruta habilitada, queda accesible por HTTPS.
+# Un unico Central puede gobernar varios clusters.
+apiVersion: platform.stackrox.io/v1alpha1
+kind: Central
+metadata:
+  name: stackrox-central-services
+  namespace: stackrox
+spec:
+  central:
+    exposure:
+      route:
+        enabled: true

@@ -1,0 +1,5 @@
+# Namespace del plano de control de Kuadrant (Connectivity Link).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kuadrant-system

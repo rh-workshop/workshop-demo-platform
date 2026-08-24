@@ -1,0 +1,21 @@
+# Application de connectivity-link: el gateway y las politicas de exposicion.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: connectivity-link
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-platform.git
+    targetRevision: main
+    path: connectivity-link/gitops/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kuadrant-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,21 @@
+# Application de acs: la seguridad de contenedores (Central + SecuredCluster).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: acs
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-platform.git
+    targetRevision: main
+    path: acs/gitops/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: stackrox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

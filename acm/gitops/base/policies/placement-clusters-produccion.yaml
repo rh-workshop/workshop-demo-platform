@@ -1,0 +1,19 @@
+# A que clusters se aplica la Policy.
+#
+# El Placement selecciona los clusters gestionados que tengan la etiqueta
+# environment=prod. OJO: los predicados de un Placement se combinan con O (union),
+# no con Y; con un solo predicado no hay ambiguedad, pero es la trampa clasica al
+# anadir mas.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: clusters-produccion
+  namespace: open-cluster-management
+spec:
+  clusterSets:
+  - global
+  predicates:
+  - requiredClusterSelector:
+      labelSelector:
+        matchLabels:
+          environment: prod

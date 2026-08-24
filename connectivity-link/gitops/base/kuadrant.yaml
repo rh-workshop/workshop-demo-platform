@@ -1,0 +1,13 @@
+# Instancia de Kuadrant: enciende el plano de control de Connectivity Link.
+#
+# Kuadrant es la capa de politicas sobre Gateway API nativo: AuthPolicy (quien
+# entra), RateLimitPolicy (cuanto), DNSPolicy y TLSPolicy. Este CR solo levanta
+# los controladores (Authorino, Limitador); las politicas concretas de cada
+# servicio viven en el repo de configuracion de despliegue, junto a su ruta.
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: kuadrant-system
+spec:
+  observability: {}

@@ -1,0 +1,17 @@
+# El hub de ACM: convierte este cluster en el punto central de gobierno
+# multi-cluster.
+#
+# El MultiClusterHub enciende los componentes de ACM: gestion del ciclo de vida
+# de clusters, gobierno (grc, el motor de Policies), observabilidad y busqueda.
+# Los clusters gestionados se importan aparte; este CR solo levanta el hub.
+#
+# `localClusterName: local-cluster` es el nombre canonico con el que ACM se
+# refiere a si mismo; no es un dato de entorno.
+apiVersion: operator.open-cluster-management.io/v1
+kind: MultiClusterHub
+metadata:
+  name: multiclusterhub
+  namespace: open-cluster-management
+spec:
+  availabilityConfig: High
+  localClusterName: local-cluster

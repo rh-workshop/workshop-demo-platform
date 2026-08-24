@@ -1,0 +1,25 @@
+# Configuracion global de OpenShift Pipelines (Tekton).
+#
+# El operador crea un TektonConfig con muchos valores por defecto; aqui solo se
+# fija lo que de verdad se decide, para no pelear con el drift del operador. Lo
+# importante es el bloque `chain`: activa Tekton Chains, que FIRMA cada imagen
+# que construye un pipeline y guarda la firma junto a la imagen en el registro.
+#
+# `simplesigning` + almacenamiento `oci` es el formato que ACS 4.x sabe
+# descubrir. La clave de firma NO va aqui: vive en el Secret `signing-secrets`
+# del namespace, que se crea con cosign (nunca en Git).
+apiVersion: operator.tekton.dev/v1alpha1
+kind: TektonConfig
+metadata:
+  name: config
+spec:
+  targetNamespace: openshift-pipelines
+  profile: all
+  chain:
+    artifacts.oci.format: simplesigning
+    artifacts.oci.storage: oci
+    artifacts.taskrun.format: in-toto
+    artifacts.taskrun.storage: oci
+    artifacts.pipelinerun.format: in-toto
+    artifacts.pipelinerun.storage: oci
+    disabled: false

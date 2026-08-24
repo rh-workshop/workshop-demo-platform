@@ -1,0 +1,30 @@
+# La UNICA Application que se aplica a mano (oc apply -f).
+#
+# Este es el patron app-of-apps: la raiz no despliega productos, apunta a la
+# carpeta gitops/apps/children y deja que Argo descubra ahi una Application por
+# cada producto de plataforma. A partir de este `oc apply`, todo lo demas lo
+# encadena Argo solo.
+#
+# Ni el CR ArgoCD ni los AppProject viven en este repo: se aplican en el
+# bootstrap del cluster, a mano y una sola vez, para no mezclar OLM/GitOps con la
+# reconciliacion de Argo (fuente clasica de Applications OutOfSync perpetuas).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: plataforma-root
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-platform.git
+    targetRevision: main
+    path: gitops/apps/children
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

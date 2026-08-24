@@ -1,0 +1,5 @@
+# El operador de MetalLB espera su instancia en este namespace fijo.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metallb-system

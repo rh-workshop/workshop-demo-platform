@@ -1,0 +1,13 @@
+# Emisor de certificados autofirmados, de ambito de cluster.
+#
+# Un ClusterIssuer es la "autoridad" que firma los Certificate que se le pidan.
+# El autofirmado sirve para construir una CA propia o para trafico interno donde
+# no hace falta una CA publica. En produccion se anade otro ClusterIssuer contra
+# una CA real (por ejemplo ACME/Let's Encrypt o la CA corporativa), sin quitar
+# este.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}

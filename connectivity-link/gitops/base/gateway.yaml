@@ -1,0 +1,32 @@
+# Gateway compartido: la unica puerta de entrada HTTPS de la plataforma.
+#
+# Un solo Gateway sirve a todos los dominios de negocio; cada servicio se cuelga
+# de el con su HTTPRoute (que vive en el repo de despliegue), ruteando por PATH.
+# Es el modelo de un dominio compartido por grupo, no un subdominio por micro.
+#
+# EL HOSTNAME ES DEL ENTORNO: el comodin apunta al dominio de apps del cluster.
+# En la base va como marcador; cada overlay pone el suyo.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shared-gateway
+  namespace: platform-gateway
+spec:
+  gatewayClassName: istio
+  listeners:
+  - name: https
+    port: 443
+    protocol: HTTPS
+    hostname: '*.apps.cluster.ejemplo.com'
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchLabels:
+            shared-gateway-access: 'true'
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - group: ''
+        kind: Secret
+        name: shared-gateway-https

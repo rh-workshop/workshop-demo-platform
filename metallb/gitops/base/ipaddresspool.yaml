@@ -1,0 +1,18 @@
+# Rango de IPs que MetalLB puede repartir.
+#
+# Cada Service de tipo LoadBalancer que se cree en el cluster toma una IP de
+# este rango. El Gateway compartido de Connectivity Link toma la primera.
+#
+# ESTE RANGO ES DEL ENTORNO: pertenece a la red donde vive el cluster y hay que
+# ajustarlo a la red real. Un rango equivocado deja los Services sin IP
+# alcanzable.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: workshop-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 10.10.10.200-10.10.10.220
+  autoAssign: true
+  avoidBuggyIPs: false

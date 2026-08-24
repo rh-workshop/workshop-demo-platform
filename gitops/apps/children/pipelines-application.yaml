@@ -1,0 +1,21 @@
+# Application de pipelines: Tekton y la firma de imagenes.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pipelines
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-platform.git
+    targetRevision: main
+    path: pipelines/gitops/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-pipelines
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

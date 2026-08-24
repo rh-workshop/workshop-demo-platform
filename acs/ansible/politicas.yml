@@ -1,0 +1,95 @@
+---
+# Politicas de seguridad de ACS.
+#
+# POR QUE ESTO NO ES GITOPS: el `Central` y el `SecuredCluster` SI son CRs y los
+# reconcilia Argo CD (estan en acs/gitops/). Pero una politica de seguridad, una
+# coleccion o un informe de vulnerabilidades NO son recursos de Kubernetes: viven
+# dentro de la base de datos de Central y solo se tocan por su API REST. No hay
+# CRD que los represente. Este playbook hace ese trabajo, y es idempotente.
+#
+# ACS es el caso mas marcado del repositorio: casi toda la configuracion util
+# (las politicas que de verdad se ajustan a diario) va por aqui, no por GitOps.
+#
+# CREDENCIALES: se leen del entorno, nunca de un fichero versionado. El token de
+# API se genera en la consola de ACS, en Platform Configuration -> Integrations
+# -> API Token, con rol Admin o Continuous Integration.
+#
+#   export ACS_HOST=<host-de-central>
+#   export ACS_TOKEN=<token-de-api>
+#   ansible-playbook acs/ansible/politicas.yml
+
+- name: Configurar politicas de ACS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    acs_host: "{{ lookup('env', 'ACS_HOST') }}"
+    acs_token: "{{ lookup('env', 'ACS_TOKEN') }}"
+    acs_api: "https://{{ acs_host }}/v1"
+    validar_certificados: false
+
+    # El "que" de este playbook: la politica que se quiere garantizar. Esta
+    # prohibe imagenes con la etiqueta `latest`, que impide saber que version
+    # corre de verdad. Empieza en modo aviso (BUILD + DEPLOY), sin bloquear.
+    politicas:
+      - nombre: Prohibir la etiqueta latest
+        descripcion: >-
+          Una imagen con la etiqueta latest no permite saber que version esta
+          desplegada ni reproducir un despliegue.
+        severidad: HIGH_SEVERITY
+        # inform = solo avisa. Para bloquear en el admission controller se anade
+        # enforcementActions; se deja fuera a proposito para no romper despliegues.
+        ciclos:
+          - BUILD
+          - DEPLOY
+        campo: Image Tag
+        valor: latest
+
+  tasks:
+    - name: Comprobar que hay credenciales
+      ansible.builtin.assert:
+        that:
+          - acs_host | length > 0
+          - acs_token | length > 0
+        fail_msg: >-
+          Faltan ACS_HOST o ACS_TOKEN en el entorno. Exportalos antes de
+          ejecutar; nunca los escribas en este fichero.
+
+    - name: Crear cada politica
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          name: "{{ item.nombre }}"
+          description: "{{ item.descripcion }}"
+          severity: "{{ item.severidad }}"
+          disabled: false
+          categories:
+            - Security Best Practices
+          lifecycleStages: "{{ item.ciclos }}"
+          policySections:
+            - sectionName: Regla principal
+              policyGroups:
+                - fieldName: "{{ item.campo }}"
+                  booleanOperator: OR
+                  values:
+                    - value: "{{ item.valor }}"
+        # 200/201 = creada; 400 = ya existe. Ambas son exito para un playbook
+        # idempotente.
+        status_code: [200, 201, 400]
+        validate_certs: "{{ validar_certificados }}"
+      loop: "{{ politicas }}"
+      loop_control:
+        label: "{{ item.nombre }}"
+
+    - name: Recordar como se genera un informe
+      ansible.builtin.debug:
+        msg: >-
+          Politicas listas. El informe de vulnerabilidades se configura en la
+          consola (Vulnerability Management -> Reporting) sobre una coleccion de
+          despliegues, o por la API en /v2/reports/configurations. El resultado
+          se puede programar por correo; nada de eso se versiona en Git.

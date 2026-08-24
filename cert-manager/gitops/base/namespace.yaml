@@ -1,0 +1,5 @@
+# El operador de cert-manager (Red Hat) corre en su propio namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
