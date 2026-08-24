@@ -42,7 +42,7 @@ spec:
     spec:
       project: workshop-platform
       source:
-        repoURL: https://github.com/rh-workshop/workshop-platform.git
+        repoURL: https://github.com/rh-workshop/workshop-demo-platform.git
         targetRevision: main
         path: '{{.producto}}/gitops/overlays/prod'
       destination:

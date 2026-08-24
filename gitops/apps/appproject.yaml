@@ -12,7 +12,7 @@ metadata:
 spec:
   description: Productos de plataforma del workshop.
   sourceRepos:
-  - https://github.com/rh-workshop/workshop-platform.git
+  - https://github.com/rh-workshop/workshop-demo-platform.git
   destinations:
   - server: '*'
     namespace: '*'
