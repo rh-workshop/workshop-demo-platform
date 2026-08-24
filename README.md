@@ -42,7 +42,8 @@ gitops/apps/
     ├── cert-manager-application.yaml
     ├── connectivity-link-application.yaml
     ├── pipelines-application.yaml
-    └── acs-application.yaml
+    ├── acs-application.yaml
+    └── acm-application.yaml
 ```
 
 ```bash

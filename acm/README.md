@@ -4,23 +4,21 @@ Esta carpeta guarda la configuración de Red Hat Advanced Cluster Management: el
 hub (`MultiClusterHub`) y las políticas de gobierno (`Policy` +
 `Placement` + `PlacementBinding`).
 
-## Por qué ACM no tiene una Application en el app-of-apps
+## Se despliega por app-of-apps, como el resto
 
-A diferencia del resto de productos, la configuración de ACM **no se sincroniza
-con Argo CD cuando el hub y Argo conviven en el mismo clúster**. El motor de MCE
-(multicluster-engine) rompe el caché de esquema OpenAPI que Argo usa para
-descubrir recursos, y las Applications que apuntan a recursos de ACM se quedan en
-estado `Unknown` — ni sanas ni con error, sencillamente sin poder reconciliar.
+La configuración de ACM se sincroniza con Argo CD igual que los demás productos:
+tiene su Application en `gitops/apps/children/acm-application.yaml` y se despliega
+sola al aplicar la raíz.
 
-Por eso los manifiestos de esta carpeta se aplican **directo**, no por app-of-apps:
-
-```bash
-oc apply -k acm/gitops/overlays/dev
-```
-
-El `MultiClusterHub` es un objeto de control del hub, hub-local, y las políticas
-las evalúa el propio motor de gobierno de ACM sobre los clústeres gestionados —
-no necesitan que Argo las empuje.
+> **Nota sobre versiones.** En combinaciones antiguas de ACM/MCE con OpenShift
+> GitOps, el motor de MCE rompía el caché de esquema OpenAPI de Argo y las
+> Applications que apuntaban a recursos de ACM se quedaban en estado `Unknown`.
+> **Con ACM 2.17 / MCE 2.17.1 ese problema está resuelto:** Argo descubre y
+> reconcilia `MultiClusterHub`, `Policy`, `Placement` y `PlacementBinding` sin
+> error de esquema. Verificado en vivo — la Application queda `Healthy` y compara
+> los recursos correctamente. Si se trabaja sobre una versión anterior donde el
+> problema persista, esta carpeta se puede aplicar directo con
+> `oc apply -k acm/gitops/overlays/dev` en lugar de por app-of-apps.
 
 ## Qué contiene
 
