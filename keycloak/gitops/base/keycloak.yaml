@@ -23,8 +23,10 @@ spec:
     httpEnabled: false
     tlsSecret: keycloak-tls
   hostname:
-    # El hostname cambia por ambiente: se fija en el overlay, no en la base.
-    hostname: CHANGE_ME_HOSTNAME
+    # El hostname cambia por ambiente: cada overlay lo pisa con el suyo. El
+    # valor de la base es solo un marcador; nunca se despliega tal cual porque
+    # el ApplicationSet siempre aplica el overlay del ambiente correspondiente.
+    hostname: sso.apps.ejemplo.local
     strict: false
     strictBackchannel: false
   ingress:

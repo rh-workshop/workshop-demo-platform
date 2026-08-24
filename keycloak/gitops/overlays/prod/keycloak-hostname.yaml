@@ -6,4 +6,4 @@ metadata:
   namespace: keycloak
 spec:
   hostname:
-    hostname: sso.apps.cluster-pvsbw.dyn.redhatworkshops.io
+    hostname: sso.apps.cluster-lrr82.dyn.redhatworkshops.io

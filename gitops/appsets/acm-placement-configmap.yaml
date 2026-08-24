@@ -1,0 +1,18 @@
+# Le dice al generador clusterDecisionResource de Argo COMO leer las
+# PlacementDecision que produce ACM.
+#
+# Es la pieza de pegamento entre los dos mundos: Argo no entiende de Placement de
+# ACM; este ConfigMap le ensena que el recurso de decision es una
+# PlacementDecision del grupo cluster.open-cluster-management.io y como sacar de
+# ella la lista de clusters (status.decisions). Sin el, el ApplicationSet no
+# genera nada.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acm-placement
+  namespace: openshift-gitops
+data:
+  apiVersion: cluster.open-cluster-management.io/v1beta1
+  kind: placementdecisions
+  statusListKey: decisions
+  matchKey: clusterName

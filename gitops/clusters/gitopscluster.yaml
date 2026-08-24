@@ -1,0 +1,23 @@
+# Enlaza los Placement de ACM con Argo CD.
+#
+# Cuando su controlador reconcilia, crea un Secret de cluster en el namespace de
+# Argo (openshift-gitops) por cada cluster que seleccionan los Placement
+# referenciados. Ese Secret es lo que permite al ApplicationSet desplegar en un
+# spoke: sin el, Argo no sabe como llegar al cluster gestionado.
+#
+# Se referencia un unico Placement que abarca todos los roles; los overlays por
+# ambiente los resuelve el ApplicationSet segun la etiqueta del cluster.
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  name: gitops-cluster
+  namespace: openshift-gitops
+spec:
+  argoServer:
+    argoNamespace: openshift-gitops
+    cluster: local-cluster
+  placementRef:
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    kind: Placement
+    name: clusters-todos
+    namespace: openshift-gitops

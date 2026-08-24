@@ -1,0 +1,13 @@
+# Placement que abarca TODOS los clusters gestionados (cualquier environment).
+#
+# Lo usa el GitOpsCluster para registrar en Argo tanto el hub como los spokes.
+# El reparto por ambiente (dev vs prod) NO lo hace este Placement, sino el
+# ApplicationSet, que usa clusters-dev/clusters-prod para el fan-out.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: clusters-todos
+  namespace: openshift-gitops
+spec:
+  clusterSets:
+  - default

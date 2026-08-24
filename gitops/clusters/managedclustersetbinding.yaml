@@ -1,0 +1,16 @@
+# Vincula el ManagedClusterSet "default" al namespace de Argo CD.
+#
+# Sin este binding, un Placement creado en openshift-gitops no puede "ver" los
+# clusters del set: los clusterSets de un Placement se INTERSECTAN con los sets
+# vinculados al namespace donde vive. Es el primer eslabon de la cadena oficial
+# ACM + OpenShift GitOps; si falta, el Placement queda Misconfigured y no
+# selecciona nada.
+#
+# En este entorno ambos clusters (hub y spoke) estan en el set "default".
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: default
+  namespace: openshift-gitops
+spec:
+  clusterSet: default

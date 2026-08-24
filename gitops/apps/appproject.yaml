@@ -1,0 +1,24 @@
+# AppProject de la plataforma: la frontera de gobierno de Argo CD.
+#
+# Acota de que repositorio se despliega, a que clusters y que recursos se pueden
+# crear. Sin el, las Applications usarian 'default', que no restringe nada.
+# Permite tanto el hub (in-cluster) como los spokes registrados por el
+# GitOpsCluster.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: workshop-platform
+  namespace: openshift-gitops
+spec:
+  description: Productos de plataforma del workshop.
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-platform.git
+  destinations:
+  - server: '*'
+    namespace: '*'
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'

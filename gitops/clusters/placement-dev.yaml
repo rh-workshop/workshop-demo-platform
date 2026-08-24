@@ -1,0 +1,18 @@
+# Selecciona los clusters de rol desarrollo (environment=dev).
+#
+# En este hub, el spoke pvsbw lleva environment=dev. Este Placement es el que
+# hace que los overlays "dev" de los productos workload caigan en el spoke, no
+# en el hub.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: clusters-dev
+  namespace: openshift-gitops
+spec:
+  clusterSets:
+  - default
+  predicates:
+  - requiredClusterSelector:
+      labelSelector:
+        matchLabels:
+          environment: dev

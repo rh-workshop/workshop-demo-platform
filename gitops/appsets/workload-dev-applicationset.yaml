@@ -1,0 +1,60 @@
+# Fan-out de los productos WORKLOAD a los clusters de ambiente dev.
+#
+# El generador NO nombra ningun cluster: selecciona por el Placement
+# clusters-dev (ambiente=dev), asi que si manana el cluster de dev cambia
+# de nombre, esto no se toca. clusterDecisionResource lee la PlacementDecision de
+# clusters-dev via el ConfigMap acm-placement y expone {{.name}} (nombre del
+# cluster) y {{.server}} (su API).
+#
+# La Application generada se llama <producto>-dev (por AMBIENTE, no por el
+# nombre del cluster) para que se entienda de un vistazo a que entorno pertenece.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: workload-dev
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+  - matrix:
+      generators:
+      - clusterDecisionResource:
+          configMapRef: acm-placement
+          labelSelector:
+            matchLabels:
+              cluster.open-cluster-management.io/placement: clusters-dev
+          requeueAfterSeconds: 180
+      - list:
+          elements:
+          - producto: keycloak
+            namespace: keycloak
+          - producto: connectivity-link
+            namespace: kuadrant-system
+          - producto: cert-manager
+            namespace: cert-manager
+          - producto: metallb
+            namespace: metallb-system
+          - producto: pipelines
+            namespace: openshift-pipelines
+  template:
+    metadata:
+      name: '{{.producto}}-dev'
+    spec:
+      project: workshop-platform
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-platform.git
+        targetRevision: main
+        path: '{{.producto}}/gitops/overlays/dev'
+      destination:
+        server: '{{.server}}'
+        namespace: '{{.namespace}}'
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  syncPolicy:
+    preserveResourcesOnDeletion: true

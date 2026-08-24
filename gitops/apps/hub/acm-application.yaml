@@ -1,21 +1,21 @@
-# Application de connectivity-link: el gateway y las politicas de exposicion.
+# Application de acm (solo hub): el hub de gobierno y las politicas.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: connectivity-link
+  name: acm
   namespace: openshift-gitops
 spec:
-  project: default
+  project: workshop-platform
   source:
     repoURL: https://github.com/rh-workshop/workshop-platform.git
     targetRevision: main
-    path: connectivity-link/gitops/overlays/dev
+    path: acm/gitops/overlays/dev
   destination:
     server: https://kubernetes.default.svc
-    namespace: kuadrant-system
+    namespace: open-cluster-management
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

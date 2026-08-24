@@ -1,4 +1,4 @@
-# En dev el comodin apunta al dominio de apps del cluster de desarrollo.
+# En prod el comodin apunta al dominio de apps del cluster de produccion.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -9,7 +9,7 @@ spec:
   - name: https
     port: 443
     protocol: HTTPS
-    hostname: '*.apps.cluster-pvsbw.dyn.redhatworkshops.io'
+    hostname: '*.apps.cluster-lrr82.dyn.redhatworkshops.io'
     allowedRoutes:
       namespaces:
         from: Selector
