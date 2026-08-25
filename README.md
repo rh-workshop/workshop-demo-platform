@@ -1,4 +1,4 @@
-# workshop-platform — configuración de la plataforma
+# workshop-demo-platform-config — configuración de la plataforma
 
 Este repositorio guarda la configuración de **todos los productos que sostienen
 la plataforma** sobre OpenShift, desplegada por el patrón oficial **Red Hat ACM +
