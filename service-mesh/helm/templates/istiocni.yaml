@@ -1,15 +1,15 @@
 # CR IstioCNI: el complemento de red obligatorio en OpenShift.
 #
 # Sin este recurso, el CR Istio queda en estado IstioCNINotFound y el mesh no
-# levanta bien. Se renderiza solo si cni.enabled es true (bloque condicional,
-# otra cosa que Kustomize no hace: logica en la plantilla).
-{{- if .Values.cni.enabled }}
+# levanta bien. Se renderiza solo si cniEnabled es true (bloque condicional, otra
+# cosa que Kustomize no hace: logica en la plantilla).
+{{- if .Values.cniEnabled }}
 apiVersion: sailoperator.io/v1
 kind: IstioCNI
 metadata:
   name: default
 spec:
-  version: {{ .Values.istio.version }}
-  namespace: {{ .Values.cni.namespace }}
-  profile: {{ .Values.istio.profile }}
+  version: {{ .Values.istioVersion }}
+  namespace: {{ .Values.cniNamespace }}
+  profile: {{ .Values.istioProfile }}
 {{- end }}

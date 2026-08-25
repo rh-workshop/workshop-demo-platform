@@ -9,15 +9,15 @@ metadata:
   name: default
 spec:
   namespace: {{ .Values.namespace }}
-  version: {{ .Values.istio.version }}
+  version: {{ .Values.istioVersion }}
   updateStrategy:
-    type: {{ .Values.istio.updateStrategy }}
+    type: {{ .Values.updateStrategy }}
   values:
     pilot:
       resources:
         requests:
-          cpu: {{ .Values.resources.pilot.requests.cpu }}
-          memory: {{ .Values.resources.pilot.requests.memory }}
+          cpu: {{ .Values.pilotCpuRequest }}
+          memory: {{ .Values.pilotMemoryRequest }}
         limits:
-          cpu: {{ .Values.resources.pilot.limits.cpu }}
-          memory: {{ .Values.resources.pilot.limits.memory }}
+          cpu: {{ .Values.pilotCpuLimit }}
+          memory: {{ .Values.pilotMemoryLimit }}

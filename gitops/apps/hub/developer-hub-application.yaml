@@ -13,7 +13,7 @@ spec:
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main
-    path: developer-hub/gitops/overlays/dev
+    path: developer-hub/gitops/overlays/hub
   destination:
     server: https://kubernetes.default.svc
     namespace: developer-hub

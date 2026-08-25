@@ -32,19 +32,19 @@
     # El "que" de este playbook: la politica que se quiere garantizar. Esta
     # prohibe imagenes con la etiqueta `latest`, que impide saber que version
     # corre de verdad. Empieza en modo aviso (BUILD + DEPLOY), sin bloquear.
-    politicas:
-      - nombre: Prohibir la etiqueta latest
-        descripcion: >-
+    policies:
+      - name: Prohibir la etiqueta latest
+        description: >-
           Una imagen con la etiqueta latest no permite saber que version esta
           desplegada ni reproducir un despliegue.
-        severidad: HIGH_SEVERITY
+        severity: HIGH_SEVERITY
         # inform = solo avisa. Para bloquear en el admission controller se anade
         # enforcementActions; se deja fuera a proposito para no romper despliegues.
-        ciclos:
+        lifecycleStages:
           - BUILD
           - DEPLOY
-        campo: Image Tag
-        valor: latest
+        field: Image Tag
+        value: latest
 
   tasks:
     - name: Comprobar que hay credenciales
@@ -64,27 +64,27 @@
           Authorization: "Bearer {{ acs_token }}"
         body_format: json
         body:
-          name: "{{ item.nombre }}"
-          description: "{{ item.descripcion }}"
-          severity: "{{ item.severidad }}"
+          name: "{{ item.name }}"
+          description: "{{ item.description }}"
+          severity: "{{ item.severity }}"
           disabled: false
           categories:
             - Security Best Practices
-          lifecycleStages: "{{ item.ciclos }}"
+          lifecycleStages: "{{ item.lifecycleStages }}"
           policySections:
             - sectionName: Regla principal
               policyGroups:
-                - fieldName: "{{ item.campo }}"
+                - fieldName: "{{ item.field }}"
                   booleanOperator: OR
                   values:
-                    - value: "{{ item.valor }}"
+                    - value: "{{ item.value }}"
         # 200/201 = creada; 400 = ya existe. Ambas son exito para un playbook
         # idempotente.
         status_code: [200, 201, 400]
         validate_certs: "{{ validar_certificados }}"
-      loop: "{{ politicas }}"
+      loop: "{{ policies }}"
       loop_control:
-        label: "{{ item.nombre }}"
+        label: "{{ item.name }}"
 
     - name: Recordar como se genera un informe
       ansible.builtin.debug:

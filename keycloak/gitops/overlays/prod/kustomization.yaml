@@ -8,4 +8,4 @@ patches:
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform
-      workshop.redhat.com/ambiente: prod
+      workshop.redhat.com/environment: prod

@@ -2,33 +2,37 @@
 #
 # Cada ambiente (envs/values-dev.yaml, envs/values-prod.yaml) sobreescribe solo
 # lo que cambia. Esto es lo que diferencia a Helm de Kustomize: en Kustomize se
-# parchea un YAML; aqui se inyectan estos valores en las {{ plantillas }} de
-# templates/.
+# parchea un YAML; aqui se inyectan estos valores en las {{ plantillas }}.
+#
+# Estructura PLANA a proposito: la guia oficial de Helm recomienda flat sobre
+# nested (mas facil de leer y de sobreescribir con --set). Cada valor va
+# documentado en su linea, como pide la misma guia.
 
-# Namespace del plano de control de Istio.
+# namespace: donde vive el plano de control de Istio.
 namespace: istio-system
 
-istio:
-  # Version de Istio que instala el operador Sail (OSSM 3).
-  version: v1.30.3
-  # Estrategia de actualizacion: InPlace (en sitio) o RevisionBased (canary).
-  updateStrategy: InPlace
-  # Perfil de instalacion. En OpenShift el perfil 'openshift' se aplica siempre
-  # encima del 'default'.
-  profile: openshift
+# istioVersion: version de Istio que instala el operador Sail (OSSM 3).
+istioVersion: v1.30.3
 
-# El IstioCNI es obligatorio en OpenShift: sin el, el CR Istio queda en
-# IstioCNINotFound. Se despliega en su propio namespace del operador.
-cni:
-  enabled: true
-  namespace: istio-cni
+# updateStrategy: como se actualiza el plano de control. InPlace (en sitio) o
+# RevisionBased (canary del propio control plane, mas seguro en prod).
+updateStrategy: InPlace
 
-# Recursos del plano de control. Se suben en prod (ver values-prod.yaml).
-resources:
-  pilot:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
+# istioProfile: perfil de instalacion. En OpenShift, 'openshift' se aplica
+# siempre encima del 'default'.
+istioProfile: openshift
+
+# cniEnabled: el IstioCNI es obligatorio en OpenShift; sin el, el CR Istio queda
+# en IstioCNINotFound. Si es false, no se renderiza el CR IstioCNI.
+cniEnabled: true
+
+# cniNamespace: namespace propio del componente IstioCNI.
+cniNamespace: istio-cni
+
+# pilotCpuRequest / pilotMemoryRequest: recursos garantizados al control plane.
+pilotCpuRequest: 100m
+pilotMemoryRequest: 128Mi
+
+# pilotCpuLimit / pilotMemoryLimit: techo de recursos del control plane.
+pilotCpuLimit: 500m
+pilotMemoryLimit: 512Mi

@@ -28,13 +28,13 @@
     validar_certificados: false
 
     # El "que" de este playbook: lo unico que se edita al anadir una aplicacion.
-    clientes:
+    clients:
       - id: servicio-demo
-        nombre: Servicio de ejemplo
+        displayName: Servicio de ejemplo
         # Flujo maquina-a-maquina: la aplicacion pide el token con su propio
         # identificador y secreto, sin intervencion de una persona.
         service_account: true
-        acceso_publico: false
+        publicAccess: false
 
   tasks:
     - name: Comprobar que hay credenciales
@@ -75,9 +75,9 @@
         body_format: json
         body:
           clientId: "{{ item.id }}"
-          name: "{{ item.nombre }}"
+          name: "{{ item.displayName }}"
           enabled: true
-          publicClient: "{{ item.acceso_publico }}"
+          publicClient: "{{ item.publicAccess }}"
           serviceAccountsEnabled: "{{ item.service_account }}"
           standardFlowEnabled: false
           directAccessGrantsEnabled: false
@@ -85,7 +85,7 @@
         # idempotente.
         status_code: [201, 409]
         validate_certs: "{{ validar_certificados }}"
-      loop: "{{ clientes }}"
+      loop: "{{ clients }}"
       loop_control:
         label: "{{ item.id }}"
 

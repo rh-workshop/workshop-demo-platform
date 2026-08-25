@@ -6,4 +6,4 @@ resources:
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform
-      workshop.redhat.com/ambiente: dev
+      workshop.redhat.com/environment: hub

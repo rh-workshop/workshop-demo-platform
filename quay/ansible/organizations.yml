@@ -27,20 +27,20 @@
     validar_certificados: false
 
     # El "que" de este playbook: lo unico que se edita al anadir un dominio.
-    organizaciones:
-      - nombre: produbank
-        correo: plataforma@example.com
-        repositorios:
-          - nombre: servicio-demo
-            descripcion: Imagen del servicio de ejemplo
-            visibilidad: private
+    organizations:
+      - name: produbank
+        email: plataforma@example.com
+        repositories:
+          - name: servicio-demo
+            description: Imagen del servicio de ejemplo
+            visibility: private
         robots:
-          - nombre: puller
-            descripcion: Cuenta de solo lectura para descargar imagenes
-            permiso: read
-          - nombre: pusher
-            descripcion: Cuenta del pipeline de CI para publicar imagenes
-            permiso: write
+          - name: puller
+            description: Cuenta de solo lectura para descargar imagenes
+            permission: read
+          - name: pusher
+            description: Cuenta del pipeline de CI para publicar imagenes
+            permission: write
 
   tasks:
     - name: Comprobar que hay credenciales
@@ -60,15 +60,15 @@
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          name: "{{ item.nombre }}"
-          email: "{{ item.correo }}"
+          name: "{{ item.name }}"
+          email: "{{ item.email }}"
         # 201 = creada; 400 = ya existe. Ambas son exito para un playbook
         # idempotente.
         status_code: [201, 400]
         validate_certs: "{{ validar_certificados }}"
-      loop: "{{ organizaciones }}"
+      loop: "{{ organizations }}"
       loop_control:
-        label: "{{ item.nombre }}"
+        label: "{{ item.name }}"
 
     - name: Crear los repositorios de cada organizacion
       ansible.builtin.uri:
@@ -78,47 +78,47 @@
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          namespace: "{{ item.0.nombre }}"
-          repository: "{{ item.1.nombre }}"
-          description: "{{ item.1.descripcion }}"
-          visibility: "{{ item.1.visibilidad }}"
+          namespace: "{{ item.0.name }}"
+          repository: "{{ item.1.name }}"
+          description: "{{ item.1.description }}"
+          visibility: "{{ item.1.visibility }}"
           repo_kind: image
         status_code: [201, 400]
         validate_certs: "{{ validar_certificados }}"
-      loop: "{{ organizaciones | subelements('repositorios') }}"
+      loop: "{{ organizations | subelements('repositories') }}"
       loop_control:
-        label: "{{ item.0.nombre }}/{{ item.1.nombre }}"
+        label: "{{ item.0.name }}/{{ item.1.name }}"
 
     - name: Crear las cuentas robot
       ansible.builtin.uri:
-        url: "{{ quay_api }}/organization/{{ item.0.nombre }}/robots/{{ item.1.nombre }}"
+        url: "{{ quay_api }}/organization/{{ item.0.name }}/robots/{{ item.1.name }}"
         method: PUT
         headers:
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          description: "{{ item.1.descripcion }}"
+          description: "{{ item.1.description }}"
         status_code: [201, 400]
         validate_certs: "{{ validar_certificados }}"
-      loop: "{{ organizaciones | subelements('robots') }}"
+      loop: "{{ organizations | subelements('robots') }}"
       loop_control:
-        label: "{{ item.0.nombre }}+{{ item.1.nombre }}"
+        label: "{{ item.0.name }}+{{ item.1.name }}"
 
     - name: Dar a cada robot su permiso sobre el repositorio
       ansible.builtin.uri:
         url: >-
-          {{ quay_api }}/repository/{{ item.0.nombre }}/{{ item.0.repositorios[0].nombre }}/permissions/user/{{ item.0.nombre }}+{{ item.1.nombre }}
+          {{ quay_api }}/repository/{{ item.0.name }}/{{ item.0.repositories[0].name }}/permissions/user/{{ item.0.name }}+{{ item.1.name }}
         method: PUT
         headers:
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          role: "{{ item.1.permiso }}"
+          role: "{{ item.1.permission }}"
         status_code: [200, 201]
         validate_certs: "{{ validar_certificados }}"
-      loop: "{{ organizaciones | subelements('robots') }}"
+      loop: "{{ organizations | subelements('robots') }}"
       loop_control:
-        label: "{{ item.0.nombre }}+{{ item.1.nombre }} -> {{ item.1.permiso }}"
+        label: "{{ item.0.name }}+{{ item.1.name }} -> {{ item.1.permission }}"
 
     - name: Recordar como se obtiene el token del robot
       ansible.builtin.debug:

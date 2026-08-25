@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main
-    path: acm/gitops/overlays/dev
+    path: acm/gitops/overlays/hub
   destination:
     server: https://kubernetes.default.svc
     namespace: open-cluster-management
