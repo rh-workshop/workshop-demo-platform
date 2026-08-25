@@ -15,23 +15,40 @@ spec:
   components:
     - kind: quay
       managed: true
+    # NO-PRODUCCION: postgres gestionado = 1 pod sin HA. En prod = DB externa
+    # gestionada (managed: false + DB_URI en el config bundle). Ver
+    # docs/produccion-fuera-del-lab.md.
     - kind: postgres
       managed: true
     - kind: redis
       managed: true
+    # NO-PRODUCCION: objectstorage gestionado usa NooBaa ("disponibilidad limitada"
+    # segun Red Hat). En prod = S3/RADOS GW/Azure Blob (managed: false +
+    # DISTRIBUTED_STORAGE_CONFIG). Ver docs/produccion-fuera-del-lab.md.
     - kind: objectstorage
       managed: true
     - kind: route
       managed: true
+    # NO-PRODUCCION: tls gestionado usa el wildcard del cluster. En prod = cert
+    # corporativo (managed: false + ssl.cert/ssl.key via ESO desde Key Vault).
     - kind: tls
       managed: true
+    # Clair ON: escaneo de vulnerabilidades en el registro (gate al push). Decision
+    # de arquitectura: ACS lee estos resultados via integracion Scanner+Registry en
+    # vez de re-escanear (ver docs/backlog-produccion.md). La doc exige que si clair
+    # es managed, clairpostgres tambien.
     - kind: clair
-      managed: false
+      managed: true
     - kind: clairpostgres
-      managed: false
+      managed: true
     - kind: mirror
       managed: false
     - kind: monitoring
+      # NO-PRODUCCION: monitoring managed exige el operador en modo all-namespaces
+      # (hoy es single-namespace por su OperatorGroup). En prod: instalar el operador
+      # cluster-wide y poner managed: true, o crear el ServiceMonitor aparte.
       managed: false
+    # HPA ON: el registro sirve pulls de todo el cluster + spokes; debe escalar
+    # ante picos. Antes off sin replicas declaradas.
     - kind: horizontalpodautoscaler
-      managed: false
+      managed: true

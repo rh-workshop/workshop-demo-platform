@@ -57,17 +57,17 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| 1 | 🔴 | Clair off → sin escaneo de vulnerabilidades | A | 🔧 |
-| 2 | 🔴 | Postgres managed 1 pod, sin HA (prod = DB externa) | B | 📋 |
-| 3 | 🔴 | Object storage NooBaa "disponibilidad limitada" (prod = S3/RADOS/Azure) | B | 📋 |
+| 1 | 🔴 | Clair ON + clairpostgres (integración ACS→Quay) | A | ✅ |
+| 2 | 🔴 | Postgres managed marcado NO-PRODUCCION (DB externa en prod) | B | 📋 |
+| 3 | 🔴 | Object storage NooBaa marcado NO-PRODUCCION (S3 en prod) | B | 📋 |
 | 8 | 🔴 | Sin SUPER_USERS + auto-registro abierto + USER_INITIALIZE on | A (seed) | 🔧 |
-| 10 | 🔴 | `validate_certs: false` en el playbook | A | 🔧 |
-| 4 | 🟠 | HPA off sin réplicas declaradas | A | 🔧 |
+| 10 | 🔴 | `validate_certs` default true (env override) | A | ✅ |
+| 4 | 🟠 | HPA managed: true | A | ✅ |
 | 5 | 🟠 | Monitoring off (bloqueado por OperatorGroup single-namespace) | A | 🔧 |
-| 6 | 🟠 | TLS = wildcard del clúster | B | 📋 |
-| 11 | 🟠 | Bug: permisos de robot solo al primer repo (`repositories[0]`) | A | 🔧 |
+| 6 | 🟠 | TLS wildcard marcado NO-PRODUCCION (cert corporativo en prod) | B | 📋 |
+| 11 | 🟠 | Bug permisos robot: fix subelements+include (todos los repos) | A | ✅ |
 | 12 | 🟠 | `400=éxito` enmascara errores | A | 🔧 |
-| 7,9,13,14 | 🟡 | mirror sin decidir; quota sin default; sin seed quota/prune; typo en comentario | A | 🔧 |
+| 14 | 🟡 | typo del comentario del playbook corregido | A | ✅ |
 
 ## Connectivity Link (Kuadrant)
 

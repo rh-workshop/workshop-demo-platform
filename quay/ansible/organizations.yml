@@ -13,7 +13,7 @@
 #
 #   export QUAY_HOST=<host-de-quay>
 #   export QUAY_TOKEN=<token-oauth>
-#   ansible-playbook quay/ansible/organizaciones.yml
+#   ansible-playbook quay/ansible/organizations.yml
 
 - name: Configurar organizaciones y robots de Quay
   hosts: localhost
@@ -24,7 +24,7 @@
     quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
     quay_token: "{{ lookup('env', 'QUAY_TOKEN') }}"
     quay_api: "https://{{ quay_host }}/api/v1"
-    validar_certificados: false
+    validate_certs: "{{ lookup('env', 'QUAY_VALIDATE_CERTS') | default(true, true) }}"
 
     # El "que" de este playbook: lo unico que se edita al anadir un dominio.
     organizations:
@@ -65,7 +65,7 @@
         # 201 = creada; 400 = ya existe. Ambas son exito para un playbook
         # idempotente.
         status_code: [201, 400]
-        validate_certs: "{{ validar_certificados }}"
+        validate_certs: "{{ validate_certs }}"
       loop: "{{ organizations }}"
       loop_control:
         label: "{{ item.name }}"
@@ -84,7 +84,7 @@
           visibility: "{{ item.1.visibility }}"
           repo_kind: image
         status_code: [201, 400]
-        validate_certs: "{{ validar_certificados }}"
+        validate_certs: "{{ validate_certs }}"
       loop: "{{ organizations | subelements('repositories') }}"
       loop_control:
         label: "{{ item.0.name }}/{{ item.1.name }}"
@@ -99,26 +99,26 @@
         body:
           description: "{{ item.1.description }}"
         status_code: [201, 400]
-        validate_certs: "{{ validar_certificados }}"
+        validate_certs: "{{ validate_certs }}"
       loop: "{{ organizations | subelements('robots') }}"
       loop_control:
         label: "{{ item.0.name }}+{{ item.1.name }}"
 
-    - name: Dar a cada robot su permiso sobre el repositorio
-      ansible.builtin.uri:
-        url: >-
-          {{ quay_api }}/repository/{{ item.0.name }}/{{ item.0.repositories[0].name }}/permissions/user/{{ item.0.name }}+{{ item.1.name }}
-        method: PUT
-        headers:
-          Authorization: "Bearer {{ quay_token }}"
-        body_format: json
-        body:
-          role: "{{ item.1.permission }}"
-        status_code: [200, 201]
-        validate_certs: "{{ validar_certificados }}"
-      loop: "{{ organizations | subelements('robots') }}"
+    # Matriz robot x repositorio para TODAS las combinaciones dentro de cada org.
+    # Antes se usaba repositories[0] (solo el primer repo): con 2+ repos, los
+    # robots quedaban sin permiso sobre el resto silenciosamente. Aqui se construye
+    # una lista plana {org, repo, robot, role} con un bucle Jinja anidado sobre las
+    # organizaciones -> sus repositorios -> sus robots.
+    # Da a cada robot su permiso sobre CADA repositorio de su organizacion. Se
+    # recorre (org, repo) con subelements y, dentro, se itera cada robot de esa org
+    # con include_tasks. Antes se usaba repositories[0] (solo el primer repo): con
+    # 2+ repos, los robots quedaban sin permiso sobre el resto silenciosamente.
+    - name: Asignar permisos de robots por repositorio
+      ansible.builtin.include_tasks: permisos-robot.yml
+      loop: "{{ organizations | subelements('repositories') }}"
       loop_control:
-        label: "{{ item.0.name }}+{{ item.1.name }} -> {{ item.1.permission }}"
+        loop_var: org_repo
+        label: "{{ org_repo.0.name }}/{{ org_repo.1.name }}"
 
     - name: Recordar como se obtiene el token del robot
       ansible.builtin.debug:

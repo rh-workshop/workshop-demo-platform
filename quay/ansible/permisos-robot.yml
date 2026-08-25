@@ -1,0 +1,17 @@
+# Tarea incluida por organizations.yml. Recibe org_repo = (org, repo) y asigna a
+# cada robot de esa organizacion su permiso sobre ese repositorio.
+- name: Dar permiso a cada robot sobre el repositorio
+  ansible.builtin.uri:
+    url: "{{ quay_api }}/repository/{{ org_repo.0.name }}/{{ org_repo.1.name }}/permissions/user/{{ org_repo.0.name }}+{{ robot.name }}"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ quay_token }}"
+    body_format: json
+    body:
+      role: "{{ robot.permission }}"
+    status_code: [200, 201]
+    validate_certs: "{{ validate_certs }}"
+  loop: "{{ org_repo.0.robots }}"
+  loop_control:
+    loop_var: robot
+    label: "{{ org_repo.0.name }}/{{ org_repo.1.name }} -> {{ org_repo.0.name }}+{{ robot.name }} ({{ robot.permission }})"
