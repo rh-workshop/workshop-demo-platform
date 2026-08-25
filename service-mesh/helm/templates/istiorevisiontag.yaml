@@ -1,0 +1,14 @@
+# Con updateStrategy RevisionBased la revision pasa a llamarse default-vX-Y-Z y la
+# etiqueta istio-injection=enabled DEJA de funcionar. Este IstioRevisionTag llamado
+# 'default' restaura esa etiqueta y permite migrar revisiones sin reetiquetar los
+# namespaces en cada upgrade. Solo se crea cuando la estrategia es RevisionBased.
+{{- if eq .Values.updateStrategy "RevisionBased" }}
+apiVersion: sailoperator.io/v1
+kind: IstioRevisionTag
+metadata:
+  name: default
+spec:
+  targetRef:
+    kind: Istio
+    name: default
+{{- end }}

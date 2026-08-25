@@ -8,3 +8,6 @@ pilotCpuRequest: 500m
 pilotMemoryRequest: 512Mi
 pilotCpuLimit: "2"
 pilotMemoryLimit: 2Gi
+mtlsMode: STRICT
+pilotMinReplicas: 2
+pilotMaxReplicas: 5

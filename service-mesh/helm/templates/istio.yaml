@@ -10,10 +10,15 @@ metadata:
 spec:
   namespace: {{ .Values.namespace }}
   version: {{ .Values.istioVersion }}
+  profile: {{ .Values.istioProfile }}
   updateStrategy:
     type: {{ .Values.updateStrategy }}
   values:
     pilot:
+      # HA del control plane via autoscaler: en prod min 2 (ver values-prod).
+      autoscaleEnabled: true
+      autoscaleMin: {{ .Values.pilotMinReplicas }}
+      autoscaleMax: {{ .Values.pilotMaxReplicas }}
       resources:
         requests:
           cpu: {{ .Values.pilotCpuRequest }}

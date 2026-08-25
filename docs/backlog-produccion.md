@@ -86,11 +86,11 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
 | SM-1 | 🔴 | Chart crea IstioCNI pero no el namespace `istio-cni` | A | ✅ |
-| SM-2 | 🔴 | Sin mTLS STRICT (mesh en PERMISSIVE) | A | 🔧 |
-| SM-3 | 🔴 | istiod 1 réplica sin PDB en prod | A | 🔧 |
-| SM-4 | 🟠 | RevisionBased sin `IstioRevisionTag` → rompe la inyección | A | 🔧 |
-| SM-5 | 🟠 | `istioProfile` inconsistente (en CNI sí, en Istio no) | A | 🔧 |
-| SM-6 | 🟡 | `values-dev.yaml` duplica los defaults | A | 🔧 |
+| SM-2 | 🔴 | mTLS STRICT en prod (PeerAuthentication) | A | ✅ |
+| SM-3 | 🔴 | istiod HA en prod (autoscale 2-5) | A | ✅ |
+| SM-4 | 🟠 | IstioRevisionTag en RevisionBased (no rompe la inyección) | A | ✅ |
+| SM-5 | 🟠 | `istioProfile` aplicado también al CR Istio | A | ✅ |
+| SM-6 | 🟡 | `values-dev.yaml` con override explícito, sin duplicar | A | ✅ |
 
 ## ACS 4.11
 

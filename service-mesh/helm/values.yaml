@@ -36,3 +36,12 @@ pilotMemoryRequest: 128Mi
 # pilotCpuLimit / pilotMemoryLimit: techo de recursos del control plane.
 pilotCpuLimit: 500m
 pilotMemoryLimit: 512Mi
+
+# mtlsMode: postura mTLS del mesh. PERMISSIVE acepta texto plano (default de dev);
+# STRICT solo cifrado (prod). Lo aplica una PeerAuthentication.
+mtlsMode: PERMISSIVE
+
+# pilotMinReplicas / pilotMaxReplicas: HA del control plane (istiod). Con 1 replica,
+# un drain de nodo corta la inyeccion de sidecars y el push de config.
+pilotMinReplicas: 1
+pilotMaxReplicas: 3

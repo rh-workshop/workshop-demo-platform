@@ -1,0 +1,10 @@
+# PeerAuthentication: fija la postura mTLS del mesh. En el ns raiz de Istio aplica
+# a todo el mesh. PERMISSIVE (dev) acepta texto plano; STRICT (prod) solo cifrado.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: {{ .Values.namespace }}
+spec:
+  mtls:
+    mode: {{ .Values.mtlsMode }}

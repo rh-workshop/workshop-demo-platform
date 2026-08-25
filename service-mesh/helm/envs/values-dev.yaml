@@ -1,8 +1,7 @@
 # Overrides del ambiente DEV.
 #
-# Solo lo que cambia respecto a values.yaml. En dev, recursos minimos: es un
-# entorno de pruebas.
-pilotCpuRequest: 100m
-pilotMemoryRequest: 128Mi
-pilotCpuLimit: 500m
-pilotMemoryLimit: 512Mi
+# En dev se usan los defaults de values.yaml (recursos minimos, InPlace,
+# PERMISSIVE, 1 replica). Se deja explicito solo lo caracteristico de dev para
+# que el fichero no quede vacio y documente la intencion.
+updateStrategy: InPlace
+mtlsMode: PERMISSIVE
