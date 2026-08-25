@@ -1,6 +1,10 @@
-# Namespaces destino de los operadores. Un OperatorPolicy enforce no garantiza el
-# Namespace donde instala; sin el, el primer despliegue limpio quedaria
-# NonCompliant. Se crean aqui, antes que las OperatorPolicy (sync-wave del arbol).
+# Namespaces destino de los operadores EN EL HUB. Un OperatorPolicy enforce no
+# garantiza el Namespace donde instala; sin él, el primer despliegue limpio
+# quedaría NonCompliant. Se crean aquí, antes que las OperatorPolicy.
+#
+# Ojo: esta aplicación de Argo corre solo en el hub. Los namespaces de los
+# clusters workload los distribuye la ConfigurationPolicy de
+# install-operators-workload-policy.yaml, que sí llega a los spokes.
 apiVersion: v1
 kind: Namespace
 metadata:

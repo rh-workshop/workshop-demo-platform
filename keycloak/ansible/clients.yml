@@ -24,7 +24,7 @@
     keycloak_admin: "{{ lookup('env', 'KEYCLOAK_ADMIN') }}"
     keycloak_password: "{{ lookup('env', 'KEYCLOAK_PASSWORD') }}"
     keycloak_url: "https://{{ keycloak_host }}"
-    realm: sso
+    realm: workshop
     validar_certificados: false
 
     # El "que" de este playbook: lo unico que se edita al anadir una aplicacion.

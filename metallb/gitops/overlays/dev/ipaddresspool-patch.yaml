@@ -8,5 +8,6 @@ metadata:
   namespace: metallb-system
 spec:
   # Rango de ejemplo: ajustar al segmento L2 real del cluster de desarrollo.
+  # Empieza en .202 para no invadir las .200-.201 que reserva el gateway-pool.
   addresses:
-    - 10.10.10.200-10.10.10.220
+    - 10.10.10.202-10.10.10.220

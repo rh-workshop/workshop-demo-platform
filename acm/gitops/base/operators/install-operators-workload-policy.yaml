@@ -11,6 +11,42 @@ spec:
   remediationAction: enforce
   disabled: false
   policy-templates:
+    # Los Namespaces destino van PRIMERO y por Policy, no por Argo: la aplicación
+    # de Argo que los crea corre solo en el hub, y en los spokes nadie los crearía.
+    # Sin el Namespace, la OperatorPolicy queda NonCompliant para siempre.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: operator-namespaces
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: keycloak
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: cert-manager-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: metallb-system
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: kuadrant-system
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
