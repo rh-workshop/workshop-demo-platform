@@ -56,6 +56,23 @@
           Faltan QUAY_HOST o QUAY_TOKEN en el entorno. Exportalos antes de
           ejecutar; nunca los escribas en este fichero.
 
+    # Se consulta antes de crear en lugar de aceptar el 400 de "ya existe": así el
+    # playbook informa de lo que cambia de verdad, y un 400 por payload inválido
+    # (nombre ilegal, email duplicado) falla en vez de pasar desapercibido.
+    - name: Comprobar si la organizacion ya existe
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.name }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        status_code: [200, 404]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: orgs_existentes
+      loop: "{{ organizations }}"
+      loop_control:
+        label: "{{ item.name }}"
+
     - name: Crear la organizacion
       ansible.builtin.uri:
         url: "{{ quay_api }}/organization/"
@@ -64,18 +81,29 @@
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          name: "{{ item.name }}"
-          email: "{{ item.email }}"
-        # 201 = creada; 400 = ya existe. Ambas son exito para un playbook
-        # idempotente. LIMITACION: un 400 tambien lo devuelve un payload invalido
-        # (nombre ilegal, email duplicado); aqui se acepta en silencio. Para
-        # endurecer: GET previo + when, o register de la respuesta y failed_when que
-        # inspeccione error_message del body en el 400.
-        status_code: [201, 400]
+          name: "{{ item.item.name }}"
+          email: "{{ item.item.email }}"
+        status_code: [201]
         validate_certs: "{{ validate_certs }}"
-      loop: "{{ organizations }}"
+      changed_when: true
+      when: item.status == 404
+      loop: "{{ orgs_existentes.results }}"
       loop_control:
-        label: "{{ item.name }}"
+        label: "{{ item.item.name }}"
+
+    - name: Comprobar que repositorios existen
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/repository/{{ item.0.name }}/{{ item.1.name }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        status_code: [200, 404]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: repos_existentes
+      loop: "{{ organizations | subelements('repositories') }}"
+      loop_control:
+        label: "{{ item.0.name }}/{{ item.1.name }}"
 
     - name: Crear los repositorios de cada organizacion
       ansible.builtin.uri:
@@ -85,31 +113,49 @@
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          namespace: "{{ item.0.name }}"
-          repository: "{{ item.1.name }}"
-          description: "{{ item.1.description }}"
-          visibility: "{{ item.1.visibility }}"
+          namespace: "{{ item.item.0.name }}"
+          repository: "{{ item.item.1.name }}"
+          description: "{{ item.item.1.description }}"
+          visibility: "{{ item.item.1.visibility }}"
           repo_kind: image
-        status_code: [201, 400]
+        status_code: [201]
         validate_certs: "{{ validate_certs }}"
-      loop: "{{ organizations | subelements('repositories') }}"
+      changed_when: true
+      when: item.status == 404
+      loop: "{{ repos_existentes.results }}"
       loop_control:
-        label: "{{ item.0.name }}/{{ item.1.name }}"
+        label: "{{ item.item.0.name }}/{{ item.item.1.name }}"
+
+    - name: Comprobar que cuentas robot existen
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.0.name }}/robots/{{ item.1.name }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        status_code: [200, 400, 404]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: robots_existentes
+      loop: "{{ organizations | subelements('robots') }}"
+      loop_control:
+        label: "{{ item.0.name }}+{{ item.1.name }}"
 
     - name: Crear las cuentas robot
       ansible.builtin.uri:
-        url: "{{ quay_api }}/organization/{{ item.0.name }}/robots/{{ item.1.name }}"
+        url: "{{ quay_api }}/organization/{{ item.item.0.name }}/robots/{{ item.item.1.name }}"
         method: PUT
         headers:
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          description: "{{ item.1.description }}"
-        status_code: [201, 400]
+          description: "{{ item.item.1.description }}"
+        status_code: [201]
         validate_certs: "{{ validate_certs }}"
-      loop: "{{ organizations | subelements('robots') }}"
+      changed_when: true
+      when: item.status != 200
+      loop: "{{ robots_existentes.results }}"
       loop_control:
-        label: "{{ item.0.name }}+{{ item.1.name }}"
+        label: "{{ item.item.0.name }}+{{ item.item.1.name }}"
 
     # Da a cada robot su permiso sobre CADA repositorio de su organizacion. Se
     # recorre (org, repo) con subelements y, dentro, se itera cada robot de esa org
