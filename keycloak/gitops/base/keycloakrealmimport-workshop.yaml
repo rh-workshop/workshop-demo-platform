@@ -17,7 +17,7 @@ spec:
   realm:
     realm: workshop
     enabled: true
-    # Los clients de servicio (servicio-demo, canary-service,
+    # Los clients de servicio (demo-service, canary-service,
     # circuit-breaker-service) los crea el playbook clients.yml con sus secretos.
     # El realm de partida solo necesita existir y estar habilitado.
     accessTokenLifespan: 300

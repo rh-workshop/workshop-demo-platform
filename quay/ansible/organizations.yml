@@ -32,15 +32,15 @@
       - name: company
         email: plataforma@example.com
         repositories:
-          - name: servicio-demo
+          - name: demo-service
             description: Imagen del servicio de ejemplo
             visibility: private
         robots:
           - name: puller
-            description: Cuenta de solo lectura para descargar imagenes
+            description: Cuenta de solo lectura para descargar imágenes
             permission: read
           - name: pusher
-            description: Cuenta del pipeline de CI para publicar imagenes
+            description: Cuenta del pipeline de CI para publicar imágenes
             permission: write
 
   tasks:
