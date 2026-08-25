@@ -2,7 +2,7 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
-  name: instalar-operadores-hub-binding
+  name: install-operators-hub-binding
   namespace: open-cluster-management
 placementRef:
   apiGroup: cluster.open-cluster-management.io
@@ -11,4 +11,4 @@ placementRef:
 subjects:
   - apiGroup: policy.open-cluster-management.io
     kind: Policy
-    name: instalar-operadores-hub
+    name: install-operators-hub

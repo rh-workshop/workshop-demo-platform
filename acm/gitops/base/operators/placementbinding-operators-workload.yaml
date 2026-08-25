@@ -1,7 +1,7 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
-  name: instalar-operadores-workload-binding
+  name: install-operators-workload-binding
   namespace: open-cluster-management
 placementRef:
   apiGroup: cluster.open-cluster-management.io
@@ -10,4 +10,4 @@ placementRef:
 subjects:
   - apiGroup: policy.open-cluster-management.io
     kind: Policy
-    name: instalar-operadores-workload
+    name: install-operators-workload

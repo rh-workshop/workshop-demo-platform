@@ -31,7 +31,7 @@ spec:
             apiVersion: v1
             kind: ResourceQuota
             metadata:
-              name: cuota-de-plataforma
+              name: platform-quota
               namespace: default
             spec:
               hard:

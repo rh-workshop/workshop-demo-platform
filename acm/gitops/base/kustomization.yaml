@@ -6,10 +6,10 @@ resources:
   - policies/policy-exigir-resourcequota.yaml
   - policies/placement-clusters-produccion.yaml
   - policies/placementbinding-exigir-resourcequota.yaml
-  - operadores/managedclustersetbinding.yaml
-  - operadores/instalar-operadores-hub-policy.yaml
-  - operadores/placement-hub.yaml
-  - operadores/placementbinding-operadores-hub.yaml
-  - operadores/instalar-operadores-workload-policy.yaml
-  - operadores/placement-workload.yaml
-  - operadores/placementbinding-operadores-workload.yaml
+  - operators/managedclustersetbinding.yaml
+  - operators/install-operators-hub-policy.yaml
+  - operators/placement-hub.yaml
+  - operators/placementbinding-operators-hub.yaml
+  - operators/install-operators-workload-policy.yaml
+  - operators/placement-workload.yaml
+  - operators/placementbinding-operators-workload.yaml

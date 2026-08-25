@@ -1,20 +1,11 @@
-# Instalacion de los operadores del HUB, por ACM.
+# Instalacion de los operadores WORKLOAD, por ACM.
 #
-# POR QUE ACM Y NO ARGO: instalar operadores por Argo CD es fragil — OLM resuelve
-# dependencias a su ritmo y Argo pelea con eso (Subscriptions que quedan
-# OutOfSync, hooks imperativos). El patron de referencia de Red Hat separa:
-#   - ACM instala los operadores (esta Policy)
-#   - Argo CD configura los operandos (los CR en <producto>/gitops/)
-#
-# Cada operador va en un OperatorPolicy: se le dice el paquete y el canal, y ACM
-# resuelve la Subscription y VERIFICA que el operador quedo sano (no solo que el
-# objeto existe, como haria una Policy de Subscription a secas).
-#
-# remediationAction: enforce -> ACM instala el operador donde no este.
+# Estos van a los clusters de carga (dev y prod), no al hub. Mismo patron:
+# ACM instala el operador (OperatorPolicy), Argo configura el operando.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
-  name: instalar-operadores-hub
+  name: install-operators-workload
   namespace: open-cluster-management
 spec:
   remediationAction: enforce
@@ -24,29 +15,29 @@ spec:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
-          name: quay-operator
+          name: rhbk-operator
         spec:
           remediationAction: enforce
           complianceType: musthave
           upgradeApproval: None
           subscription:
-            name: quay-operator
-            namespace: quay-enterprise
-            channel: stable-3.17
+            name: rhbk-operator
+            namespace: keycloak
+            channel: stable-v26.4
             source: redhat-operators
             sourceNamespace: openshift-marketplace
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
-          name: rhacs-operator
+          name: metallb-operator
         spec:
           remediationAction: enforce
           complianceType: musthave
           upgradeApproval: None
           subscription:
-            name: rhacs-operator
-            namespace: rhacs-operator
+            name: metallb-operator
+            namespace: metallb-system
             channel: stable
             source: redhat-operators
             sourceNamespace: openshift-marketplace
@@ -54,29 +45,29 @@ spec:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
-          name: rhdh-operator
+          name: cert-manager-operator
         spec:
           remediationAction: enforce
           complianceType: musthave
           upgradeApproval: None
           subscription:
-            name: rhdh
-            namespace: rhdh-operator
-            channel: fast-1.10
+            name: openshift-cert-manager-operator
+            namespace: cert-manager-operator
+            channel: stable-v1
             source: redhat-operators
             sourceNamespace: openshift-marketplace
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
-          name: openshift-pipelines-operator
+          name: rhcl-operator
         spec:
           remediationAction: enforce
           complianceType: musthave
           upgradeApproval: None
           subscription:
-            name: openshift-pipelines-operator-rh
-            namespace: openshift-operators
-            channel: latest
+            name: rhcl-operator
+            namespace: kuadrant-system
+            channel: stable
             source: redhat-operators
             sourceNamespace: openshift-marketplace
