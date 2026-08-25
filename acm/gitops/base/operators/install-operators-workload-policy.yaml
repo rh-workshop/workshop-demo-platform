@@ -19,7 +19,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - rhbk-operator.v26.4.15-opr.1   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: rhbk-operator
             namespace: keycloak
@@ -34,7 +36,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - metallb-operator.v4.20.0-202608112153   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: metallb-operator
             namespace: metallb-system
@@ -49,7 +53,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - cert-manager-operator.v1.20.0   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: openshift-cert-manager-operator
             namespace: cert-manager-operator
@@ -64,7 +70,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - rhcl-operator.v1.4.2   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: rhcl-operator
             namespace: kuadrant-system
@@ -82,7 +90,9 @@ spec:
           # porque Istio corre donde estan las apps.
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - servicemeshoperator3.v3.4.1   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: servicemeshoperator3
             namespace: openshift-operators

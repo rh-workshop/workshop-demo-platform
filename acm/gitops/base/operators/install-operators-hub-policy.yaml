@@ -28,7 +28,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - quay-operator.v3.17.4   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: quay-operator
             namespace: quay-enterprise
@@ -43,7 +45,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - rhacs-operator.v4.11.2   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: rhacs-operator
             namespace: rhacs-operator
@@ -58,7 +62,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - rhdh-operator.v1.10.3   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: rhdh
             namespace: rhdh-operator
@@ -73,7 +79,9 @@ spec:
         spec:
           remediationAction: enforce
           complianceType: musthave
-          upgradeApproval: None
+          upgradeApproval: Automatic
+          versions:
+            - openshift-pipelines-operator-rh.v1.23.1   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: openshift-pipelines-operator-rh
             namespace: openshift-operators

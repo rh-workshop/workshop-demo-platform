@@ -10,8 +10,11 @@ metadata:
   name: clusters-produccion
   namespace: open-cluster-management
 spec:
+  # El clusterSet debe estar vinculado a este namespace por un ManagedClusterSetBinding
+  # (ver operators/managedclustersetbinding.yaml). Los 3 clusters estan en 'default';
+  # con 'global' sin binding en este namespace, el Placement seleccionaria 0 clusters.
   clusterSets:
-  - global
+  - default
   predicates:
   - requiredClusterSelector:
       labelSelector:

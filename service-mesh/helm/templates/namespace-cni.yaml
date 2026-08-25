@@ -1,0 +1,9 @@
+# Namespace del componente IstioCNI. Sin el, el CR IstioCNI no puede desplegar su
+# DaemonSet y el CR Istio queda en IstioCNINotFound (justo el bug que este chart
+# debe resolver). Se crea solo si cniEnabled es true.
+{{- if .Values.cniEnabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.cniNamespace }}
+{{- end }}
