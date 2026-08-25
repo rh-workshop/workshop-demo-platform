@@ -114,7 +114,7 @@
     # con include_tasks. Antes se usaba repositories[0] (solo el primer repo): con
     # 2+ repos, los robots quedaban sin permiso sobre el resto silenciosamente.
     - name: Asignar permisos de robots por repositorio
-      ansible.builtin.include_tasks: permisos-robot.yml
+      ansible.builtin.include_tasks: robot-permissions.yml
       loop: "{{ organizations | subelements('repositories') }}"
       loop_control:
         loop_var: org_repo
