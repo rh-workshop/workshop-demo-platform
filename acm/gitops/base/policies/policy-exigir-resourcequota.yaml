@@ -25,6 +25,16 @@ spec:
       spec:
         remediationAction: inform
         severity: low
+        # namespaceSelector: gobierna los namespaces de NEGOCIO (bian-*, user*),
+        # no 'default' (que no protege ninguna app real). Excluye los de sistema.
+        namespaceSelector:
+          include:
+            - "bian-*"
+            - "user*"
+          exclude:
+            - "openshift-*"
+            - "kube-*"
+            - default
         object-templates:
         - complianceType: musthave
           objectDefinition:
@@ -32,8 +42,11 @@ spec:
             kind: ResourceQuota
             metadata:
               name: platform-quota
-              namespace: default
             spec:
               hard:
                 requests.cpu: '4'
                 requests.memory: 8Gi
+                # limits ademas de requests: sin techo de limits, un pod puede
+                # pedir poco y consumir mucho en picos.
+                limits.cpu: '8'
+                limits.memory: 16Gi

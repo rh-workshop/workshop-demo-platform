@@ -6,6 +6,7 @@ resources:
   - policies/policy-exigir-resourcequota.yaml
   - policies/placement-clusters-produccion.yaml
   - policies/placementbinding-exigir-resourcequota.yaml
+  - operators/operator-namespaces.yaml
   - operators/managedclustersetbinding.yaml
   - operators/install-operators-hub-policy.yaml
   - operators/placement-hub.yaml

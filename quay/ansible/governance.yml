@@ -1,0 +1,75 @@
+---
+# Gobierno de Quay: cuota y auto-prune por organizacion (via API).
+#
+# Complementa organizations.yml. FEATURE_QUOTA_MANAGEMENT y FEATURE_AUTO_PRUNE
+# estan activos en el config bundle, pero sin cuota ni politica por org no aplican
+# nada. Este playbook cierra ese ciclo.
+#
+# NOTA sobre SUPER_USERS y auto-registro (hallazgo de seguridad): van en el config
+# BUNDLE (config.yaml), no por esta API. En prod, el bundle (via ESO) debe fijar:
+#   SUPER_USERS: ["quayadmin"]
+#   FEATURE_USER_CREATION: false
+#   FEATURE_USER_INITIALIZE: false   # tras crear el primer usuario
+# Sin esto, cualquiera se autoregistra y no hay superusuario. Ver
+# docs/produccion-fuera-del-lab.md.
+#
+#   export QUAY_HOST=<host-de-quay>
+#   export QUAY_TOKEN=<token-oauth>
+#   ansible-playbook quay/ansible/governance.yml
+
+- name: Configurar gobierno de Quay
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
+    quay_token: "{{ lookup('env', 'QUAY_TOKEN') }}"
+    quay_api: "https://{{ quay_host }}/api/v1"
+    validate_certs: "{{ lookup('env', 'QUAY_VALIDATE_CERTS') | default(true, true) }}"
+
+    # Cuota por organizacion (en bytes). 50Gi de ejemplo.
+    organizations:
+      - name: produbank
+        quota_bytes: 53687091200
+        # auto-prune: conservar las ultimas N tags por repo.
+        prune_keep_tags: 10
+
+  tasks:
+    - name: Comprobar que hay credenciales
+      ansible.builtin.assert:
+        that:
+          - quay_host | length > 0
+          - quay_token | length > 0
+        fail_msg: Faltan QUAY_HOST o QUAY_TOKEN en el entorno.
+
+    - name: Fijar la cuota de cada organizacion
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.name }}/quota"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          limit_bytes: "{{ item.quota_bytes }}"
+        status_code: [201, 400]
+        validate_certs: "{{ validate_certs }}"
+      loop: "{{ organizations }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Politica de auto-prune por organizacion
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.name }}/autoprunepolicy/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          method: number_of_tags
+          value: "{{ item.prune_keep_tags }}"
+        status_code: [201, 400]
+        validate_certs: "{{ validate_certs }}"
+      loop: "{{ organizations }}"
+      loop_control:
+        label: "{{ item.name }}"

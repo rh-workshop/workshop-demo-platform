@@ -1,0 +1,32 @@
+# Namespaces destino de los operadores. Un OperatorPolicy enforce no garantiza el
+# Namespace donde instala; sin el, el primer despliegue limpio quedaria
+# NonCompliant. Se crean aqui, antes que las OperatorPolicy (sync-wave del arbol).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quay-enterprise
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rhacs-operator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rhdh-operator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager-operator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kuadrant-system

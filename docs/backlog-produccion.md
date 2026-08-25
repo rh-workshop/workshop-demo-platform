@@ -60,14 +60,14 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | 1 | 🔴 | Clair ON + clairpostgres (integración ACS→Quay) | A | ✅ |
 | 2 | 🔴 | Postgres managed marcado NO-PRODUCCION (DB externa en prod) | B | 📋 |
 | 3 | 🔴 | Object storage NooBaa marcado NO-PRODUCCION (S3 en prod) | B | 📋 |
-| 8 | 🔴 | Sin SUPER_USERS + auto-registro abierto + USER_INITIALIZE on | A (seed) | 🔧 |
+| 8 | 🔴 | SUPER_USERS documentado en governance.yml (config bundle por ESO) | A | ✅ |
 | 10 | 🔴 | `validate_certs` default true (env override) | A | ✅ |
 | 4 | 🟠 | HPA managed: true | A | ✅ |
 | 5 | 🟠 | Monitoring off (bloqueado por OperatorGroup single-namespace) | A | 🔧 |
 | 6 | 🟠 | TLS wildcard marcado NO-PRODUCCION (cert corporativo en prod) | B | 📋 |
 | 11 | 🟠 | Bug permisos robot: fix subelements+include (todos los repos) | A | ✅ |
 | 12 | 🟠 | `400=éxito` enmascara errores | A | 🔧 |
-| 14 | 🟡 | typo del comentario del playbook corregido | A | ✅ |
+| 9,13,14 | 🟡 | quota+auto-prune por org (governance.yml); typo corregido | A | ✅ |
 
 ## Connectivity Link (Kuadrant)
 
@@ -99,8 +99,8 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | ACS-1 | 🔴 | Las políticas SÍ tienen CRD (`SecurityPolicy`) → deben ser GitOps, no Ansible | A | ✅ |
 | ACS-2 | 🔴 | `validate_certs: false` en el playbook | A | ✅ |
 | ACS-3 | 🔴 | Enforcement solo por default implícito del operador, no en Git | A | ✅ |
-| ACS-4 | 🟠 | Central: DB/TLS/auth/monitoreo sin decisiones de prod | A (parcial) / B (DB) | 🔧 |
-| ACS-5 | 🟠 | Playbook create-only, `400=éxito` | A | 🔧 |
+| ACS-4 | 🟠 | Central: scanner AutoSense declarado; DB/TLS/auth marcados NO-PRODUCCION | B | 📋 |
+| ACS-5 | 🟠 | Política ahora es CR (reconciliado), no create-only por API | A | ✅ |
 | ACS-6 | 🟡 | Valores hub-specific en `base/` (marcados NO-PRODUCCION) | A | ✅ |
 
 ## MetalLB
@@ -136,9 +136,9 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | 1 | 🔴 | Nada del árbol `operators/` aplicado; Policy real en otro namespace | A | 🔧 |
 | 2 | 🔴 | Placement `clusters-produccion` clusterSet global→default | A | ✅ |
 | 3 | 🔴 | OperatorPolicy con `versions` (pin) + `upgradeApproval: Automatic` | A | ✅ |
-| 4 | 🟠 | OperatorPolicy asume namespaces que nadie crea | A | 🔧 |
-| 5 | 🟠 | Policy `exigir-resourcequota` solo gobierna `default` | A | 🔧 |
-| 6 | 🟡 | MultiClusterHub necesitará `ignoreDifferences` con Argo | A | 🔧 |
+| 4 | 🟠 | Namespaces de operadores creados en el árbol | A | ✅ |
+| 5 | 🟠 | Policy quota: namespaceSelector (bian-*/user*) + limits | A | ✅ |
+| 6 | 🟡 | MultiClusterHub: nota ignoreDifferences (aplica al app-of-apps) | A | ✅ |
 
 ## Developer Hub (RHDH 1.10)
 

@@ -28,11 +28,23 @@
     validar_certificados: false
 
     # El "que" de este playbook: lo unico que se edita al anadir una aplicacion.
+    # Cada servicio expuesto por el gateway (con su AuthPolicy que exige JWT) tiene
+    # aqui su client machine-to-machine. El realm es 'workshop'.
     clients:
       - id: servicio-demo
         displayName: Servicio de ejemplo
         # Flujo maquina-a-maquina: la aplicacion pide el token con su propio
         # identificador y secreto, sin intervencion de una persona.
+        service_account: true
+        publicAccess: false
+      # Client del servicio canary: su AuthPolicy exige un JWT de este realm.
+      - id: canary-service
+        displayName: Servicio canary (canary deployment)
+        service_account: true
+        publicAccess: false
+      # Client del servicio circuit-breaker.
+      - id: circuit-breaker-service
+        displayName: Servicio circuit breaker
         service_account: true
         publicAccess: false
 
