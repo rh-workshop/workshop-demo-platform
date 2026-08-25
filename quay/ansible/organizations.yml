@@ -35,6 +35,9 @@
           - name: demo-service
             description: Imagen del servicio de ejemplo
             visibility: private
+          - name: app-workshop
+            description: Imagen de la aplicación de ejercicios del taller
+            visibility: private
         robots:
           - name: puller
             description: Cuenta de solo lectura para descargar imágenes
