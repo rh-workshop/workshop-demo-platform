@@ -15,6 +15,16 @@ spec:
   admissionControl:
     listenOnCreates: true
     listenOnUpdates: true
+    # timeout explicito, no el default implicito del operador. El bloqueo real lo
+    # decide enforcementActions de cada SecurityPolicy (ver policies/), aqui solo
+    # se garantiza que el admission controller escucha y responde a tiempo.
+    timeoutSeconds: 10
   perNode:
     collector:
+      # CORE_BPF es el unico modo soportado (EBPF retirado).
       collection: CORE_BPF
+  scanner:
+    scannerComponent: AutoSense
+  # NO-PRODUCCION: clusterName y centralEndpoint valen solo para el hub (Central
+  # local). Un spoke necesita el endpoint de la Route de Central + init bundle
+  # (Secret via ESO, no en Git). Ver docs/produccion-fuera-del-lab.md.

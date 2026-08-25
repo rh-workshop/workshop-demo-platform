@@ -15,12 +15,24 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 ---
 
+## Decisiones de arquitectura tomadas
+
+- **Escaneo de vulnerabilidades (Clair vs ACS).** Clair (en Quay) y ACS comparten
+  motor (ClairCore) pero cubren fases distintas: Clair escanea la imagen **en el
+  registro** (gate al push, shift-left); ACS escanea **en el clúster** (admisión +
+  runtime) y cubre mucho más que CVEs. No se duplican — se integran. **Decisión:
+  Clair ON en Quay + integración ACS→Quay** (robot account, tipo `Scanner + Registry`)
+  para que ACS surja los resultados de Quay en un solo panel sin re-escanear. Es
+  defensa en profundidad, la postura que Red Hat posiciona para banca.
+
+---
+
 ## Bugs introducidos y corregidos
 
 | Producto | Bug | Estado |
 |---|---|---|
 | Service Mesh | El chart crea `IstioCNI` pero no el namespace `istio-cni` → no arregla el `IstioCNINotFound` | ✅ |
-| ACS | El playbook parte de premisa falsa ("no hay CRD"); existe `SecurityPolicy` (Policy-as-Code) | 🔧 |
+| ACS | El playbook parte de premisa falsa ("no hay CRD"); existe `SecurityPolicy` (Policy-as-Code) | ✅ |
 | ACM | Placement `clusters-produccion` con set `global` sin binding; OperatorPolicy sin version pinning | 🔧 |
 
 ---
@@ -84,12 +96,12 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| ACS-1 | 🔴 | Las políticas SÍ tienen CRD (`SecurityPolicy`) → deben ser GitOps, no Ansible | A | 🔧 |
-| ACS-2 | 🔴 | `validate_certs: false` en el playbook | A | 🔧 |
-| ACS-3 | 🔴 | Enforcement solo por default implícito del operador, no en Git | A | 🔧 |
+| ACS-1 | 🔴 | Las políticas SÍ tienen CRD (`SecurityPolicy`) → deben ser GitOps, no Ansible | A | ✅ |
+| ACS-2 | 🔴 | `validate_certs: false` en el playbook | A | ✅ |
+| ACS-3 | 🔴 | Enforcement solo por default implícito del operador, no en Git | A | ✅ |
 | ACS-4 | 🟠 | Central: DB/TLS/auth/monitoreo sin decisiones de prod | A (parcial) / B (DB) | 🔧 |
 | ACS-5 | 🟠 | Playbook create-only, `400=éxito` | A | 🔧 |
-| ACS-6 | 🟡 | Valores hub-specific en `base/` (deben ir al overlay) | A | 🔧 |
+| ACS-6 | 🟡 | Valores hub-specific en `base/` (marcados NO-PRODUCCION) | A | ✅ |
 
 ## MetalLB
 

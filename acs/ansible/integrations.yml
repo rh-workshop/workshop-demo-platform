@@ -1,0 +1,83 @@
+---
+# Integraciones de ACS que NO tienen CRD (van por la API REST de Central).
+#
+# QUE VA POR GITOPS Y QUE NO:
+#   - Las POLITICAS de seguridad SI tienen CRD (SecurityPolicy) desde ACS 4.11 y
+#     van por Argo (ver acs/gitops/base/policies/). NO se gestionan aqui.
+#   - Las INTEGRACIONES con registros/escaneres, las colecciones y los informes
+#     de vulnerabilidades solo existen tras la API de Central. Ese es el trabajo
+#     de este playbook, y es idempotente.
+#
+# ESTE PLAYBOOK configura la integracion ACS -> Quay (decision de arquitectura):
+# Clair escanea la imagen en el registro (gate al push) y ACS LEE esos resultados
+# de Quay en vez de re-escanear. Tipo "Scanner + Registry" con un robot account de
+# solo lectura. Asi hay defensa en profundidad y un solo panel, sin escanear dos
+# veces la misma imagen. Ver docs/backlog-produccion.md (decisiones de arquitectura).
+#
+# CREDENCIALES: del entorno, nunca versionadas. El token de API se genera en la
+# consola de ACS (Platform Configuration -> Integrations -> API Token, rol Admin).
+#
+#   export ACS_HOST=<host-de-central>
+#   export ACS_TOKEN=<token-de-api>
+#   export QUAY_HOST=<host-de-quay>
+#   export QUAY_ROBOT_USER=<org+robot>       # robot de solo lectura
+#   export QUAY_ROBOT_TOKEN=<token-del-robot>
+#   ansible-playbook acs/ansible/integrations.yml
+
+- name: Configurar integraciones de ACS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    acs_host: "{{ lookup('env', 'ACS_HOST') }}"
+    acs_token: "{{ lookup('env', 'ACS_TOKEN') }}"
+    acs_api: "https://{{ acs_host }}/v1"
+    quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
+    quay_robot_user: "{{ lookup('env', 'QUAY_ROBOT_USER') }}"
+    quay_robot_token: "{{ lookup('env', 'QUAY_ROBOT_TOKEN') }}"
+    # PRODUCCION: verificar SIEMPRE el certificado de Central. false solo es un
+    # atajo de lab (MITM sobre el token Admin). Sobreescribible solo explicitamente.
+    validate_certs: "{{ lookup('env', 'ACS_VALIDATE_CERTS') | default(true, true) }}"
+
+  tasks:
+    - name: Comprobar que hay credenciales
+      ansible.builtin.assert:
+        that:
+          - acs_host | length > 0
+          - acs_token | length > 0
+          - quay_host | length > 0
+          - quay_robot_user | length > 0
+          - quay_robot_token | length > 0
+        fail_msg: >-
+          Faltan ACS_HOST/ACS_TOKEN/QUAY_HOST/QUAY_ROBOT_USER/QUAY_ROBOT_TOKEN en
+          el entorno. Exportalos antes de ejecutar; nunca los escribas aqui.
+
+    - name: Registrar Quay como Scanner + Registry en ACS
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/imageintegrations"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          name: quay-produbank
+          type: quay
+          categories:
+            - REGISTRY
+            - SCANNER
+          quay:
+            endpoint: "https://{{ quay_host }}"
+            # robot de SOLO LECTURA; ACS lee imagenes y resultados de Clair
+            oauthToken: "{{ quay_robot_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      no_log: true
+
+    - name: Recordar el resto del ciclo
+      ansible.builtin.debug:
+        msg: >-
+          Integracion ACS->Quay lista. Las politicas de seguridad se gestionan como
+          CR SecurityPolicy (acs/gitops/base/policies/), no aqui. Los informes de
+          vulnerabilidades se programan en la consola (Vulnerability Management ->
+          Reporting) sobre una coleccion; nada de eso se versiona en Git.
