@@ -5,6 +5,13 @@ resources:
   - ../../base
 patches:
   - path: keycloak-hostname.yaml
+  - target:
+      kind: Route
+      name: keycloak
+    patch: |-
+      - op: replace
+        path: /spec/host
+        value: sso.apps.cluster-pvsbw.dyn.redhatworkshops.io
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform

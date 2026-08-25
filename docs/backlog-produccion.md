@@ -41,14 +41,14 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| A1 | 🔴 | `instances: 1` en prod → mínimo 2 (HA) | A | 🔧 |
-| A2 | 🔴 | Falta PodDisruptionBudget | A | 🔧 |
-| A3 | 🔴 | DB en-cluster 1 réplica + RollingUpdate sobre PVC RWO (riesgo corrupción) | B (DB externa) / A (`Recreate`) | 🔧 |
-| A4 | 🔴 | `hostname.strict: false` en prod (host spoofing) | A | 🔧 |
-| A5 | 🔴 | Drift `xaEnabled` vs `enable-recovery` → Argo lo rompería | A | 🔧 |
-| A6 | 🔴 | Route + Service del SSO fuera de Git | A | 🔧 |
-| M1 | 🟠 | Sin `spec.resources` (sin CPU request) | A | 🔧 |
-| M2 | 🟠 | Métricas/ServiceMonitor apagados (`metrics-enabled`) | A | 🔧 |
+| A1 | 🔴 | `instances: 1` en prod → mínimo 2 (HA) | A | ✅ |
+| A2 | 🔴 | Falta PodDisruptionBudget | A | ✅ |
+| A3 | 🔴 | DB en-cluster (marcada NO-PRODUCCION; DB externa en prod) | B | 📋 |
+| A4 | 🔴 | `hostname.strict: false` en prod (host spoofing) | A | ✅ |
+| A5 | 🔴 | Drift `xaEnabled` vs `enable-recovery` → Argo lo rompería | A | ✅ |
+| A6 | 🔴 | Route + Service del SSO fuera de Git | A | ✅ |
+| M1 | 🟠 | Sin `spec.resources` (sin CPU request) | A | ✅ |
+| M2 | 🟠 | Métricas/ServiceMonitor apagados (`metrics-enabled`) | A | ✅ |
 | M3 | 🟠 | TLS = service-CA, no cert corporativo | B | 📋 |
 | M4 | 🟠 | RealmImport y admin bootstrap fuera de Git | A | 🔧 |
 | M5 | 🟠 | Sin backups de DB | B | 📋 |

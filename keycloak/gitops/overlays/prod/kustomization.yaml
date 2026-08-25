@@ -3,8 +3,16 @@ kind: Kustomization
 namespace: keycloak
 resources:
   - ../../base
+  - keycloak-pdb.yaml
 patches:
-  - path: keycloak-hostname.yaml
+  - path: keycloak-prod.yaml
+  - target:
+      kind: Route
+      name: keycloak
+    patch: |-
+      - op: replace
+        path: /spec/host
+        value: sso.apps.cluster-lrr82.dyn.redhatworkshops.io
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform

@@ -8,9 +8,14 @@ metadata:
   name: keycloak
   namespace: keycloak
 spec:
+  # 1 instancia es atajo de DEV. En prod se sube a 2+ (HA) en overlays/prod.
   instances: 1
   db:
     vendor: postgres
+    # NO-PRODUCCION: apunta al PostgreSQL en-cluster (1 pod, sin HA ni backup) que
+    # despliega el propio lab. En prod = DB gestionada externa (Azure Database for
+    # PostgreSQL / RDS Multi-AZ); el host se parchea en overlays/prod. Ver
+    # docs/produccion-fuera-del-lab.md.
     host: keycloak-pgsql
     database: keycloak
     usernameSecret:
@@ -27,10 +32,26 @@ spec:
     # valor de la base es solo un marcador; nunca se despliega tal cual porque
     # el ApplicationSet siempre aplica el overlay del ambiente correspondiente.
     hostname: sso.apps.ejemplo.local
+    # strict false es atajo de DEV; en prod se pone true (evita host spoofing) en
+    # overlays/prod.
     strict: false
     strictBackchannel: false
   ingress:
     enabled: false
+  transaction:
+    # enable-recovery (abajo) requiere datasource XA; sin esto Argo revertiria el
+    # xaEnabled que el operador espera y quedaria recovery XA sobre datasource no-XA.
+    xaEnabled: true
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1700Mi
+    limits:
+      # Sin limit de CPU a proposito: la guia de sizing de RHBK desaconseja capar
+      # CPU en picos de login.
+      memory: 2Gi
   additionalOptions:
     - name: enable-recovery
+      value: "true"
+    - name: metrics-enabled
       value: "true"

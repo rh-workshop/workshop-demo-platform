@@ -1,0 +1,21 @@
+# Service del SSO. La annotation del service-CA de OpenShift genera el secret
+# keycloak-tls que consume spec.http.tlsSecret del CR Keycloak.
+#
+# NO-PRODUCCION: en prod el cert va de la CA corporativa (cert-manager/ESO), no
+# del service-CA interno. Ver docs/produccion-fuera-del-lab.md.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: keycloak-tls
+spec:
+  selector:
+    app: keycloak
+    app.kubernetes.io/managed-by: keycloak-operator
+    app.kubernetes.io/instance: keycloak
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443

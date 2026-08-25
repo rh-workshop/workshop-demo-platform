@@ -1,0 +1,20 @@
+# Route publica del SSO. El operador no la crea (ingress.enabled: false); se
+# versiona aqui para que el punto de entrada sea reconciliable y reproducible en
+# cualquier cluster. El host es un marcador; cada overlay lo pisa con el suyo
+# (mismo valor que spec.hostname del CR).
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  host: sso.apps.ejemplo.local
+  to:
+    kind: Service
+    name: keycloak
+  port:
+    targetPort: 8443
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
