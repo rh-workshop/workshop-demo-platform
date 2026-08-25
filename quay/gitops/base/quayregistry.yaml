@@ -1,15 +1,15 @@
 # Instancia de Quay. El operador reconcilia este CR: crea el despliegue, la base
-# de datos, Redis, la ruta y los certificados segun los componentes marcados.
+# de datos, Redis, la ruta y los certificados según los componentes marcados.
 #
 # `managed: true` = lo gestiona el operador. `managed: false` = queda fuera
-# (aqui: Clair, replicacion y autoescalado no se usan en este entorno).
+# (aquí: replicación y autoescalado; ver cada componente más abajo).
 apiVersion: quay.redhat.com/v1
 kind: QuayRegistry
 metadata:
-  name: bank-quay
+  name: company-quay
   namespace: quay-enterprise
 spec:
-  # El Secret con la configuracion se referencia POR NOMBRE: su contenido nunca
+  # El Secret con la configuración se referencia POR NOMBRE: su contenido nunca
   # se versiona en Git.
   configBundleSecret: quay-config-bundle
   components:
@@ -23,7 +23,7 @@ spec:
     - kind: redis
       managed: true
     # NO-PRODUCCION: objectstorage gestionado usa NooBaa ("disponibilidad limitada"
-    # segun Red Hat). En prod = S3/RADOS GW/Azure Blob (managed: false +
+    # según Red Hat). En prod = S3/RADOS GW/Azure Blob (managed: false +
     # DISTRIBUTED_STORAGE_CONFIG). Ver docs/produccion-fuera-del-lab.md.
     - kind: objectstorage
       managed: true
@@ -33,10 +33,10 @@ spec:
     # corporativo (managed: false + ssl.cert/ssl.key via ESO desde Key Vault).
     - kind: tls
       managed: true
-    # Clair ON: escaneo de vulnerabilidades en el registro (gate al push). Decision
-    # de arquitectura: ACS lee estos resultados via integracion Scanner+Registry en
+    # Clair ON: escaneo de vulnerabilidades en el registro (gate al push). Decisión
+    # de arquitectura: ACS lee estos resultados vía integración Scanner+Registry en
     # vez de re-escanear (ver docs/backlog-produccion.md). La doc exige que si clair
-    # es managed, clairpostgres tambien.
+    # es managed, clairpostgres también.
     - kind: clair
       managed: true
     - kind: clairpostgres
@@ -49,6 +49,6 @@ spec:
       # cluster-wide y poner managed: true, o crear el ServiceMonitor aparte.
       managed: false
     # HPA ON: el registro sirve pulls de todo el cluster + spokes; debe escalar
-    # ante picos. Antes off sin replicas declaradas.
+    # ante picos. Antes estaba desactivado y sin réplicas declaradas.
     - kind: horizontalpodautoscaler
       managed: true
