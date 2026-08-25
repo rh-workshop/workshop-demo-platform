@@ -7,7 +7,16 @@
 #
 # `simplesigning` + almacenamiento `oci` es el formato que ACS 4.x sabe
 # descubrir. La clave de firma NO va aqui: vive en el Secret `signing-secrets`
-# del namespace, que se crea con cosign (nunca en Git).
+# del namespace.
+#
+# IMPORTANTE: Chains firma solo si `signing-secrets` TIENE la clave cosign. Si el
+# secret esta vacio (como salia por defecto), Chains no firma nada y ACS no
+# encuentra ninguna .sig que verificar. Generar la clave (una vez):
+#   cosign generate-key-pair k8s://openshift-pipelines/signing-secrets
+#   oc delete pod -n openshift-pipelines -l app=tekton-chains-controller
+# NO-PRODUCCION: en prod la clave privada vive en Azure Key Vault y se sincroniza
+# por ESO; y se firma en formato clasico .sig (cosign v3 firma DSSE por defecto y
+# ACS 4.x no lo descubre). Ver docs/produccion-fuera-del-lab.md.
 apiVersion: operator.tekton.dev/v1alpha1
 kind: TektonConfig
 metadata:
@@ -15,6 +24,14 @@ metadata:
 spec:
   targetNamespace: openshift-pipelines
   profile: all
+  # Retencion de PipelineRuns: decision explicita (auditoria vs disco), no el
+  # default implicito del operador.
+  pruner:
+    resources:
+      - pipelinerun
+      - taskrun
+    keep: 100
+    schedule: "0 8 * * *"
   chain:
     artifacts.oci.format: simplesigning
     artifacts.oci.storage: oci
@@ -22,4 +39,7 @@ spec:
     artifacts.taskrun.storage: oci
     artifacts.pipelinerun.format: in-toto
     artifacts.pipelinerun.storage: oci
+    # transparency: registra las firmas en un log Rekor (prueba de que se firmo y
+    # cuando). Sin log, la firma pierde la mitad de su valor probatorio.
+    transparency.enabled: "true"
     disabled: false

@@ -33,7 +33,7 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 |---|---|---|
 | Service Mesh | El chart crea `IstioCNI` pero no el namespace `istio-cni` → no arregla el `IstioCNINotFound` | ✅ |
 | ACS | El playbook parte de premisa falsa ("no hay CRD"); existe `SecurityPolicy` (Policy-as-Code) | ✅ |
-| ACM | Placement `clusters-produccion` con set `global` sin binding; OperatorPolicy sin version pinning | 🔧 |
+| ACM | Placement `clusters-produccion` con set `global` sin binding; OperatorPolicy sin version pinning | ✅ |
 
 ---
 
@@ -107,8 +107,8 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| 1 | 🔴 | Solo L2 (un nodo activo, failover ARP lento) → prod = BGP+BFD | B | 📋 |
-| 2 | 🔴 | Mismo rango de IPs en dev y prod (conflicto ARP si comparten L2) | A | 🔧 |
+| 1 | 🔴 | L2 marcado NO-PRODUCCION (BGP+BFD en prod) | B | 📋 |
+| 2 | 🔴 | Rango de IPs distinto por overlay (dev 10.10.10 / prod 10.10.20) | A | ✅ |
 | 3 | 🟠 | Pool sin reserva para el Gateway; `avoidBuggyIPs: false` | A | 🔧 |
 | 4 | 🟡 | Sin acotación de speakers/interfaces | A | 🔧 |
 
@@ -116,7 +116,7 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| 1 | 🔴 | En Git solo `selfsigned`; los ACME reales del clúster fuera de Git | A (versionar) / B (ACME real) | 🔧 |
+| 1 | 🔴 | ClusterIssuer ACME versionado en Git (junto al selfsigned) | A | ✅ |
 | 2 | 🟠 | selfsigned usado "a pelo", no como bootstrap-CA | A | 🔧 |
 | 3 | 🟡 | Overlays dev/prod passthrough (vacíos) | A | 🔧 |
 
@@ -124,9 +124,9 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| 1 | 🔴 | Chains activo pero `signing-secrets` VACÍO → no firma nada | A (generar clave) / B (Key Vault) | 🔧 |
-| 2 | 🟠 | Sin transparency log (Rekor) | A | 🔧 |
-| 3 | 🟠 | Pruner y recursos no declarados en Git | A | 🔧 |
+| 1 | 🔴 | Clave cosign generada en signing-secrets (firma real); doc + Key Vault en prod | A | ✅ |
+| 2 | 🟠 | `transparency.enabled: true` (Rekor) | A | ✅ |
+| 3 | 🟠 | `pruner` declarado en Git (keep 100) | A | ✅ |
 | 4 | 🟡 | `profile: all` en el hub; push creds del SA sin documentar | A | 🔧 |
 
 ## ACM
@@ -134,8 +134,8 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
 | 1 | 🔴 | Nada del árbol `operators/` aplicado; Policy real en otro namespace | A | 🔧 |
-| 2 | 🔴 | Placement `clusters-produccion` con set `global` sin binding → 0 clústeres | A | 🔧 |
-| 3 | 🔴 | OperatorPolicy sin `versions` + canales flotantes + `upgradeApproval: None` | A | 🔧 |
+| 2 | 🔴 | Placement `clusters-produccion` clusterSet global→default | A | ✅ |
+| 3 | 🔴 | OperatorPolicy con `versions` (pin) + `upgradeApproval: Automatic` | A | ✅ |
 | 4 | 🟠 | OperatorPolicy asume namespaces que nadie crea | A | 🔧 |
 | 5 | 🟠 | Policy `exigir-resourcequota` solo gobierna `default` | A | 🔧 |
 | 6 | 🟡 | MultiClusterHub necesitará `ignoreDifferences` con Argo | A | 🔧 |

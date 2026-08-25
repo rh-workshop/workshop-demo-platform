@@ -11,3 +11,6 @@ metadata:
 spec:
   ipAddressPools:
   - workshop-pool
+# NO-PRODUCCION: L2 tiene un solo nodo activo por VIP (cuello de botella, failover
+# ARP lento). En prod = BGP+BFD (ECMP real, failover sub-segundo). Ver
+# docs/produccion-fuera-del-lab.md.

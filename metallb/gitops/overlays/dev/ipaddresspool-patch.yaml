@@ -1,0 +1,11 @@
+# Rango de IPs de DEV. Distinto del de prod: si ambos clusters comparten segmento
+# L2, usar el mismo rango provoca conflicto de IPs (dos speakers anuncian la misma
+# VIP por ARP). Cada ambiente reserva su rango.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: workshop-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.10.10.200-10.10.10.220

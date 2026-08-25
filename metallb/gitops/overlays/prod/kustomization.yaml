@@ -1,6 +1,9 @@
-# Overlay de produccion de metallb. Igual que la base por ahora; los ajustes
-# especificos de prod (replicas, limites) se parchean aqui sin tocar la base.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+patches:
+  - path: ipaddresspool-patch.yaml
+    target:
+      kind: IPAddressPool
+      name: workshop-pool

@@ -1,0 +1,21 @@
+# ClusterIssuer contra una CA real (ACME/Let's Encrypt). El selfsigned solo no
+# vale para prod: nadie confia en esos certs sin distribuir la CA. Este emite
+# certificados que los clientes validan.
+#
+# NO-PRODUCCION: el email y el solver dependen del entorno del cliente; en prod la
+# cuenta ACME va por ESO. En banca suele ser la CA corporativa (issuer tipo `ca`)
+# en vez de Let's Encrypt. Ver docs/produccion-fuera-del-lab.md.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: acme-produccion
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: CHANGE_ME_EMAIL
+    privateKeySecretRef:
+      name: acme-produccion-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: openshift-default
