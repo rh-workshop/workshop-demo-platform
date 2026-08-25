@@ -32,11 +32,11 @@
       - name: company
         email: plataforma@example.com
         repositories:
-          - name: demo-service
-            description: Imagen del servicio de ejemplo
-            visibility: private
+          # Una sola imagen para todos los escenarios: los tres servicios (demo,
+          # canary v1/v2 y circuit-breaker) ejecutan el mismo binario y solo se
+          # distinguen por las variables de entorno que les inyecta su Deployment.
           - name: app-workshop
-            description: Imagen de la aplicación de ejercicios del taller
+            description: Imagen del servicio de ejemplo del taller
             visibility: private
         robots:
           - name: puller
