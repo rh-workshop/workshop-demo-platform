@@ -4,3 +4,5 @@ resources:
   - acm-placement-configmap.yaml
   - workload-dev-applicationset.yaml
   - workload-prod-applicationset.yaml
+  - service-mesh-dev-applicationset.yaml
+  - service-mesh-prod-applicationset.yaml

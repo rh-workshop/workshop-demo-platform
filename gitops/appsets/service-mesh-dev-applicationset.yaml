@@ -1,0 +1,45 @@
+# Fan-out de Service Mesh (HELM) a los clusters de ambiente dev.
+#
+# Service Mesh usa Helm (no Kustomize como los demas workload), por eso tiene su
+# propio ApplicationSet en vez de ir en el 'list' del workload-dev: el template
+# apunta a un chart con helm.valueFiles, no a un overlay de Kustomize. Igual que
+# los demas, selecciona el cluster por el Placement clusters-dev, sin nombrarlo.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: service-mesh-dev
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+  - clusterDecisionResource:
+      configMapRef: acm-placement
+      labelSelector:
+        matchLabels:
+          cluster.open-cluster-management.io/placement: clusters-dev
+      requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: 'service-mesh-dev'
+    spec:
+      project: workshop-platform
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+        targetRevision: main
+        path: service-mesh/helm
+        helm:
+          valueFiles:
+            - envs/values-dev.yaml
+      destination:
+        server: '{{.server}}'
+        namespace: istio-system
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  syncPolicy:
+    preserveResourcesOnDeletion: true

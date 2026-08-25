@@ -1,0 +1,17 @@
+# Overrides del ambiente PROD.
+#
+# Solo lo que cambia respecto a values.yaml. En prod se sube el dimensionamiento
+# del plano de control (pilot atiende mas sidecars y mas trafico) y se usa la
+# estrategia de actualizacion basada en revisiones para permitir un canary del
+# propio plano de control (mas seguro que InPlace en produccion).
+istio:
+  updateStrategy: RevisionBased
+
+resources:
+  pilot:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi

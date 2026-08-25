@@ -71,3 +71,21 @@ spec:
             channel: stable
             source: redhat-operators
             sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: servicemesh-operator
+        spec:
+          # Service Mesh (Istio) es dependencia de Connectivity Link: su gateway
+          # usa el gatewayClass 'istio' que provee este operador. Va en workload
+          # porque Istio corre donde estan las apps.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: None
+          subscription:
+            name: servicemeshoperator3
+            namespace: openshift-operators
+            channel: stable
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace

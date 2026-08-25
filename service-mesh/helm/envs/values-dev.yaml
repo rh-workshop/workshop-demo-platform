@@ -1,0 +1,12 @@
+# Overrides del ambiente DEV.
+#
+# Solo lo que cambia respecto a values.yaml. En dev, recursos minimos: es un
+# entorno de pruebas, no necesita el dimensionamiento de produccion.
+resources:
+  pilot:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

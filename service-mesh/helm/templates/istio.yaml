@@ -1,0 +1,23 @@
+# CR Istio: el plano de control de Service Mesh.
+#
+# Aqui se ve el contraste con Kustomize: version, namespace, perfil y estrategia
+# NO estan escritos fijos, se INYECTAN desde los values. Cambiar de dev a prod no
+# parchea este fichero, cambia el values que se le pasa.
+apiVersion: sailoperator.io/v1
+kind: Istio
+metadata:
+  name: default
+spec:
+  namespace: {{ .Values.namespace }}
+  version: {{ .Values.istio.version }}
+  updateStrategy:
+    type: {{ .Values.istio.updateStrategy }}
+  values:
+    pilot:
+      resources:
+        requests:
+          cpu: {{ .Values.resources.pilot.requests.cpu }}
+          memory: {{ .Values.resources.pilot.requests.memory }}
+        limits:
+          cpu: {{ .Values.resources.pilot.limits.cpu }}
+          memory: {{ .Values.resources.pilot.limits.memory }}

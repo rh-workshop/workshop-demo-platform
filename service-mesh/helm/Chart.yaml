@@ -1,0 +1,18 @@
+# Chart de Helm para Service Mesh (OpenShift Service Mesh 3 / Istio).
+#
+# POR QUE ESTE PRODUCTO VA EN HELM Y NO EN KUSTOMIZE: es a proposito, para
+# mostrar la diferencia. Los demas productos usan Kustomize (parchean valores
+# conocidos por ambiente). Aqui se usa Helm, que TEMPLATIZA: los valores no se
+# parchean sobre un YAML fijo, sino que se inyectan en {{ plantillas }} desde un
+# fichero de values por ambiente. Es la herramienta cuando el valor "no se sabe
+# hasta el deploy" o cuando se consume un chart de terceros.
+#
+# Regla practica (consenso 2026): Kustomize para parchear lo conocido, Helm para
+# templatizar lo desconocido. Para CRs simples como estos, Kustomize basta; este
+# chart existe como ejemplo comparativo del workshop.
+apiVersion: v2
+name: service-mesh
+description: OpenShift Service Mesh 3 (Istio) para la plataforma del taller
+type: application
+version: 0.1.0
+appVersion: v1.30.3

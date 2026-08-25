@@ -27,7 +27,7 @@ Los productos se dividen en dos grupos según dónde viven:
 
 | Grupo | Productos | Dónde se despliega |
 |---|---|---|
-| **Workload** | keycloak, connectivity-link, cert-manager, metallb | A los spokes por ambiente, vía `ApplicationSet` |
+| **Workload** | keycloak, connectivity-link, cert-manager, metallb, service-mesh | A los spokes por ambiente, vía `ApplicationSet` |
 | **Hub** | acm, quay, acs, pipelines, developer-hub | Solo al hub, vía `Application` directa |
 
 > **Por qué pipelines es hub-only.** El CI construye la imagen y la publica en
@@ -121,6 +121,7 @@ se fija en el overlay del ambiente, nunca en la base.
 | **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** |
 | **ACM** | `MultiClusterHub`, `Policy`/`Placement`/`PlacementBinding` | — |
 | **Developer Hub** | CR `Backstage` + ConfigMaps (app-config, plugins, RBAC csv), Software Templates | — *(todo declarativo)* |
+| **Service Mesh** | CR `Istio` + `IstioCNI` *(vía **Helm**, no Kustomize — ver nota)* | — |
 
 ## Reglas que no se rompen
 
@@ -131,3 +132,20 @@ se fija en el overlay del ambiente, nunca en la base.
   `OperatorGroup` se aplican una vez al preparar el cluster.
 - **Idempotencia.** Un `oc apply -k` y una reejecución de los playbooks se
   repiten sin efectos secundarios.
+
+## Helm vs Kustomize: por qué service-mesh es la excepción
+
+Todos los productos usan **Kustomize** (`base` + `overlays`) menos **service-mesh**,
+que usa **Helm** (`service-mesh/helm/` con `values.yaml` + `envs/values-<amb>.yaml`).
+Es deliberado, como ejemplo comparativo:
+
+- **Kustomize** parchea valores conocidos sobre un YAML fijo. Es lo natural para
+  CRs de operador con pocos cambios por ambiente (hostname, réplicas). Lo usan los
+  demás productos.
+- **Helm** templatiza: los valores se inyectan en `{{ plantillas }}` desde un
+  fichero de values, y admite lógica (el `IstioCNI` se renderiza con un `if`).
+  Es la herramienta cuando hay templating real o se consume un chart de terceros.
+
+Regla práctica (consenso 2026): *Kustomize para lo conocido, Helm para lo
+desconocido*. Para estos CRs simples Kustomize bastaría; el chart existe para
+mostrar la diferencia. Argo consume Helm de forma nativa con `helm.valueFiles`.

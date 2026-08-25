@@ -1,0 +1,5 @@
+# Namespace del plano de control de Istio. El nombre viene de los values.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
