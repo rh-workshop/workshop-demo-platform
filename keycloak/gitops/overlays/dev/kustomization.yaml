@@ -11,7 +11,8 @@ patches:
     patch: |-
       - op: replace
         path: /spec/host
-        value: sso.apps.cluster-pvsbw.dyn.redhatworkshops.io
+        # Sustituir por el dominio del cluster de DESARROLLO: sso.apps.<cluster-dev>.<dominio-base>
+        value: sso.apps.cluster-dev.ejemplo.com
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform

@@ -12,7 +12,8 @@ patches:
     patch: |-
       - op: replace
         path: /spec/host
-        value: sso.apps.cluster-lrr82.dyn.redhatworkshops.io
+        # Sustituir por el dominio del cluster de PRODUCCIÓN: sso.apps.<cluster-prod>.<dominio-base>
+        value: sso.apps.cluster-prod.ejemplo.com
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform

@@ -30,7 +30,8 @@
 
     # Cuota por organizacion (en bytes). 50Gi de ejemplo.
     organizations:
-      - name: produbank
+      # Sustituir por el nombre de la organización de la empresa en Quay (el mismo de organizations.yml).
+      - name: company
         quota_bytes: 53687091200
         # auto-prune: conservar las ultimas N tags por repo.
         prune_keep_tags: 10

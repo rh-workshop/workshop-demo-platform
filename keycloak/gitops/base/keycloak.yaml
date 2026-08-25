@@ -31,7 +31,7 @@ spec:
     # El hostname cambia por ambiente: cada overlay lo pisa con el suyo. El
     # valor de la base es solo un marcador; nunca se despliega tal cual porque
     # el ApplicationSet siempre aplica el overlay del ambiente correspondiente.
-    hostname: sso.apps.ejemplo.local
+    hostname: sso.apps.cluster.ejemplo.com
     # strict false es atajo de DEV; en prod se pone true (evita host spoofing) en
     # overlays/prod.
     strict: false

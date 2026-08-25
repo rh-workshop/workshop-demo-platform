@@ -61,7 +61,8 @@
           Authorization: "Bearer {{ acs_token }}"
         body_format: json
         body:
-          name: quay-produbank
+          # Sustituir "company" por el nombre de la organización de Quay (el mismo de quay/ansible/organizations.yml).
+          name: quay-company
           type: quay
           categories:
             - REGISTRY

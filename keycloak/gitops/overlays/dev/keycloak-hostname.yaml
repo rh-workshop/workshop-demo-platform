@@ -6,4 +6,5 @@ metadata:
   namespace: keycloak
 spec:
   hostname:
-    hostname: sso.apps.cluster-pvsbw.dyn.redhatworkshops.io
+    # Sustituir por el dominio del cluster de DESARROLLO: sso.apps.<cluster-dev>.<dominio-base>
+    hostname: sso.apps.cluster-dev.ejemplo.com

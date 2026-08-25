@@ -9,7 +9,8 @@ spec:
   - name: https
     port: 443
     protocol: HTTPS
-    hostname: '*.apps.cluster-lrr82.dyn.redhatworkshops.io'
+    # Sustituir por el dominio del cluster de PRODUCCIÓN: *.apps.<cluster-prod>.<dominio-base>
+    hostname: '*.apps.cluster-prod.ejemplo.com'
     allowedRoutes:
       namespaces:
         from: Selector

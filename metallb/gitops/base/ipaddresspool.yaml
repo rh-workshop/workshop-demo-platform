@@ -9,6 +9,7 @@ metadata:
   name: workshop-pool
   namespace: metallb-system
 spec:
+  # Rango de ejemplo: ajustar al segmento L2 real donde vive el cluster.
   addresses:
     - 10.10.10.202-10.10.10.220
   autoAssign: true
@@ -24,6 +25,7 @@ metadata:
   name: gateway-pool
   namespace: metallb-system
 spec:
+  # Rango de ejemplo: ajustar al segmento L2 real donde vive el cluster.
   addresses:
     - 10.10.10.200-10.10.10.201
   autoAssign: false

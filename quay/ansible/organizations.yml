@@ -28,7 +28,8 @@
 
     # El "que" de este playbook: lo unico que se edita al anadir un dominio.
     organizations:
-      - name: produbank
+      # Sustituir por el nombre de la organización de la empresa en Quay.
+      - name: company
         email: plataforma@example.com
         repositories:
           - name: servicio-demo

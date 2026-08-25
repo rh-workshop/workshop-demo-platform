@@ -9,4 +9,5 @@ spec:
       authentication:
         token-valido:
           jwt:
-            issuerUrl: https://sso.apps.cluster-pvsbw.dyn.redhatworkshops.io/realms/workshop
+            # Sustituir por el dominio del cluster de DESARROLLO: https://sso.apps.<cluster-dev>.<dominio-base>/realms/workshop
+            issuerUrl: https://sso.apps.cluster-dev.ejemplo.com/realms/workshop

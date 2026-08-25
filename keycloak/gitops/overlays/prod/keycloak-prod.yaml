@@ -8,6 +8,7 @@ metadata:
 spec:
   instances: 2
   hostname:
-    hostname: sso.apps.cluster-lrr82.dyn.redhatworkshops.io
+    # Sustituir por el dominio del cluster de PRODUCCIÓN: sso.apps.<cluster-prod>.<dominio-base>
+    hostname: sso.apps.cluster-prod.ejemplo.com
     strict: true
     strictBackchannel: true

@@ -8,7 +8,8 @@ metadata:
   name: keycloak
   namespace: keycloak
 spec:
-  host: sso.apps.ejemplo.local
+  # Marcador de la base; cada overlay lo sustituye por el dominio real: sso.apps.<cluster>.<dominio-base>
+  host: sso.apps.cluster.ejemplo.com
   to:
     kind: Service
     name: keycloak
