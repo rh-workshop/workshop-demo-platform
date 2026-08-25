@@ -144,10 +144,10 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| A1 | 🔴 | DB embebida del operador (1Gi, sin backup/HA) | B | 📋 |
-| A2 | 🔴 | Sin auth real (guest/anónimo) → OIDC Keycloak | A (config) / B (secret real) | 🔧 |
-| A3 | 🔴 | Falta backend service-to-service secret | A | 🔧 |
+| A1 | 🔴 | DB embebida marcada NO-PRODUCCION (PostgreSQL externo en prod) | B | 📋 |
+| A2 | 🔴 | OIDC Keycloak en app-config (secret real por ESO en prod) | A | ✅ |
+| A3 | 🔴 | backend.auth externalAccess + rhdh-backend-secret (extraEnvs) | A | ✅ |
 | M4 | 🟠 | 1 réplica, resources por defecto | A | 🔧 |
-| M5 | 🟠 | Plugins Argo CD y Tekton ausentes (OCI, tags verificados) | A | 🔧 |
-| M6 | 🟠 | `rbac-policy-configmap` es config muerta (nada lo referencia) | A | 🔧 |
+| M5 | 🟠 | Plugins Argo CD + Tekton por OCI (tags verificados) | A | ✅ |
+| M6 | 🟠 | RBAC vivo: plugin habilitado + CSV montado + permission.enabled | A | ✅ |
 | B7 | 🟡 | monitoring off; catalog sin token GitHub; cert de ingress | A | 🔧 |

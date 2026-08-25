@@ -18,4 +18,19 @@ data:
   dynamic-plugins.yaml: |
     includes:
       - dynamic-plugins.default.yaml
-    plugins: []
+    plugins:
+      # Tekton: muestra los PipelineRun (CI/CD) de cada componente en el portal.
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-tekton:bs_1.49.4__3.37.0!backstage-community-plugin-tekton
+        disabled: false
+      # Argo CD backend (RoadieHQ): requerido por el frontend de Argo CD.
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/roadiehq-backstage-plugin-argo-cd-backend:bs_1.49.4__4.8.0!roadiehq-backstage-plugin-argo-cd-backend
+        disabled: false
+      # Argo CD frontend (Red Hat): muestra el estado de sync de cada Application.
+      # NOTA: el tag bs_1.49.4 aun no esta publicado en ghcr; se usa el ultimo
+      # compatible. Para prod, fijar por digest sha256 (recomendacion del repo de
+      # overlays) y verificar compatibilidad con la version de RHDH instalada.
+      - package: oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-community-plugin-redhat-argocd:bs_1.45.3__2.3.0!backstage-community-plugin-redhat-argocd
+        disabled: false
+      # RBAC: activa el motor de permisos (sin el, el rbac-policy.csv es config muerta).
+      - package: ./dynamic-plugins/dist/backstage-community-plugin-rbac
+        disabled: false

@@ -11,6 +11,11 @@ metadata:
   name: developer-hub
   namespace: developer-hub
 spec:
+  # NO-PRODUCCION: enableLocalDb usa la DB embebida del operador (1Gi, sin backup
+  # ni HA). En prod = PostgreSQL externo (enableLocalDb: false + POSTGRES_* por
+  # Secret via ESO). Ver docs/produccion-fuera-del-lab.md.
+  database:
+    enableLocalDb: true
   application:
     appConfig:
       configMaps:
@@ -18,3 +23,14 @@ spec:
     dynamicPluginsConfigMapName: dynamic-plugins-rhdh
     route:
       enabled: true
+    # Secretos inyectados como env: el backend service-to-service secret y (en
+    # prod) las credenciales OIDC de Keycloak. Se crean por ESO, nunca en Git.
+    extraEnvs:
+      secrets:
+        - name: rhdh-backend-secret
+    # El rbac-policy.csv se monta como fichero para que el plugin RBAC lo lea.
+    extraFiles:
+      mountPath: /opt/app-root/src/rbac
+      configMaps:
+        - name: rbac-policy-rhdh
+          key: rbac-policy.csv

@@ -12,6 +12,38 @@ data:
   app-config.yaml: |
     app:
       title: Portal del taller
+    backend:
+      auth:
+        # Secret de servicio backend-a-backend. El valor viene del Secret
+        # rhdh-backend-secret (extraEnvs), nunca en claro aqui. Sin esto, los
+        # plugins del backend no arrancan (fue la causa del backend caido).
+        externalAccess:
+          - type: static
+            options:
+              token: "${BACKEND_SECRET}"
+              subject: gitops-clients
+    # Autenticacion: en prod, OIDC contra el Keycloak de la plataforma (no guest).
+    # NO-PRODUCCION: las credenciales del cliente OIDC van por Secret (ESO); aqui
+    # se referencian por variable. Ver docs/produccion-fuera-del-lab.md.
+    auth:
+      environment: production
+      providers:
+        oidc:
+          production:
+            metadataUrl: ${KEYCLOAK_METADATA_URL}
+            clientId: ${KEYCLOAK_CLIENT_ID}
+            clientSecret: ${KEYCLOAK_CLIENT_SECRET}
+            prompt: auto
+            signIn:
+              resolvers:
+                - resolver: preferredUsernameMatchingUserEntityName
+    signInPage: oidc
+    permission:
+      # Activa el motor RBAC; lee el CSV montado por extraFiles (ver backstage.yaml).
+      enabled: true
+      rbac:
+        policies-csv-file: /opt/app-root/src/rbac/rbac-policy.csv
+        policyFileReload: true
     catalog:
       # De donde el portal descubre componentes, APIs y plantillas.
       locations:
