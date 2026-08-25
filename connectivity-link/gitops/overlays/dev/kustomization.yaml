@@ -7,3 +7,7 @@ patches:
     target:
       kind: Gateway
       name: shared-gateway
+  - path: authpolicy-default-issuer.yaml
+    target:
+      kind: AuthPolicy
+      name: shared-gateway-default

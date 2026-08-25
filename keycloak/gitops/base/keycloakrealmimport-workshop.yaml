@@ -1,0 +1,24 @@
+# Realm 'workshop' declarativo (el que valida las AuthPolicy de los servicios).
+#
+# Antes se creaba por API (huerfano): si Keycloak se reprovisiona, el realm
+# desaparece y toda la exposicion se cae a 401 permanente. Como KeycloakRealmImport
+# el operador lo reconcilia, sobrevive un redespliegue.
+#
+# Los clients M2M concretos (secretos incluidos) se gestionan en el playbook
+# keycloak/ansible/clients.yml; aqui va el realm y su configuracion base, sin
+# secretos.
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: workshop
+  namespace: keycloak
+spec:
+  keycloakCRName: keycloak
+  realm:
+    realm: workshop
+    enabled: true
+    # Los clients de servicio (servicio-demo, canary-service,
+    # circuit-breaker-service) los crea el playbook clients.yml con sus secretos.
+    # El realm de partida solo necesita existir y estar habilitado.
+    accessTokenLifespan: 300
+    ssoSessionIdleTimeout: 1800

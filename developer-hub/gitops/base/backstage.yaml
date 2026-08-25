@@ -23,6 +23,24 @@ spec:
     dynamicPluginsConfigMapName: dynamic-plugins-rhdh
     route:
       enabled: true
+  # NO-PRODUCCION: replicas 2 y resources ajustados requieren DB externa (con la
+  # DB embebida no se debe escalar). Se declara para prod; en el lab con DB
+  # embebida el operador mantiene 1 replica.
+  deployment:
+    patch:
+      spec:
+        replicas: 2
+        template:
+          spec:
+            containers:
+              - name: backstage-backend
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 1Gi
+                  limits:
+                    cpu: "2"
+                    memory: 3Gi
     # Secretos inyectados como env: el backend service-to-service secret y (en
     # prod) las credenciales OIDC de Keycloak. Se crean por ESO, nunca en Git.
     extraEnvs:

@@ -6,3 +6,4 @@ resources:
   - kuadrant.yaml
   - gateway.yaml
   - shared-gateway-tlspolicy.yaml
+  - shared-gateway-default-authpolicy.yaml

@@ -63,7 +63,10 @@
           name: "{{ item.name }}"
           email: "{{ item.email }}"
         # 201 = creada; 400 = ya existe. Ambas son exito para un playbook
-        # idempotente.
+        # idempotente. LIMITACION: un 400 tambien lo devuelve un payload invalido
+        # (nombre ilegal, email duplicado); aqui se acepta en silencio. Para
+        # endurecer: GET previo + when, o register de la respuesta y failed_when que
+        # inspeccione error_message del body en el 400.
         status_code: [201, 400]
         validate_certs: "{{ validate_certs }}"
       loop: "{{ organizations }}"

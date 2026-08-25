@@ -1,5 +1,5 @@
-# Overlay de produccion de cert-manager. Igual que la base por ahora; los ajustes
-# especificos de prod (replicas, limites) se parchean aqui sin tocar la base.
+# En prod el emisor de cara al exterior es ACME/CA corporativa (acme-produccion);
+# la CA propia del taller queda para trafico interno. Ambos issuers van en la base.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

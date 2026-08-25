@@ -1,0 +1,26 @@
+# AuthPolicy por defecto a nivel Gateway: deny-by-default. Exige JWT valido a TODO
+# el trafico del gateway compartido. Cada servicio la sobreescribe con su propia
+# AuthPolicy (targetRef HTTPRoute); los que no tengan una caen aqui y reciben 401.
+#
+# Es el patron Zero Trust correcto (denegar por defecto, permitir por servicio).
+# Antes estaba fuera de Git (huerfana). El issuerUrl se parchea por overlay.
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: shared-gateway-default
+  namespace: platform-gateway
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared-gateway
+  defaults:
+    strategy: atomic
+    rules:
+      authentication:
+        token-valido:
+          credentials:
+            authorizationHeader:
+              prefix: Bearer
+          jwt:
+            issuerUrl: https://CHANGE_ME_KEYCLOAK_HOST/realms/workshop

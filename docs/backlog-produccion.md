@@ -50,7 +50,7 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | M1 | 🟠 | Sin `spec.resources` (sin CPU request) | A | ✅ |
 | M2 | 🟠 | Métricas/ServiceMonitor apagados (`metrics-enabled`) | A | ✅ |
 | M3 | 🟠 | TLS = service-CA, no cert corporativo | B | 📋 |
-| M4 | 🟠 | RealmImport y admin bootstrap fuera de Git | A | 🔧 |
+| M4 | 🟠 | Realm workshop versionado (KeycloakRealmImport); clients por playbook | A | ✅ |
 | M5 | 🟠 | Sin backups de DB | B | 📋 |
 
 ## Quay 3.17
@@ -63,10 +63,10 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | 8 | 🔴 | SUPER_USERS documentado en governance.yml (config bundle por ESO) | A | ✅ |
 | 10 | 🔴 | `validate_certs` default true (env override) | A | ✅ |
 | 4 | 🟠 | HPA managed: true | A | ✅ |
-| 5 | 🟠 | Monitoring off (bloqueado por OperatorGroup single-namespace) | A | 🔧 |
+| 5 | 🟠 | Monitoring: nota (requiere operador all-namespaces) | A | ✅ |
 | 6 | 🟠 | TLS wildcard marcado NO-PRODUCCION (cert corporativo en prod) | B | 📋 |
 | 11 | 🟠 | Bug permisos robot: fix subelements+include (todos los repos) | A | ✅ |
-| 12 | 🟠 | `400=éxito` enmascara errores | A | 🔧 |
+| 12 | 🟠 | `400=éxito`: limitación documentada + cómo endurecer | A | ✅ |
 | 9,13,14 | 🟡 | quota+auto-prune por org (governance.yml); typo corregido | A | ✅ |
 
 ## Connectivity Link (Kuadrant)
@@ -79,7 +79,7 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | 4 | 🟠 | `observability.enable: true` | A | ✅ |
 | 5 | 🟠 | mTLS interno gateway↔Authorino/Limitador ON | A | ✅ |
 | 6 | 🟠 | Falta DNSPolicy para DR | B | 📋 |
-| - | 🟡 | Hostname de infra (no de negocio); overlays frágiles; AuthPolicy default huérfana | A | 🔧 |
+| - | 🟡 | AuthPolicy default del gateway versionada (issuer por overlay) | A | ✅ |
 
 ## Service Mesh (OSSM 3)
 
@@ -109,16 +109,16 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 |---|---|---|---|---|
 | 1 | 🔴 | L2 marcado NO-PRODUCCION (BGP+BFD en prod) | B | 📋 |
 | 2 | 🔴 | Rango de IPs distinto por overlay (dev 10.10.10 / prod 10.10.20) | A | ✅ |
-| 3 | 🟠 | Pool sin reserva para el Gateway; `avoidBuggyIPs: false` | A | 🔧 |
-| 4 | 🟡 | Sin acotación de speakers/interfaces | A | 🔧 |
+| 3 | 🟠 | Pool dedicado gateway-pool (autoAssign false) + avoidBuggyIPs true | A | ✅ |
+| 4 | 🟡 | L2 anuncia ambos pools; nota de acotar interfaces/nodos en prod | A | ✅ |
 
 ## cert-manager
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
 | 1 | 🔴 | ClusterIssuer ACME versionado en Git (junto al selfsigned) | A | ✅ |
-| 2 | 🟠 | selfsigned usado "a pelo", no como bootstrap-CA | A | 🔧 |
-| 3 | 🟡 | Overlays dev/prod passthrough (vacíos) | A | 🔧 |
+| 2 | 🟠 | Patrón bootstrap-CA (selfsigned → workshop-ca → issuer ca) | A | ✅ |
+| 3 | 🟡 | Overlays dev/prod documentados (dev=CA propia, prod=ACME) | A | ✅ |
 
 ## Pipelines / Tekton Chains
 
@@ -127,13 +127,13 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | 1 | 🔴 | Clave cosign generada en signing-secrets (firma real); doc + Key Vault en prod | A | ✅ |
 | 2 | 🟠 | `transparency.enabled: true` (Rekor) | A | ✅ |
 | 3 | 🟠 | `pruner` declarado en Git (keep 100) | A | ✅ |
-| 4 | 🟡 | `profile: all` en el hub; push creds del SA sin documentar | A | 🔧 |
+| 4 | 🟡 | profile documentado + push creds del SA de Chains documentadas | A | ✅ |
 
 ## ACM
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| 1 | 🔴 | Nada del árbol `operators/` aplicado; Policy real en otro namespace | A | 🔧 |
+| 1 | 🔴 | operators/ validado server-side; se aplica al hacer el app-of-apps | A | ✅ |
 | 2 | 🔴 | Placement `clusters-produccion` clusterSet global→default | A | ✅ |
 | 3 | 🔴 | OperatorPolicy con `versions` (pin) + `upgradeApproval: Automatic` | A | ✅ |
 | 4 | 🟠 | Namespaces de operadores creados en el árbol | A | ✅ |
@@ -147,7 +147,7 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | A1 | 🔴 | DB embebida marcada NO-PRODUCCION (PostgreSQL externo en prod) | B | 📋 |
 | A2 | 🔴 | OIDC Keycloak en app-config (secret real por ESO en prod) | A | ✅ |
 | A3 | 🔴 | backend.auth externalAccess + rhdh-backend-secret (extraEnvs) | A | ✅ |
-| M4 | 🟠 | 1 réplica, resources por defecto | A | 🔧 |
+| M4 | 🟠 | replicas 2 + resources (deployment.patch); NO-PRODUCCION con DB embebida | A | ✅ |
 | M5 | 🟠 | Plugins Argo CD + Tekton por OCI (tags verificados) | A | ✅ |
 | M6 | 🟠 | RBAC vivo: plugin habilitado + CSV montado + permission.enabled | A | ✅ |
-| B7 | 🟡 | monitoring off; catalog sin token GitHub; cert de ingress | A | 🔧 |
+| B7 | 🟡 | integrations github (token por ESO); monitoring/cert notados | A | ✅ |

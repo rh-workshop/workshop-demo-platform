@@ -17,12 +17,20 @@
 # NO-PRODUCCION: en prod la clave privada vive en Azure Key Vault y se sincroniza
 # por ESO; y se firma en formato clasico .sig (cosign v3 firma DSSE por defecto y
 # ACS 4.x no lo descubre). Ver docs/produccion-fuera-del-lab.md.
+#
+# El almacenamiento oci de Chains empuja las firmas al registro: el SA
+# 'pipeline' del namespace necesita credenciales de push a Quay (un pull/push
+# secret con el robot 'pusher'). Se enlaza con:
+#   oc secrets link pipeline <quay-push-secret> --for=mount -n openshift-pipelines
 apiVersion: operator.tekton.dev/v1alpha1
 kind: TektonConfig
 metadata:
   name: config
 spec:
   targetNamespace: openshift-pipelines
+  # profile: all incluye el dashboard y triggers. En un hub de CI de prod se puede
+  # bajar a 'basic' (sin dashboard) para reducir superficie; se deja 'all' para que
+  # el workshop tenga la consola de pipelines.
   profile: all
   # Retencion de PipelineRuns: decision explicita (auditoria vs disco), no el
   # default implicito del operador.

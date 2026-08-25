@@ -1,0 +1,12 @@
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: shared-gateway-default
+  namespace: platform-gateway
+spec:
+  defaults:
+    rules:
+      authentication:
+        token-valido:
+          jwt:
+            issuerUrl: https://sso.apps.cluster-pvsbw.dyn.redhatworkshops.io/realms/workshop

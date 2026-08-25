@@ -44,6 +44,12 @@ data:
       rbac:
         policies-csv-file: /opt/app-root/src/rbac/rbac-policy.csv
         policyFileReload: true
+    # Integracion con GitHub para el catalogo: sin token, el rate-limit anonimo
+    # frena el descubrimiento. El token va por Secret (ESO), no en claro.
+    integrations:
+      github:
+        - host: github.com
+          token: ${GITHUB_TOKEN}
     catalog:
       # De donde el portal descubre componentes, APIs y plantillas.
       locations:
