@@ -73,11 +73,11 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
-| 1 | 🔴 | TLS del Gateway con `selfsigned`; falta TLSPolicy con CA real en Git | A (TLSPolicy) / B (CA) | 🔧 |
+| 1 | 🔴 | TLSPolicy en Git (issuer real en prod); selfsigned marcado NO-PRODUCCION | A | ✅ |
 | 2 | 🔴 | Limitador en memoria (falta Redis) | B (Redis externo) | 📋 |
-| 3 | 🟠 | Sin HA: Authorino/Limitador 1 réplica, sin PDB | A | 🔧 |
-| 4 | 🟠 | `observability: {}` no habilita nada (`enable: true`) | A | 🔧 |
-| 5 | 🟠 | mTLS interno gateway↔Authorino/Limitador off | A | 🔧 |
+| 3 | 🟠 | HA: Authorino/Limitador 2 réplicas + PDB en prod | A | ✅ |
+| 4 | 🟠 | `observability.enable: true` | A | ✅ |
+| 5 | 🟠 | mTLS interno gateway↔Authorino/Limitador ON | A | ✅ |
 | 6 | 🟠 | Falta DNSPolicy para DR | B | 📋 |
 | - | 🟡 | Hostname de infra (no de negocio); overlays frágiles; AuthPolicy default huérfana | A | 🔧 |
 

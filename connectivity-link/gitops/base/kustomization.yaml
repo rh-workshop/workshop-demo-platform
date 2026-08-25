@@ -5,3 +5,4 @@ resources:
   - namespace-gateway.yaml
   - kuadrant.yaml
   - gateway.yaml
+  - shared-gateway-tlspolicy.yaml

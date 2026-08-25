@@ -2,8 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+  - authorino-ha.yaml
+  - limitador-ha.yaml
 patches:
   - path: gateway-hostname.yaml
     target:
       kind: Gateway
       name: shared-gateway
+  - path: tlspolicy-issuer.yaml
+    target:
+      kind: TLSPolicy
+      name: shared-gateway-tls

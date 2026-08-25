@@ -1,0 +1,20 @@
+# TLSPolicy: cert-manager emite el cert del Gateway compartido automaticamente.
+#
+# Sin esto, el secret shared-gateway-https del Gateway no lo genera nadie de forma
+# declarativa (antes salia de un recurso fuera de Git). El issuer se parchea por
+# overlay: en el lab un selfsigned; en prod la CA corporativa o ACME real
+# (NO-PRODUCCION usar selfsigned; ver docs/produccion-fuera-del-lab.md).
+apiVersion: kuadrant.io/v1
+kind: TLSPolicy
+metadata:
+  name: shared-gateway-tls
+  namespace: platform-gateway
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared-gateway
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned

@@ -1,0 +1,14 @@
+# HA de Limitador en prod: 2 replicas + PDB. Limitador cuenta el rate-limit; con 1
+# replica un drain corta el rate-limit del gateway.
+# NO-PRODUCCION: con counters en memoria, escalar Limitador MULTIPLICA el limite
+# efectivo (cada replica cuenta por su lado). En prod hace falta Redis compartido
+# (ver docs/produccion-fuera-del-lab.md) ANTES de subir replicas.
+apiVersion: limitador.kuadrant.io/v1alpha1
+kind: Limitador
+metadata:
+  name: limitador
+  namespace: kuadrant-system
+spec:
+  replicas: 2
+  pdb:
+    maxUnavailable: 1

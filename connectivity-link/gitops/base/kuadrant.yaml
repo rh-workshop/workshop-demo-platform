@@ -10,4 +10,15 @@ metadata:
   name: kuadrant
   namespace: kuadrant-system
 spec:
-  observability: {}
+  observability:
+    # enable: true crea los ServiceMonitors/PodMonitors de Authorino, Limitador y
+    # el gateway. Requiere user workload monitoring habilitado en el cluster. Con
+    # {} (vacio) no se habilitaba nada.
+    enable: true
+  mtls:
+    # Cifra el trafico interno gateway<->Authorino (decisiones de auth) y
+    # gateway<->Limitador (counters de rate-limit), que por defecto viaja en claro.
+    # Postura Zero Trust para un entorno bancario.
+    enable: true
+    authorino: true
+    limitador: true
