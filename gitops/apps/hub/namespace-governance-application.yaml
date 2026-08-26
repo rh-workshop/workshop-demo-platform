@@ -23,6 +23,9 @@ spec:
     path: namespace-governance/gitops/overlays/hub
   destination:
     server: https://kubernetes.default.svc
+    # Namespace por DEFECTO exigido por el AppProject: aquí no aterriza nada,
+    # todos los recursos del componente llevan su namespace explícito.
+    namespace: platform-gateway
   syncPolicy:
     automated:
       # prune false: borrar por accidente una cuota o un RoleBinding de un
