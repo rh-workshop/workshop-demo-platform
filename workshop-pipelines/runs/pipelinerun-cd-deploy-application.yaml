@@ -29,6 +29,7 @@ spec:
           accessModes:
             - ReadWriteOnce
           # Sustituir por una StorageClass RWO del cluster (o borrar la línea para usar la default).
+          # Sustituir por la del cluster: oc get storageclass -o name | head -1
           storageClassName: CHANGE_ME_STORAGECLASS
           resources:
             requests:

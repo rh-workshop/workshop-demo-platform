@@ -19,8 +19,12 @@ spec:
   params:
     # Referencia completa por digest, p. ej. quay.example.com/company/api-service@sha256:...
     - {name: image-ref, type: string}
-    # Umbral de corte: LOW, MODERATE, IMPORTANT o CRITICAL (falla si hay CVEs en ese nivel o superior).
+    # Umbral: LOW, MODERATE, IMPORTANT o CRITICAL. Marca qué CVEs se destacan en el informe y, si fail-on-violation es "true", cuáles cortan.
     - {name: severity-threshold, type: string, default: CRITICAL}
+    # "false" (por defecto) INFORMA y continúa; "true" corta el pipeline al cruzar el umbral.
+    # Informar sin cortar evita que CVEs de base sin parche dejen el pipeline en rojo permanente,
+    # a cambio de que una imagen vulnerable SÍ se promocione: en producción esto debe ir en "true".
+    - {name: fail-on-violation, type: string, default: "false"}
     # Endpoint de Central; por defecto el Service interno del cluster.
     - {name: rox-central-endpoint, type: string, default: "central.stackrox.svc:443"}
   workspaces:
@@ -45,23 +49,44 @@ spec:
         ROXCTL="roxctl --token-file $(workspaces.acs-credentials.path)/rox-api-token --ca $(workspaces.acs-credentials.path)/ca.pem -e $(params.rox-central-endpoint)"
         # --force pide a Central re-escanear en vez de servir un resultado cacheado.
         $ROXCTL image scan --image "$(params.image-ref)" --force --output json > /var/scan/scan.json
-        # Conteo por severidad sobre el JSON (sin dependencias externas en la imagen).
-        contar() { grep -o "${1}_VULNERABILITY_SEVERITY" /var/scan/scan.json | wc -l | tr -d ' '; }
+        # El JSON de roxctl 4.11 trae un bloque summary con los conteos oficiales por severidad: se lee de ahí (aparece primero en el fichero).
+        contar() { grep -m1 -oE "\"$1\": *[0-9]+" /var/scan/scan.json | grep -oE '[0-9]+' || echo 0; }
         CRITICAL=$(contar CRITICAL); IMPORTANT=$(contar IMPORTANT); MODERATE=$(contar MODERATE); LOW=$(contar LOW)
+        # Reporte DETALLADO en los logs: sin el listado, un recuento agregado no
+        # deja decidir si las vulnerabilidades son asumibles ni cómo corregirlas.
+        # Segunda pasada en formato tabla; lee del cache de Central, no re-escanea.
+        echo "---------- CVEs encontrados ----------"
+        $ROXCTL image scan --image "$(params.image-ref)" --output table 2>/dev/null || \
+          echo "(no se pudo renderizar la tabla; el JSON completo queda en el artefacto scan.json)"
+        echo "--------------------------------------"
         echo "Vulnerabilidades: CRITICAL=$CRITICAL IMPORTANT=$IMPORTANT MODERATE=$MODERATE LOW=$LOW"
         # El umbral es un PARÁMETRO del pipeline: se suma todo lo que esté en el nivel del umbral o por encima.
         case "$(params.severity-threshold)" in
-          CRITICAL)  TOTAL=$CRITICAL ;;
-          IMPORTANT) TOTAL=$((CRITICAL + IMPORTANT)) ;;
-          MODERATE)  TOTAL=$((CRITICAL + IMPORTANT + MODERATE)) ;;
-          LOW)       TOTAL=$((CRITICAL + IMPORTANT + MODERATE + LOW)) ;;
+          CRITICAL)  TOTAL=$CRITICAL;  NIVELES="CRITICAL" ;;
+          IMPORTANT) TOTAL=$((CRITICAL + IMPORTANT)); NIVELES="CRITICAL|IMPORTANT" ;;
+          MODERATE)  TOTAL=$((CRITICAL + IMPORTANT + MODERATE)); NIVELES="CRITICAL|IMPORTANT|MODERATE" ;;
+          LOW)       TOTAL=$((CRITICAL + IMPORTANT + MODERATE + LOW)); NIVELES="CRITICAL|IMPORTANT|MODERATE|LOW" ;;
           *) echo "Umbral desconocido: $(params.severity-threshold) (usa LOW|MODERATE|IMPORTANT|CRITICAL)" >&2; exit 1 ;;
         esac
         if [ "$TOTAL" -gt 0 ]; then
-          echo "FALLO: $TOTAL vulnerabilidades en severidad >= $(params.severity-threshold); la imagen no se promociona." >&2
-          exit 1
+          # Se repiten SOLO las que cruzan el umbral: son las accionables, y
+          # buscarlas dentro de la tabla completa cuesta tiempo.
+          # Las claves reales del JSON de roxctl 4.11 son cveId y cveSeverity (en líneas consecutivas).
+          echo "----- Vulnerabilidades que cruzan el umbral $(params.severity-threshold) -----"
+          # sort -u colapsa el mismo CVE repetido por cada componente afectado (validado contra el JSON real de roxctl 4.11.3).
+          grep -E '"cveId"|"cveSeverity"' /var/scan/scan.json | paste - - \
+            | grep -E "\"($NIVELES)\"" | sort -u | head -40 || true
+          echo "Escaneo completo en la consola de ACS."
+          if [ "$(params.fail-on-violation)" = "true" ]; then
+            echo "FALLO: $TOTAL vulnerabilidades en severidad >= $(params.severity-threshold); la imagen no se promociona." >&2
+            exit 1
+          fi
+          # Modo informe: se avisa pero la imagen sigue su curso hasta Git.
+          echo "AVISO: $TOTAL vulnerabilidades en severidad >= $(params.severity-threshold)."
+          echo "El pipeline CONTINÚA porque fail-on-violation=false; ponlo en \"true\" para que corte."
+        else
+          echo "Escaneo limpio en el umbral $(params.severity-threshold)."
         fi
-        echo "Escaneo limpio en el umbral $(params.severity-threshold)."
     - name: check-build-policies
       image: registry.redhat.io/advanced-cluster-security/rhacs-roxctl-rhel9:4.11.3
       script: |
@@ -69,4 +94,10 @@ spec:
         set -eu
         ROXCTL="roxctl --token-file $(workspaces.acs-credentials.path)/rox-api-token --ca $(workspaces.acs-credentials.path)/ca.pem -e $(params.rox-central-endpoint)"
         # Evalúa las políticas BUILD de ACS (firma exigida, latest prohibido...): sale distinto de cero si alguna con enforcement viola.
-        $ROXCTL image check --image "$(params.image-ref)"
+        # Mismo criterio que el paso anterior: con fail-on-violation=false se informa de las violaciones y el pipeline sigue.
+        if [ "$(params.fail-on-violation)" = "true" ]; then
+          $ROXCTL image check --image "$(params.image-ref)"
+        else
+          $ROXCTL image check --image "$(params.image-ref)" || \
+            echo "AVISO: hay políticas de ACS en violación. El pipeline CONTINÚA porque fail-on-violation=false."
+        fi

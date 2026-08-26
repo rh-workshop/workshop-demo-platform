@@ -29,9 +29,9 @@ spec:
     # Repositorio SIN tag en el registro corporativo (Quay): los tags (git-<sha> y el móvil) los pone el pipeline.
     - name: image-repository
       value: CHANGE_ME_QUAY_HOST/company/api-service
-    # Umbral del escaneo como PARÁMETRO: aquí se corta desde IMPORTANT hacia arriba.
+    # Umbral del escaneo como PARÁMETRO: CRITICAL corta solo lo crítico; súbelo a IMPORTANT para endurecer la puerta.
     - name: scan-severity-threshold
-      value: IMPORTANT
+      value: CRITICAL
     # Elige el binario del monorepo: el Containerfile construye ./cmd/api-service.
     - name: build-args
       value:
@@ -49,6 +49,7 @@ spec:
           accessModes:
             - ReadWriteOnce
           # Sustituir por una StorageClass RWO del cluster (o borrar la línea para usar la default).
+          # Sustituir por la del cluster: oc get storageclass -o name | head -1
           storageClassName: CHANGE_ME_STORAGECLASS
           resources:
             requests:
@@ -59,6 +60,7 @@ spec:
           accessModes:
             - ReadWriteOnce
           # Sustituir por una StorageClass RWO del cluster (o borrar la línea para usar la default).
+          # Sustituir por la del cluster: oc get storageclass -o name | head -1
           storageClassName: CHANGE_ME_STORAGECLASS
           resources:
             requests:

@@ -14,7 +14,8 @@ spec:
     # Rama del repo de configuración que se valida y se sincroniza.
     - {name: config-revision, default: main}
     - {name: overlay-path, default: apps/demo-service/overlays/dev}
-    - {name: argocd-application, default: demo-service-dev}
+    # Nombre REAL de la Application en Argo CD (el ApplicationSet la genera con prefijo "app-").
+    - {name: argocd-application, default: app-demo-service-dev}
   workspaces:
     - name: config
   tasks:
@@ -39,4 +40,5 @@ spec:
       taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: argocd-task-sync-and-wait}, {name: namespace, value: openshift-pipelines}]}
       params:
         - {name: application-name, value: $(params.argocd-application)}
-        - {name: revision, value: HEAD}
+        # Con auto-sync activo Argo solo acepta sincronizar a la MISMA revisión que sigue la Application (HEAD lo rechaza).
+        - {name: revision, value: $(params.config-revision)}

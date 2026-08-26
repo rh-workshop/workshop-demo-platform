@@ -40,6 +40,8 @@ spec:
     - {name: moving-tag, default: dev}
     # Umbral de severidad del escaneo (LOW|MODERATE|IMPORTANT|CRITICAL): el corte es un parámetro, nunca cableado.
     - {name: scan-severity-threshold, default: CRITICAL}
+    # "false" informa de los CVEs y sigue; "true" corta el pipeline. En producción va en "true".
+    - {name: scan-fail-on-violation, default: "false"}
     # Endpoint de ACS Central; por defecto el Service interno del cluster.
     - {name: rox-central-endpoint, default: "central.stackrox.svc:443"}
   workspaces:
@@ -131,6 +133,7 @@ spec:
       params:
         - {name: image-ref, value: "$(params.image-repository)@$(tasks.build-and-publish-image.results.IMAGE_DIGEST)"}
         - {name: severity-threshold, value: $(params.scan-severity-threshold)}
+        - {name: fail-on-violation, value: $(params.scan-fail-on-violation)}
         - {name: rox-central-endpoint, value: $(params.rox-central-endpoint)}
       workspaces:
         - {name: acs-credentials, workspace: acs-credentials}

@@ -45,7 +45,10 @@ spec:
         set -eu
         cosign version | grep -i gitversion || true
         # La contraseña de la llave sale del propio Secret montado, jamás de un parámetro.
-        COSIGN_PASSWORD="$(cat $(workspaces.signing-key.path)/password)"; export COSIGN_PASSWORD
+        # cosign v2 la guarda como "password" y cosign v3 como "cosign.password": se aceptan ambas.
+        KEYDIR="$(workspaces.signing-key.path)"
+        if [ -f "$KEYDIR/cosign.password" ]; then PASSFILE="$KEYDIR/cosign.password"; else PASSFILE="$KEYDIR/password"; fi
+        COSIGN_PASSWORD="$(cat "$PASSFILE")"; export COSIGN_PASSWORD
         REF="$(params.image-repository)@$(params.image-digest)"
         # Si el binario conoce --new-bundle-format (v2.5+/v3), se apaga EXPLÍCITAMENTE para emitir el .sig clásico que ACS descubre.
         FORMAT_FLAG=""
