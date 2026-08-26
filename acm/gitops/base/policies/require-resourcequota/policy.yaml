@@ -54,5 +54,13 @@ spec:
                 requests.memory: 8Gi
                 # limits ademas de requests: sin techo de limits, un pod puede
                 # pedir poco y consumir mucho en picos.
-                limits.cpu: '8'
-                limits.memory: 16Gi
+                #
+                # El techo cuenta los SIDECARS, no solo la aplicacion: en un
+                # namespace del mesh cada pod lleva istio-proxy e istio-validation,
+                # que piden 2 CPU de limite CADA UNO. Un servicio que pide 200m
+                # consume en realidad 4200m de cuota. Con el valor anterior ('8')
+                # bastaban dos pods para agotarla: los ReplicaSet nuevos no creaban
+                # pod y el Deployment quedaba en 'exceeded its progress deadline'
+                # sin causa aparente.
+                limits.cpu: '24'
+                limits.memory: 24Gi
