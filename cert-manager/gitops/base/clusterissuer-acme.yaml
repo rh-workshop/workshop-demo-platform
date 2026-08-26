@@ -12,7 +12,8 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: CHANGE_ME_EMAIL
+    # El correo de contacto es opcional en ACME; un placeholder literal rompe el registro de la cuenta.
+    # El correo real del cliente se inyecta fuera de Git (parche del overlay o ESO), nunca aquí.
     privateKeySecretRef:
       name: acme-produccion-account-key
     solvers:
