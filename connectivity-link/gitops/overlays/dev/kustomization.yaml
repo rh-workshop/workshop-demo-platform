@@ -21,3 +21,7 @@ patches:
     target:
       kind: Kuadrant
       name: kuadrant
+  - path: route-wildcard-host.yaml
+    target:
+      kind: Route
+      name: shared-gateway-wildcard

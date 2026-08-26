@@ -1,0 +1,29 @@
+# Activa el plugin de Kuadrant en la consola web de OpenShift.
+#
+# El operador DESPLIEGA el plugin (Deployment kuadrant-console-plugin) y registra
+# su ConsolePlugin, pero no lo habilita: hasta que su nombre no aparece en
+# console.operator/cluster .spec.plugins, la consola no lo carga y no se ve nada.
+# Ese ultimo paso es una decision del administrador del cluster, por eso el
+# operador no lo hace solo.
+#
+# Con el plugin activo, la consola muestra los recursos de Connectivity Link
+# (Gateway, HTTPRoute, AuthPolicy, RateLimitPolicy, DNSPolicy, TLSPolicy) y su
+# topologia, en vez de obligar a leerlos por 'oc get'.
+#
+# OJO — el recurso es SINGLETON y de ambito cluster: Argo hace merge del array
+# .spec.plugins, asi que este manifiesto debe listar TODOS los plugins que se
+# quieren activos, no solo el de Kuadrant; omitir uno lo desactivaria.
+apiVersion: operator.openshift.io/v1
+kind: Console
+metadata:
+  name: cluster
+spec:
+  plugins:
+    # Connectivity Link: el motivo de este fichero.
+    - kuadrant-console-plugin
+    # Los que ya trae el cluster; se repiten para no desactivarlos en el merge.
+    - odf-console
+    - monitoring-plugin
+    - networking-console-plugin
+    - mce
+    - acm

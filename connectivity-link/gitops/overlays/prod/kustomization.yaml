@@ -23,3 +23,7 @@ patches:
     target:
       kind: AuthPolicy
       name: shared-gateway-default
+  - path: route-wildcard-host.yaml
+    target:
+      kind: Route
+      name: shared-gateway-wildcard

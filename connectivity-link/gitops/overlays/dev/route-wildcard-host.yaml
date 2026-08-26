@@ -1,0 +1,11 @@
+# El host ancla debe caer bajo el MISMO dominio que el comodin del Gateway en
+# este overlay: es lo que hace que el router admita *.apps.<cluster-dev> y se lo
+# entregue al gateway.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: shared-gateway-wildcard
+  namespace: platform-gateway
+spec:
+  # Sustituir por el dominio del cluster de DESARROLLO: gw.apps.<cluster-dev>.<dominio-base>
+  host: gw.apps.cluster-dev.ejemplo.com

@@ -7,3 +7,7 @@ resources:
   - gateway.yaml
   - shared-gateway-tlspolicy.yaml
   - shared-gateway-default-authpolicy.yaml
+  # Puerta de entrada del router al gateway; una sola para todos los servicios.
+  - route-shared-gateway-wildcard.yaml
+  # Activa el plugin de Kuadrant en la consola web de OpenShift.
+  - console-kuadrant-plugin.yaml
