@@ -1,0 +1,37 @@
+# Namespaces que crea esta aplicación en el HUB.
+#
+# El primero es el del propio ACM; los demás son los DESTINO de los operadores
+# que instalan las OperatorPolicy: un OperatorPolicy enforce no garantiza el
+# Namespace donde instala, y sin él el primer despliegue limpio queda
+# NonCompliant. Por eso se crean aquí, antes que las políticas.
+#
+# Los namespaces de los clusters workload NO están aquí: los distribuye la
+# ConfigurationPolicy de policies/install-operators/, que sí llega a los spokes.
+#
+# quay-enterprise y kuadrant-system tampoco: ya los declara la Application de su
+# producto (quay y connectivity-link-hub), y duplicarlos dejaría esta aplicación
+# OutOfSync perpetua por el tracking-id del otro dueño.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-cluster-management
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rhacs-operator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rhdh-operator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager-operator

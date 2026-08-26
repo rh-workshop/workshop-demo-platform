@@ -6,6 +6,5 @@ resources:
   - serviceaccount-builder.yaml
   - rolebinding-builder-push-images.yaml
   - rolebinding-builder-pipelines-scc.yaml
-  - rolebinding-image-pull-cross-namespace.yaml
   - pipeline-ci-build-image.yaml
   - pipeline-cd-deploy-application.yaml
