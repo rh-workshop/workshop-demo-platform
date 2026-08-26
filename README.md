@@ -95,12 +95,31 @@ gitops/
                    # (acm, quay, acs, monitoring...) y el pipeline del workshop
 ```
 
-> **¿Y las Applications de los servicios del workshop?** No existen como fichero,
-> a propósito: las genera el ApplicationSet `workshop-services-dev` escaneando
-> `apps/*/overlays/dev` en el repositorio de configuración. Añadir una carpeta
-> allí basta para que aparezca su Application; escribirla también en `apps/hub/`
-> crearía dos dueños sobre el mismo destino. En `apps/hub/` solo va lo que
-> **ningún** ApplicationSet genera.
+### Cuándo un ApplicationSet y cuándo una Application suelta
+
+La regla no es "servicios sí, operadores no": es **si el conjunto varía o no**.
+Un ApplicationSet existe para que nadie tenga que editar Git cuando aparece un
+elemento nuevo. Si el conjunto es uno y fijo, el generador sobra.
+
+| Qué se despliega | Qué varía | Cómo se declara |
+|---|---|---|
+| Servicios del workshop | el dev añade y quita apps | AppSet `workshop-services-dev`, generador `git`: escanea `apps/*/overlays/dev` |
+| Operadores de workload (keycloak, connectivity-link, cert-manager, metallb) | ACM añade y quita clusters | AppSet `workload-dev`/`-prod`, generador `matrix(clusterDecisionResource × list)` |
+| Operadores solo del hub (acm, quay, acs, monitoring, pipelines) | **nada**: un destino conocido | Application suelta en `apps/hub/` |
+
+Por eso **los operadores sí pasan por ApplicationSet** — los de workload, que
+hacen fan-out a los spokes. Los del hub no, porque un generador que siempre
+devuelve un elemento es una indirección sin propósito: nunca se instalan en los
+clusters administrados (ver el playbook de bootstrap).
+
+Consecuencia práctica: **en `apps/hub/` va solo lo que ningún ApplicationSet
+genera.** Declarar ahí un servicio que ya descubre el AppSet crearía dos dueños
+sobre el mismo destino.
+
+> `connectivity-link` aparece en los dos modelos y **no es un duplicado**:
+> `connectivity-link-hub` (Application suelta) instala Kuadrant en el hub, que
+> también expone APIs, y `connectivity-link-dev` (generada por `workload-dev`)
+> lo instala en el spoke. Mismo overlay, destinos distintos.
 
 El CR `ArgoCD`, los AppProjects y las `Subscription`/`OperatorGroup` de los
 operadores del hub **no** los sincroniza Argo: son plano de control y viven en
