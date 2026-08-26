@@ -1,0 +1,20 @@
+# En produccion la retencion la fija el requisito de auditoria, no el disco
+# disponible: por eso aqui se amplia Y se declara volumen persistente.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: true
+    prometheusK8s:
+      retention: 15d
+      retentionSize: 40GiB
+      volumeClaimTemplate:
+        spec:
+          # Sustituir por una StorageClass del cluster de PRODUCCION.
+          storageClassName: CHANGE_ME_STORAGECLASS
+          resources:
+            requests:
+              storage: 50Gi

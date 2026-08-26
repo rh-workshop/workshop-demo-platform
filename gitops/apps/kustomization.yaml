@@ -5,6 +5,7 @@ resources:
   - hub/acm-application.yaml
   - hub/quay-application.yaml
   - hub/acs-application.yaml
+  - hub/monitoring-application.yaml
   - hub/pipelines-application.yaml
   - hub/developer-hub-application.yaml
   - ../clusters

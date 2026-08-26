@@ -1,0 +1,27 @@
+# Configuración de la monitorización del cluster.
+#
+# El stack de monitorización lo instala OpenShift de serie; lo único que se
+# gobierna aquí es su CONFIGURACIÓN, que el Cluster Monitoring Operator lee de
+# este ConfigMap y traduce al CR Prometheus.
+#
+# POR QUÉ IMPORTA: sin volumen persistente, Prometheus guarda las métricas en el
+# disco EFÍMERO del nodo. Con la retención por defecto (15 días) y las métricas
+# de aplicación activadas, en este cluster llegó a ocupar 52 GiB y dejó al nodo
+# en DiskPressure: kubelet empezó a desalojar pods y los builds de Tekton morían
+# con PodEvicted. Acotar la retención evita que vuelva a pasar.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    # Habilita la recogida de métricas de las aplicaciones, no solo del cluster.
+    # Es lo que permite que /metrics del servicio de ejemplo acabe en Prometheus.
+    enableUserWorkload: true
+    prometheusK8s:
+      # NO-PRODUCCION: en produccion Prometheus debe tener volumen persistente
+      # (volumeClaimTemplate) y una retencion acorde al requisito de auditoria.
+      # Aqui se acota para no llenar el disco del nodo, que no es persistente.
+      retention: 3d
+      retentionSize: 10GiB
