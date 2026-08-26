@@ -74,7 +74,7 @@ spec:
           complianceType: musthave
           upgradeApproval: Automatic
           versions:
-            - metallb-operator.v4.20.0-202608112153   # pin: solo esta CSV; el upgrade se decide por PR en Git
+            - metallb-operator.v4.20.0-202608181300   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: metallb-operator
             namespace: metallb-system

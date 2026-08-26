@@ -11,3 +11,7 @@ patches:
     target:
       kind: AuthPolicy
       name: shared-gateway-default
+  - path: kuadrant-mtls.yaml
+    target:
+      kind: Kuadrant
+      name: kuadrant

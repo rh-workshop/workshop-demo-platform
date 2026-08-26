@@ -47,7 +47,7 @@ spec:
           complianceType: musthave
           upgradeApproval: Automatic
           versions:
-            - rhacs-operator.v4.11.2   # pin: solo esta CSV; el upgrade se decide por PR en Git
+            - rhacs-operator.v4.11.3   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: rhacs-operator
             namespace: rhacs-operator

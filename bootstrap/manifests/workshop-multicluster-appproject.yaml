@@ -38,6 +38,12 @@ spec:
   # Workloads (hub y spokes): Connectivity Link, Keycloak, cert-manager, MetalLB y Service Mesh.
   - server: '*'
     namespace: kuadrant-system
+  # El Gateway compartido y sus políticas (TLSPolicy/AuthPolicy) viven en su propio namespace.
+  - server: '*'
+    namespace: platform-gateway
+  # IstioCNI (Service Mesh 3) despliega su DaemonSet en un namespace propio.
+  - server: '*'
+    namespace: istio-cni
   - server: '*'
     namespace: keycloak
   - server: '*'
