@@ -16,12 +16,117 @@ spec:
   description: Productos de plataforma del workshop.
   sourceRepos:
   - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  # Destinos: el server queda en '*' porque los spokes los registra el
+  # GitOpsCluster con URLs dinámicas, pero los namespaces se acotan a los de
+  # los productos de plataforma que este repo despliega — nada de user*, ni
+  # openshift-gitops, ni namespaces de negocio.
   destinations:
+  # Hub: ACM, Quay, ACS, monitoring, pipelines y Developer Hub.
   - server: '*'
-    namespace: '*'
+    namespace: open-cluster-management
+  - server: '*'
+    namespace: quay-enterprise
+  - server: '*'
+    namespace: stackrox
+  - server: '*'
+    namespace: openshift-monitoring
+  - server: '*'
+    namespace: openshift-pipelines
+  - server: '*'
+    namespace: developer-hub
+  # Workloads (hub y spokes): Connectivity Link, Keycloak, cert-manager, MetalLB y Service Mesh.
+  - server: '*'
+    namespace: kuadrant-system
+  - server: '*'
+    namespace: keycloak
+  - server: '*'
+    namespace: cert-manager
+  - server: '*'
+    namespace: metallb-system
+  - server: '*'
+    namespace: istio-system
+  # Recursos de ámbito de cluster: allow-list del inventario real (falla
+  # CERRADO: un kind cluster-scoped nuevo se rechaza hasta listarlo aquí).
   clusterResourceWhitelist:
-  - group: '*'
-    kind: '*'
+  # Cada producto declara su Namespace.
+  - group: ''
+    kind: Namespace
+  # ClusterIssuer del overlay de cert-manager.
+  - group: cert-manager.io
+    kind: ClusterIssuer
+  # TektonConfig del operador de Pipelines (cluster-scoped).
+  - group: operator.tekton.dev
+    kind: TektonConfig
+  # Istio e IstioCNI del sail-operator (Service Mesh 3, cluster-scoped).
+  - group: sailoperator.io
+    kind: Istio
+  - group: sailoperator.io
+    kind: IstioCNI
+  # Allow-list explícita de recursos namespaced: es el inventario REAL de lo
+  # que renderizan los overlays de este repo (kubectl kustomize / helm
+  # template). Si aparece un kind nuevo, Argo lo rechaza con "resource ... is
+  # not permitted in project" y hay que añadirlo aquí de forma consciente.
   namespaceResourceWhitelist:
-  - group: '*'
-    kind: '*'
+  # Configuración y servicios auxiliares de los productos.
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: Service
+  - group: policy
+    kind: PodDisruptionBudget
+  - group: route.openshift.io
+    kind: Route
+  # ACM: hub, placements y políticas de gobierno.
+  - group: operator.open-cluster-management.io
+    kind: MultiClusterHub
+  - group: cluster.open-cluster-management.io
+    kind: Placement
+  - group: cluster.open-cluster-management.io
+    kind: ManagedClusterSetBinding
+  - group: policy.open-cluster-management.io
+    kind: Policy
+  - group: policy.open-cluster-management.io
+    kind: PlacementBinding
+  # ACS: Central, SecuredCluster y políticas de seguridad declarativas.
+  - group: platform.stackrox.io
+    kind: Central
+  - group: platform.stackrox.io
+    kind: SecuredCluster
+  - group: config.stackrox.io
+    kind: SecurityPolicy
+  # Quay y Developer Hub.
+  - group: quay.redhat.com
+    kind: QuayRegistry
+  - group: rhdh.redhat.com
+    kind: Backstage
+  # Connectivity Link: Gateway API + CRs de Kuadrant y sus componentes.
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+  - group: kuadrant.io
+    kind: Kuadrant
+  - group: kuadrant.io
+    kind: AuthPolicy
+  - group: kuadrant.io
+    kind: TLSPolicy
+  - group: limitador.kuadrant.io
+    kind: Limitador
+  - group: operator.authorino.kuadrant.io
+    kind: Authorino
+  # Certificados de cert-manager (el ClusterIssuer va en la lista de cluster).
+  - group: cert-manager.io
+    kind: Certificate
+  # Keycloak (RHBK) y su realm.
+  - group: k8s.keycloak.org
+    kind: Keycloak
+  - group: k8s.keycloak.org
+    kind: KeycloakRealmImport
+  # MetalLB y su addressing.
+  - group: metallb.io
+    kind: MetalLB
+  - group: metallb.io
+    kind: IPAddressPool
+  - group: metallb.io
+    kind: L2Advertisement
+  # Service Mesh: mTLS del mesh.
+  - group: security.istio.io
+    kind: PeerAuthentication
