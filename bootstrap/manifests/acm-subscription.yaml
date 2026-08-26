@@ -1,7 +1,7 @@
 # Instalación de Red Hat ACM en el hub (día 0, imperativa).
 #
 # Huevo-gallina resuelto aquí: los operadores de los SPOKES los instala una
-# OperatorPolicy de ACM (acm/gitops/base/operators/), pero ACM aún no existe
+# OperatorPolicy de ACM (acm/gitops/base/policies/install-operators/), pero ACM aún no existe
 # cuando arranca el hub — por eso el propio ACM (y GitOps) se instalan en el
 # bootstrap, no por política.
 #

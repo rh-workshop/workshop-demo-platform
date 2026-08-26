@@ -1,16 +1,18 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # El hub de ACM y los namespaces que necesitan los operadores.
   - namespace.yaml
   - multiclusterhub.yaml
-  - policies/policy-require-resourcequota.yaml
-  - policies/placement-clusters-prod.yaml
-  - policies/placementbinding-require-resourcequota.yaml
-  - operators/operator-namespaces.yaml
-  - operators/managedclustersetbinding.yaml
-  - operators/install-operators-hub-policy.yaml
-  - operators/placement-hub.yaml
-  - operators/placementbinding-operators-hub.yaml
-  - operators/install-operators-workload-policy.yaml
-  - operators/placement-workload.yaml
-  - operators/placementbinding-operators-workload.yaml
+  - namespace-operators.yaml
+  - managedclustersetbinding.yaml
+  # Cada política va con el Placement que la dirige y su PlacementBinding.
+  - policies/install-operators/install-operators-hub-policy.yaml
+  - policies/install-operators/placement-hub.yaml
+  - policies/install-operators/placementbinding-operators-hub.yaml
+  - policies/install-operators/install-operators-workload-policy.yaml
+  - policies/install-operators/placement-workload.yaml
+  - policies/install-operators/placementbinding-operators-workload.yaml
+  - policies/require-resourcequota/policy-require-resourcequota.yaml
+  - policies/require-resourcequota/placement-clusters-prod.yaml
+  - policies/require-resourcequota/placementbinding-require-resourcequota.yaml

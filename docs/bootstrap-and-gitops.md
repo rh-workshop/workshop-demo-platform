@@ -55,7 +55,7 @@ workshop enseñan dos criterios opuestos.
   [Stephen Nimmo: Bootstrapping an OpenShift Cluster with OpenShift GitOps](https://stephennimmo.com/2025/06/24/bootstrapping-an-openshift-cluster-with-openshift-gitops/))
 - **El patrón Red Hat multi-cluster** arranca el GitOps de los clusters por
   **Policy de ACM** (operador + Application inicial) y deja a Argo el resto —
-  coherente con `acm/gitops/base/operators/` de este repo.
+  coherente con `acm/gitops/base/policies/install-operators/` de este repo.
   ([GExperts: Bootstrapping Cluster Configuration with RHACM and OpenShift GitOps](https://gexperts.com/wp/bootstrapping-openshift-gitops-with-rhacm/),
   [blog.stderr.at: Setup OpenShift GitOps/Argo CD](https://blog.stderr.at/gitopscollection/2024-02-02-setup-argocd/))
 
@@ -118,7 +118,7 @@ Decisiones concretas:
   encajan en el AppProject `workshop-platform`; los `runs/` siguen siendo
   manuales.
 - **La instalación de operadores no cambia de criterio**: en los spokes, por
-  `OperatorPolicy` de ACM (ya en `acm/gitops/base/operators/`); en el **hub**,
+  `OperatorPolicy` de ACM (ya en `acm/gitops/base/policies/install-operators/`); en el **hub**,
   el huevo-gallina (ACM aún no existe) lo resuelve el mismo playbook de
   bootstrap instalando GitOps + ACM.
 

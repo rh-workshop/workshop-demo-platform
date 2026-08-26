@@ -43,7 +43,7 @@ referencia de Red Hat separa las dos cosas:
 
 | Tarea | Herramienta | Donde |
 |---|---|---|
-| **Instalar el operador** (+ fijar canal) | **ACM Policy** (`OperatorPolicy`) | `acm/gitops/base/operators/` |
+| **Instalar el operador** (+ fijar canal) | **ACM Policy** (`OperatorPolicy`) | `acm/gitops/base/policies/install-operators/` |
 | **Configurar el operando** (los CR) | **Argo CD** | `<producto>/gitops/` |
 
 `OperatorPolicy` es superior a una `Subscription` a secas: no solo crea el objeto,
