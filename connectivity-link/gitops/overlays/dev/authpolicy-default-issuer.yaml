@@ -9,5 +9,5 @@ spec:
       authentication:
         token-valido:
           jwt:
-            # Sustituir por el dominio del cluster de DESARROLLO: https://sso.apps.<cluster-dev>.<dominio-base>/realms/workshop
-            issuerUrl: https://sso.apps.cluster-dev.ejemplo.com/realms/workshop
+            # Dominio del cluster de laboratorio: al cambiar de cluster hay que actualizarlo aqui.
+            issuerUrl: https://sso.apps.cluster-qthlq.dyn.redhatworkshops.io/realms/workshop

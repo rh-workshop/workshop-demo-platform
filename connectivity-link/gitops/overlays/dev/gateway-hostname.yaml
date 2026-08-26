@@ -9,8 +9,8 @@ spec:
   - name: https
     port: 443
     protocol: HTTPS
-    # Sustituir por el dominio del cluster de DESARROLLO: *.apps.<cluster-dev>.<dominio-base>
-    hostname: '*.apps.cluster-dev.ejemplo.com'
+    # Dominio del cluster de laboratorio: al cambiar de cluster hay que actualizarlo aqui.
+    hostname: '*.apps.cluster-qthlq.dyn.redhatworkshops.io'
     allowedRoutes:
       namespaces:
         from: Selector
