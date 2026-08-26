@@ -1,10 +1,15 @@
-# Selecciona el cluster hub (role=hub) para los operadores de management.
+# Selecciona el cluster hub (role=hub, el que lleva local-cluster=true).
+# Lo comparten los operadores de management y require-resourcequota: en este
+# entorno los namespaces de negocio viven en el HUB, no en el cluster con
+# environment=prod (en un despliegue real esa Policy usaria un placement prod).
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: operators-hub
+  name: clusters-hub
   namespace: open-cluster-management
 spec:
+  # El clusterSet debe estar vinculado a este namespace por un ManagedClusterSetBinding
+  # (ver ../managedclustersetbinding.yaml) o el Placement no selecciona nada.
   clusterSets:
     - default
   predicates:

@@ -29,10 +29,9 @@ resuelto.)
 
 ```
 gitops/base/
-├── placements/            # los Placement, COMPARTIBLES entre políticas
-│   ├── operators-hub-placement.yaml        # role=hub
-│   ├── operators-workload-placement.yaml   # environment in [dev, prod]
-│   └── governed-clusters-placement.yaml    # clusters con cargas gobernadas
+├── placements/            # los Placement, COMPARTIDOS entre políticas
+│   ├── clusters-hub-placement.yaml         # role=hub (el cluster de management)
+│   └── clusters-workload-placement.yaml    # environment in [dev, prod]
 └── policies/              # cada Policy con su PlacementBinding
     ├── <nombre>-policy.yaml
     └── <nombre>-placementbinding.yaml
@@ -45,6 +44,18 @@ engañoso. Es la convención del
 [policy-collection](https://github.com/open-cluster-management-io/policy-collection)
 upstream: las contribuciones ya no incluyen el placement, porque "placement
 resources can be shared to avoid duplication".
+
+Convenciones de nombre:
+
+- **Placement → por criterio de selección** (`clusters-hub`, `clusters-workload`),
+  igual que los `clusters-*` de `gitops/clusters/`: el nombre responde "¿qué
+  clusters selecciona?", no "¿quién lo usa?". Así `clusters-hub` lo comparten
+  hoy la política de operadores del hub y `require-resourcequota` sin que el
+  nombre mienta.
+- **PlacementBinding → por la política que une** (`<política>-binding`): cada
+  binding pertenece a exactamente una Policy/PolicySet (sus `subjects`),
+  mientras que un Placement puede tener muchos bindings. El binding es "el
+  enchufe de la política", no del placement.
 
 > **¿Por qué NO se unifican con los Placement de `gitops/clusters/`?** Aquellos
 > (`clusters-all/dev/prod`) viven en `openshift-gitops` porque los consumen el

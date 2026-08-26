@@ -1,11 +1,13 @@
 # Selecciona los clusters de carga (environment dev o prod), no el hub.
-# Los predicados de un Placement se combinan con O: dev O prod.
+# OJO: los predicados de un Placement se combinan con O (union), no con Y.
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: operators-workload
+  name: clusters-workload
   namespace: open-cluster-management
 spec:
+  # El clusterSet debe estar vinculado a este namespace por un ManagedClusterSetBinding
+  # (ver ../managedclustersetbinding.yaml) o el Placement no selecciona nada.
   clusterSets:
     - default
   predicates:

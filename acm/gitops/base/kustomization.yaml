@@ -6,9 +6,8 @@ resources:
   - multiclusterhub.yaml
   - managedclustersetbinding.yaml
   # Los Placement centralizados: los comparten las políticas de abajo.
-  - placements/operators-hub-placement.yaml
-  - placements/operators-workload-placement.yaml
-  - placements/governed-clusters-placement.yaml
+  - placements/clusters-hub-placement.yaml
+  - placements/clusters-workload-placement.yaml
   # Cada política con el binding que la une a su Placement.
   - policies/install-operators-hub-policy.yaml
   - policies/install-operators-hub-placementbinding.yaml
