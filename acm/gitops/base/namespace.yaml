@@ -1,5 +1,0 @@
-# Namespace del hub de Red Hat Advanced Cluster Management.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: open-cluster-management
