@@ -8,10 +8,10 @@ resources:
   # Los Placement, centralizados: cada uno lo comparten varias políticas.
   - placements/clusters-hub-placement.yaml
   - placements/clusters-workload-placement.yaml
-  # Cada política con el binding que la une a su Placement.
-  - policies/install-operators-hub-policy.yaml
-  - policies/install-operators-hub-placementbinding.yaml
-  - policies/install-operators-workload-policy.yaml
-  - policies/install-operators-workload-placementbinding.yaml
-  - policies/require-resourcequota-policy.yaml
-  - policies/require-resourcequota-placementbinding.yaml
+  # Una carpeta por política, con el binding que la une a su Placement.
+  - policies/install-operators/hub-policy.yaml
+  - policies/install-operators/hub-placementbinding.yaml
+  - policies/install-operators/workload-policy.yaml
+  - policies/install-operators/workload-placementbinding.yaml
+  - policies/require-resourcequota/policy.yaml
+  - policies/require-resourcequota/placementbinding.yaml
