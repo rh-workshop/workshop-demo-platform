@@ -27,8 +27,12 @@ spec:
   timeouts:
     pipeline: 1h0m0s
   params:
-    - name: image
-      value: image-registry.openshift-image-registry.svc:5000/workshop-demo-dev/app-workshop:1.0.0
+    # Repositorio SIN tag en el registro corporativo (Quay): los tags (git-<sha> y el móvil) los pone el pipeline.
+    - name: image-repository
+      value: CHANGE_ME_QUAY_HOST/company/demo-service
+    # Umbral del escaneo como PARÁMETRO: aquí se corta desde IMPORTANT hacia arriba.
+    - name: scan-severity-threshold
+      value: IMPORTANT
   workspaces:
     # Solución canónica de Tekton para compartir un PVC RWO entre tareas: el asistente de afinidad (activo por defecto) las coprograma en el mismo nodo.
     # Por eso NO se deshabilita con la anotación pipeline.tekton.dev/affinity-assistant y basta ReadWriteOnce.
@@ -58,3 +62,17 @@ spec:
       # aparte (nunca se versiona) y se referencia aquí por su nombre.
       secret:
         secretName: git-credentials
+    - name: registry-credentials
+      # Secret con la credencial del robot del registro, creado FUERA de Git:
+      #   oc create secret generic quay-push-credentials --from-file=config.json=<docker config del robot>
+      secret:
+        secretName: quay-push-credentials
+    - name: signing-key
+      # Llavero cosign generado FUERA de Git: cosign generate-key-pair k8s://<ns>/cosign-signing-key
+      secret:
+        secretName: cosign-signing-key
+    - name: acs-credentials
+      # Token de Central (rol Continuous Integration) + CA, creado FUERA de Git:
+      #   oc create secret generic acs-pipeline-credentials --from-literal=rox-api-token=<token> --from-file=ca.pem=<CA>
+      secret:
+        secretName: acs-pipeline-credentials

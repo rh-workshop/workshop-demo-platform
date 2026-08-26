@@ -64,10 +64,13 @@ spec:
           kind: HTTPRoute
           jsonPointers:
             - /spec/hostnames
+        # authentication es un OBJETO (clave 'token-valido'), no un array: el
+        # jqPathExpression .authentication[]? no devolvía ruta y el issuer nunca
+        # se llegó a ignorar. Con jsonPointers se nombra la ruta exacta.
         - group: kuadrant.io
           kind: AuthPolicy
-          jqPathExpressions:
-            - .spec.rules.authentication[]?.jwt.issuerUrl
+          jsonPointers:
+            - /spec/rules/authentication/token-valido/jwt/issuerUrl
       syncPolicy:
         automated:
           prune: true

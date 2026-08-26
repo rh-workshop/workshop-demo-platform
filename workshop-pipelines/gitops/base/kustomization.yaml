@@ -6,5 +6,8 @@ resources:
   - serviceaccount-builder.yaml
   - rolebinding-builder-push-images.yaml
   - rolebinding-builder-pipelines-scc.yaml
+  - image-sign-task.yaml
+  - image-scan-task.yaml
+  - image-tag-task.yaml
   - pipeline-ci-build-image.yaml
   - pipeline-cd-deploy-application.yaml

@@ -1,0 +1,56 @@
+# Task de FIRMA: firma la imagen por DIGEST con cosign y llave propia.
+#
+# La firma acredita PROCEDENCIA (esta imagen la produjo este pipeline), por eso
+# se firma el digest inmutable y nunca un tag, que puede moverse después.
+# Complementa a Tekton Chains (que atesta el PipelineRun): esta firma es la que
+# ACS sabe VERIFICAR vía su SignatureIntegration con la clave pública.
+#
+# GOTCHA: cosign v3 firma por defecto en bundle DSSE (referrers) y ACS 4.x NO lo
+# descubre; aquí se fuerza el formato clásico .sig cuando el flag existe.
+#
+# La llave se crea FUERA de Git (nunca se versiona) con:
+#   cosign generate-key-pair k8s://<namespace>/cosign-signing-key
+# y su clave PÚBLICA se registra en la SignatureIntegration de ACS.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: image-sign
+spec:
+  params:
+    # Repositorio de la imagen SIN tag, p. ej. quay.example.com/company/api-service.
+    - {name: image-repository, type: string}
+    # Digest devuelto por la construcción (sha256:...); la firma se ancla a él.
+    - {name: image-digest, type: string}
+  workspaces:
+    # Secret con cosign.key/cosign.pub/password generado por cosign generate-key-pair.
+    - name: signing-key
+    # Secret con config.json (credencial del robot del registro) para publicar el artefacto .sig.
+    - name: registry-credentials
+  steps:
+    - name: cosign-sign
+      # Imagen de cosign soportada por Red Hat (Trusted Artifact Signer).
+      image: registry.redhat.io/rhtas/cosign-rhel9:1.3.7
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        # cosign lee las credenciales del registro de este directorio (config.json).
+        - name: DOCKER_CONFIG
+          value: $(workspaces.registry-credentials.path)
+        # Cinturón y tirantes: si la versión de cosign honra esta variable, también fuerza el formato clásico.
+        - name: COSIGN_NEW_BUNDLE_FORMAT
+          value: "0"
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        cosign version | grep -i gitversion || true
+        # La contraseña de la llave sale del propio Secret montado, jamás de un parámetro.
+        COSIGN_PASSWORD="$(cat $(workspaces.signing-key.path)/password)"; export COSIGN_PASSWORD
+        REF="$(params.image-repository)@$(params.image-digest)"
+        # Si el binario conoce --new-bundle-format (v2.5+/v3), se apaga EXPLÍCITAMENTE para emitir el .sig clásico que ACS descubre.
+        FORMAT_FLAG=""
+        if cosign sign --help 2>&1 | grep -q -- '--new-bundle-format'; then FORMAT_FLAG="--new-bundle-format=false"; fi
+        # Sin subida a Rekor: el verificador es ACS con clave pública, no un log público de transparencia.
+        cosign sign --yes --tlog-upload=false $FORMAT_FLAG \
+          --key "$(workspaces.signing-key.path)/cosign.key" "$REF"
+        echo "Imagen firmada: $REF"

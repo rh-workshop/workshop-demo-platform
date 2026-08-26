@@ -1,0 +1,35 @@
+# Política de ACS que EXIGE firma cosign verificada, como código (GitOps).
+#
+# El criterio "Image Signature Verified By" apunta a la SignatureIntegration de
+# Central (creada por API/Ansible con la clave PÚBLICA de cosign del pipeline):
+# la integración NO tiene CRD, la política SÍ, por eso el ID se referencia aquí.
+# Sustituir el value por el ID real (Central lo devuelve al crear la integración).
+#
+# Ciclo BUILD a propósito: la evalúa "roxctl image check" dentro del pipeline y
+# FAIL_BUILD corta el run si la imagen no está firmada. No lleva scope porque en
+# BUILD no hay contexto de deployment y un scope por namespace la desactivaría.
+# En producción se añade DEPLOY (con scope a los namespaces de negocio) para que
+# el admission controller también la vigile en el cluster.
+apiVersion: config.stackrox.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: require-image-signature
+  namespace: stackrox
+spec:
+  policyName: Exigir firma cosign verificada
+  description: Toda imagen debe llevar una firma cosign verificable con la clave publica del pipeline registrada en Central.
+  severity: HIGH_SEVERITY
+  categories:
+    - Security Best Practices
+  lifecycleStages:
+    - BUILD
+  enforcementActions:
+    - FAIL_BUILD_ENFORCEMENT
+  policySections:
+    - sectionName: Firma exigida
+      policyGroups:
+        - fieldName: Image Signature Verified By
+          booleanOperator: OR
+          values:
+            # ID de la SignatureIntegration "company-pipeline-cosign" en Central.
+            - value: io.stackrox.signatureintegration.46ab1fe7-d4d5-4a4e-9d03-6b2af2f316ce

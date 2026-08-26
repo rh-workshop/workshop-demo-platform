@@ -1,0 +1,72 @@
+# Task de ESCANEO: analiza la imagen con ACS (roxctl) y corta el pipeline.
+#
+# Dos puertas complementarias, en dos pasos separados:
+#   1. scan-vulnerabilities: escaneo de CVEs con umbral de severidad PARAMETRIZADO
+#      (nunca cableado): si hay vulnerabilidades en o por encima del umbral, FALLA.
+#   2. check-build-policies: evalúa las políticas de ACS de ciclo BUILD (incluida
+#      la que exige firma cosign verificada) y FALLA si alguna con enforcement viola.
+#
+# Se escanea por DIGEST (el mismo que se despliega), no por tag.
+# El acceso a Central se crea FUERA de Git (nunca se versiona) con:
+#   token de rol "Continuous Integration" desde Central (Integrations > API Token)
+#   oc create secret generic acs-pipeline-credentials -n <ns> \
+#     --from-literal=rox-api-token=<token> --from-file=ca.pem=<CA de Central>
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: image-scan
+spec:
+  params:
+    # Referencia completa por digest, p. ej. quay.example.com/company/api-service@sha256:...
+    - {name: image-ref, type: string}
+    # Umbral de corte: LOW, MODERATE, IMPORTANT o CRITICAL (falla si hay CVEs en ese nivel o superior).
+    - {name: severity-threshold, type: string, default: CRITICAL}
+    # Endpoint de Central; por defecto el Service interno del cluster.
+    - {name: rox-central-endpoint, type: string, default: "central.stackrox.svc:443"}
+  workspaces:
+    # Secret acs-pipeline-credentials: rox-api-token (rol Continuous Integration) + ca.pem de Central.
+    - name: acs-credentials
+  # Volumen compartido entre los dos pasos para el resultado JSON del escaneo.
+  volumes:
+    - {name: scan-results, emptyDir: {}}
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities: {drop: [ALL]}
+    volumeMounts:
+      - {name: scan-results, mountPath: /var/scan}
+  steps:
+    - name: scan-vulnerabilities
+      # roxctl en la MISMA versión que Central (evita desajustes de API).
+      image: registry.redhat.io/advanced-cluster-security/rhacs-roxctl-rhel9:4.11.3
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        ROXCTL="roxctl --token-file $(workspaces.acs-credentials.path)/rox-api-token --ca $(workspaces.acs-credentials.path)/ca.pem -e $(params.rox-central-endpoint)"
+        # --force pide a Central re-escanear en vez de servir un resultado cacheado.
+        $ROXCTL image scan --image "$(params.image-ref)" --force --output json > /var/scan/scan.json
+        # Conteo por severidad sobre el JSON (sin dependencias externas en la imagen).
+        contar() { grep -o "${1}_VULNERABILITY_SEVERITY" /var/scan/scan.json | wc -l | tr -d ' '; }
+        CRITICAL=$(contar CRITICAL); IMPORTANT=$(contar IMPORTANT); MODERATE=$(contar MODERATE); LOW=$(contar LOW)
+        echo "Vulnerabilidades: CRITICAL=$CRITICAL IMPORTANT=$IMPORTANT MODERATE=$MODERATE LOW=$LOW"
+        # El umbral es un PARÁMETRO del pipeline: se suma todo lo que esté en el nivel del umbral o por encima.
+        case "$(params.severity-threshold)" in
+          CRITICAL)  TOTAL=$CRITICAL ;;
+          IMPORTANT) TOTAL=$((CRITICAL + IMPORTANT)) ;;
+          MODERATE)  TOTAL=$((CRITICAL + IMPORTANT + MODERATE)) ;;
+          LOW)       TOTAL=$((CRITICAL + IMPORTANT + MODERATE + LOW)) ;;
+          *) echo "Umbral desconocido: $(params.severity-threshold) (usa LOW|MODERATE|IMPORTANT|CRITICAL)" >&2; exit 1 ;;
+        esac
+        if [ "$TOTAL" -gt 0 ]; then
+          echo "FALLO: $TOTAL vulnerabilidades en severidad >= $(params.severity-threshold); la imagen no se promociona." >&2
+          exit 1
+        fi
+        echo "Escaneo limpio en el umbral $(params.severity-threshold)."
+    - name: check-build-policies
+      image: registry.redhat.io/advanced-cluster-security/rhacs-roxctl-rhel9:4.11.3
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        ROXCTL="roxctl --token-file $(workspaces.acs-credentials.path)/rox-api-token --ca $(workspaces.acs-credentials.path)/ca.pem -e $(params.rox-central-endpoint)"
+        # Evalúa las políticas BUILD de ACS (firma exigida, latest prohibido...): sale distinto de cero si alguna con enforcement viola.
+        $ROXCTL image check --image "$(params.image-ref)"

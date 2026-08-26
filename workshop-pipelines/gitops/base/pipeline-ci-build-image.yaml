@@ -1,10 +1,18 @@
-# Pipeline de CI: construye la imagen y la promociona en el repo de configuración.
+# Pipeline de CI: construye, FIRMA, ESCANEA, ETIQUETA y promociona la imagen.
 #
 # Es la mitad "integración" del flujo: toma el CÓDIGO (repo de aplicación),
 # construye la imagen, la publica en el registro, y luego escribe el digest en
 # el repo de CONFIGURACIÓN. Ese git push es lo que dispara el CD.
-# La firma NO la hace ninguna task: Tekton Chains (activo en el operador) firma
-# la imagen y genera la atestación in-toto automáticamente al terminar el run.
+#
+# Cadena de suministro, en tres secciones separadas y con puertas:
+#   TAGGING: la construcción publica el tag INMUTABLE git-<sha-corto> (trazabilidad
+#     commit -> imagen) y, tras pasar las puertas, image-tag avanza el tag MÓVIL.
+#     El despliegue va SIEMPRE por DIGEST: los tags pueden reapuntarse y no son
+#     reproducibles; el digest identifica criptográficamente el binario exacto.
+#   FIRMA: image-sign firma el digest con cosign (formato clásico .sig, el que
+#     ACS descubre); complementa la atestación in-toto de Tekton Chains.
+#   ESCANEO: image-scan corta el pipeline si hay CVEs sobre el umbral (parámetro)
+#     o si alguna política BUILD de ACS con enforcement viola (firma exigida...).
 #
 # Maneja los DOS repos: lee el de aplicación, escribe en el de configuración.
 # Este flujo promociona a DEV con push directo; hacia PROD la promoción se hace
@@ -20,20 +28,36 @@ spec:
     - {name: revision, default: main}
     # Rama del repo de configuración que se clona y a la que se promociona el digest.
     - {name: config-revision, default: main}
-    - name: image
+    # Repositorio de la imagen SIN tag (p. ej. quay.example.com/company/demo-service): los tags los decide el pipeline.
+    - name: image-repository
     - {name: containerfile, default: ./Containerfile}
     - {name: overlay-path, default: apps/demo-service/overlays/dev}
     # Nombre LÓGICO de la imagen en el kustomization (campo images[].name), no la URL del registro.
     - {name: image-name, default: app-workshop}
     # Argumentos de construcción (--build-arg) para el Containerfile del monorepo, p. ej. ["APP=api-service"].
     - {name: build-args, type: array, default: []}
+    # Tag móvil que avanza SOLO si la imagen pasa firma y escaneo; "latest" está prohibido por política de ACS.
+    - {name: moving-tag, default: dev}
+    # Umbral de severidad del escaneo (LOW|MODERATE|IMPORTANT|CRITICAL): el corte es un parámetro, nunca cableado.
+    - {name: scan-severity-threshold, default: CRITICAL}
+    # Endpoint de ACS Central; por defecto el Service interno del cluster.
+    - {name: rox-central-endpoint, default: "central.stackrox.svc:443"}
   workspaces:
     - name: source
     - name: config
     - name: git-credentials
+    # Secret con config.json del robot del registro (push de imagen, firma y tag móvil).
+    - name: registry-credentials
+    # Secret cosign-signing-key (cosign.key/cosign.pub/password) generado con cosign generate-key-pair k8s://...
+    - name: signing-key
+    # Secret acs-pipeline-credentials (rox-api-token + ca.pem de Central) para roxctl.
+    - name: acs-credentials
   results:
     - name: image-digest
       value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)
+    # Los results de Pipeline solo admiten results de tasks (no params): la referencia completa es <image-repository>@<image-digest>.
+    - name: immutable-tag
+      value: $(tasks.resolve-image-tags.results.immutable-tag)
   tasks:
     - name: clone-source-code
       # Un reintento absorbe los fallos transitorios de red contra el repositorio remoto.
@@ -44,13 +68,37 @@ spec:
         - {name: REVISION, value: $(params.revision)}
       workspaces: [{name: output, workspace: source}]
 
-    - name: build-and-publish-image
+    # --- SECCIÓN TAGGING (1/2): deriva el tag inmutable del commit REAL clonado.
+    - name: resolve-image-tags
       runAfter: [clone-source-code]
+      params:
+        - {name: commit, value: $(tasks.clone-source-code.results.COMMIT)}
+      taskSpec:
+        params:
+          - {name: commit, type: string}
+        results:
+          # Tag inmutable git-<sha-corto>: nunca se reutiliza ni se mueve.
+          - name: immutable-tag
+        steps:
+          - name: compute-tag
+            image: registry.redhat.io/ubi9/ubi-minimal:9.6
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              SHORT=$(printf '%s' "$(params.commit)" | cut -c1-7)
+              printf 'git-%s' "$SHORT" | tee $(results.immutable-tag.path)
+
+    - name: build-and-publish-image
+      runAfter: [resolve-image-tags]
       taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: buildah}, {name: namespace, value: openshift-pipelines}]}
       params:
-        - {name: IMAGE, value: $(params.image)}
+        # La imagen nace YA con su tag inmutable; el digest sale como result y manda de aquí en adelante.
+        - {name: IMAGE, value: "$(params.image-repository):$(tasks.resolve-image-tags.results.immutable-tag)"}
         - {name: DOCKERFILE, value: $(params.containerfile)}
-        # Verificación TLS activa: el pod de buildah confía en la CA del registro interno (validado en vivo).
+        # Verificación TLS activa: el registro presenta un certificado de CA pública (validado en vivo).
         - {name: TLS_VERIFY, value: "true"}
         # El Containerfile del monorepo elige el binario con ARG APP: aquí se le pasa tal cual.
         # GIT_COMMIT viaja SIEMPRE: el Containerfile lo estampa como etiqueta OCI
@@ -59,9 +107,47 @@ spec:
         # lleva el binario — así se sabe qué versión corre en cada imagen desplegada.
         - name: BUILD_ARGS
           value: ["$(params.build-args[*])", "GIT_COMMIT=$(tasks.clone-source-code.results.COMMIT)"]
-      workspaces: [{name: source, workspace: source}]
+      workspaces:
+        - {name: source, workspace: source}
+        # Credencial del robot para el push al registro corporativo.
+        - {name: dockerconfig, workspace: registry-credentials}
+
+    # --- SECCIÓN FIRMA: cosign firma el digest recién publicado (formato .sig que ACS verifica).
+    - name: sign-image
+      runAfter: [build-and-publish-image]
+      taskRef: {name: image-sign}
+      params:
+        - {name: image-repository, value: $(params.image-repository)}
+        # El digest viaja como RESULT de la construcción: nunca se re-resuelve desde un tag.
+        - {name: image-digest, value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)}
+      workspaces:
+        - {name: signing-key, workspace: signing-key}
+        - {name: registry-credentials, workspace: registry-credentials}
+
+    # --- SECCIÓN ESCANEO: corre tras la firma para que la política BUILD "firma exigida" pueda verificarla.
+    - name: scan-image
+      runAfter: [sign-image]
+      taskRef: {name: image-scan}
+      params:
+        - {name: image-ref, value: "$(params.image-repository)@$(tasks.build-and-publish-image.results.IMAGE_DIGEST)"}
+        - {name: severity-threshold, value: $(params.scan-severity-threshold)}
+        - {name: rox-central-endpoint, value: $(params.rox-central-endpoint)}
+      workspaces:
+        - {name: acs-credentials, workspace: acs-credentials}
+
+    # --- SECCIÓN TAGGING (2/2): el tag móvil solo avanza si la imagen pasó firma y escaneo.
+    - name: advance-moving-tag
+      runAfter: [scan-image]
+      taskRef: {name: image-tag}
+      params:
+        - {name: image-repository, value: $(params.image-repository)}
+        - {name: image-digest, value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)}
+        - {name: moving-tag, value: $(params.moving-tag)}
+      workspaces:
+        - {name: registry-credentials, workspace: registry-credentials}
 
     - name: clone-config-repo
+      # Corre en paralelo con firma y escaneo: solo prepara el clon; la promoción espera a las puertas.
       runAfter: [build-and-publish-image]
       # Un reintento absorbe los fallos transitorios de red contra el repositorio remoto.
       retries: 1
@@ -74,8 +160,9 @@ spec:
     # Promociona el digest con "kustomize edit set image": entiende la semántica del
     # kustomization (no corrompe overlays con varias imágenes, como haría un sed) y el
     # "*" conserva el newName existente a la vez que elimina el newTag.
+    # Espera al ESCANEO: al repo de configuración solo llegan digests firmados y limpios.
     - name: set-image-digest
-      runAfter: [clone-config-repo]
+      runAfter: [clone-config-repo, scan-image]
       params:
         - {name: overlay-path, value: $(params.overlay-path)}
         - {name: image-name, value: $(params.image-name)}
@@ -139,3 +226,34 @@ spec:
       workspaces:
         - {name: source, workspace: config}
         - {name: basic-auth, workspace: git-credentials}
+
+  # El resumen corre SIEMPRE (finally), incluso si una puerta cortó el pipeline: deja en el log qué pasó cada sección.
+  finally:
+    - name: pipeline-summary
+      params:
+        - {name: build-status, value: $(tasks.build-and-publish-image.status)}
+        - {name: sign-status, value: $(tasks.sign-image.status)}
+        - {name: scan-status, value: $(tasks.scan-image.status)}
+        - {name: tag-status, value: $(tasks.advance-moving-tag.status)}
+        - {name: promote-status, value: $(tasks.push-config.status)}
+      taskSpec:
+        params:
+          - {name: build-status, type: string}
+          - {name: sign-status, type: string}
+          - {name: scan-status, type: string}
+          - {name: tag-status, type: string}
+          - {name: promote-status, type: string}
+        steps:
+          - name: report
+            image: registry.redhat.io/ubi9/ubi-minimal:9.6
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              echo "===== Resumen del pipeline ====="
+              echo "Construcción : $(params.build-status)"
+              echo "Firma        : $(params.sign-status)"
+              echo "Escaneo      : $(params.scan-status)"
+              echo "Tag móvil    : $(params.tag-status)"
+              echo "Promoción    : $(params.promote-status)"

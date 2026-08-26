@@ -4,3 +4,4 @@ resources:
   - central.yaml
   - securedcluster.yaml
   - policies/disallow-latest-tag-securitypolicy.yaml
+  - policies/require-image-signature-securitypolicy.yaml
