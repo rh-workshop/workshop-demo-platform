@@ -1,21 +1,21 @@
-# Configuracion global de OpenShift Pipelines (Tekton).
+# Configuración global de OpenShift Pipelines (Tekton).
 #
-# El operador crea un TektonConfig con muchos valores por defecto; aqui solo se
+# El operador crea un TektonConfig con muchos valores por defecto; aquí solo se
 # fija lo que de verdad se decide, para no pelear con el drift del operador. Lo
 # importante es el bloque `chain`: activa Tekton Chains, que FIRMA cada imagen
 # que construye un pipeline y guarda la firma junto a la imagen en el registro.
 #
 # `simplesigning` + almacenamiento `oci` es el formato que ACS 4.x sabe
-# descubrir. La clave de firma NO va aqui: vive en el Secret `signing-secrets`
+# descubrir. La clave de firma NO va aquí: vive en el Secret `signing-secrets`
 # del namespace.
 #
 # IMPORTANTE: Chains firma solo si `signing-secrets` TIENE la clave cosign. Si el
-# secret esta vacio (como salia por defecto), Chains no firma nada y ACS no
+# secret está vacío (como salía por defecto), Chains no firma nada y ACS no
 # encuentra ninguna .sig que verificar. Generar la clave (una vez):
 #   cosign generate-key-pair k8s://openshift-pipelines/signing-secrets
 #   oc delete pod -n openshift-pipelines -l app=tekton-chains-controller
-# NO-PRODUCCION: en prod la clave privada vive en Azure Key Vault y se sincroniza
-# por ESO; y se firma en formato clasico .sig (cosign v3 firma DSSE por defecto y
+# NO-PRODUCCIÓN: en prod la clave privada vive en Azure Key Vault y se sincroniza
+# por ESO; y se firma en formato clásico .sig (cosign v3 firma DSSE por defecto y
 # ACS 4.x no lo descubre). Ver docs/produccion-fuera-del-lab.md.
 #
 # El almacenamiento oci de Chains empuja las firmas al registro: el SA
@@ -32,7 +32,7 @@ spec:
   # bajar a 'basic' (sin dashboard) para reducir superficie; se deja 'all' para que
   # el workshop tenga la consola de pipelines.
   profile: all
-  # Retencion de PipelineRuns: decision explicita (auditoria vs disco), no el
+  # Retención de PipelineRuns: decisión explícita (auditoría vs disco), no el
   # default implicito del operador.
   pruner:
     resources:
@@ -47,7 +47,7 @@ spec:
     artifacts.taskrun.storage: oci
     artifacts.pipelinerun.format: in-toto
     artifacts.pipelinerun.storage: oci
-    # transparency: registra las firmas en un log Rekor (prueba de que se firmo y
+    # transparency: registra las firmas en un log Rekor (prueba de que se firmó y
     # cuando). Sin log, la firma pierde la mitad de su valor probatorio.
     transparency.enabled: "true"
     disabled: false

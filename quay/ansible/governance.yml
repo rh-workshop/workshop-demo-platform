@@ -44,33 +44,87 @@
           - quay_token | length > 0
         fail_msg: Faltan QUAY_HOST o QUAY_TOKEN en el entorno.
 
-    - name: Fijar la cuota de cada organizacion
+    # Se consulta antes de crear en lugar de aceptar el 400 de "ya existe": así el
+    # playbook informa de lo que cambia de verdad y un 400 por payload inválido falla
+    # en vez de pasar desapercibido (mismo criterio que organizations.yml).
+    - name: Comprobar si la organizacion ya tiene cuota
       ansible.builtin.uri:
         url: "{{ quay_api }}/organization/{{ item.name }}/quota"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: cuotas_existentes
+      loop: "{{ organizations }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Fijar la cuota de cada organizacion
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.item.name }}/quota"
         method: POST
         headers:
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          limit_bytes: "{{ item.quota_bytes }}"
-        status_code: [201, 400]
+          limit_bytes: "{{ item.item.quota_bytes }}"
+        status_code: [201]
         validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      when: item.json | length == 0
+      loop: "{{ cuotas_existentes.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    # La cuota existente se actualiza con PUT sobre su id: así el playbook converge
+    # también cuando se cambia el valor en este fichero, no solo en la creación.
+    - name: Actualizar la cuota si cambio el valor
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.item.name }}/quota/{{ item.json[0].id }}"
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          limit_bytes: "{{ item.item.quota_bytes }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      when: item.json | length > 0 and item.json[0].limit_bytes != item.item.quota_bytes
+      loop: "{{ cuotas_existentes.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Comprobar si la organizacion ya tiene politica de auto-prune
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/organization/{{ item.name }}/autoprunepolicy/"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: prune_existentes
       loop: "{{ organizations }}"
       loop_control:
         label: "{{ item.name }}"
 
     - name: Politica de auto-prune por organizacion
       ansible.builtin.uri:
-        url: "{{ quay_api }}/organization/{{ item.name }}/autoprunepolicy/"
+        url: "{{ quay_api }}/organization/{{ item.item.name }}/autoprunepolicy/"
         method: POST
         headers:
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
           method: number_of_tags
-          value: "{{ item.prune_keep_tags }}"
-        status_code: [201, 400]
+          value: "{{ item.item.prune_keep_tags }}"
+        status_code: [201]
         validate_certs: "{{ validate_certs }}"
-      loop: "{{ organizations }}"
+      changed_when: true
+      when: item.json.policies | length == 0
+      loop: "{{ prune_existentes.results }}"
       loop_control:
-        label: "{{ item.name }}"
+        label: "{{ item.item.name }}"

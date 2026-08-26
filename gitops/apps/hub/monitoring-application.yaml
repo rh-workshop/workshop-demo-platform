@@ -11,7 +11,7 @@ metadata:
   name: monitoring
   namespace: openshift-gitops
 spec:
-  project: workshop-platform
+  project: workshop-multicluster
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main

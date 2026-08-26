@@ -1,13 +1,13 @@
 # Fan-out de los productos WORKLOAD a los clusters de ambiente dev.
 #
-# El generador NO nombra ningun cluster: selecciona por el Placement
-# clusters-dev (ambiente=dev), asi que si manana el cluster de dev cambia
+# El generador NO nombra ningún cluster: selecciona por el Placement
+# clusters-dev (ambiente=dev), así que si mañana el cluster de dev cambia
 # de nombre, esto no se toca. clusterDecisionResource lee la PlacementDecision de
-# clusters-dev via el ConfigMap acm-placement y expone {{.name}} (nombre del
+# clusters-dev vía el ConfigMap acm-placement y expone {{.name}} (nombre del
 # cluster) y {{.server}} (su API).
 #
 # La Application generada se llama <producto>-dev (por AMBIENTE, no por el
-# nombre del cluster) para que se entienda de un vistazo a que entorno pertenece.
+# nombre del cluster) para que se entienda de un vistazo a qué entorno pertenece.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -40,7 +40,7 @@ spec:
     metadata:
       name: '{{.producto}}-dev'
     spec:
-      project: workshop-platform
+      project: workshop-multicluster
       source:
         repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
         targetRevision: main

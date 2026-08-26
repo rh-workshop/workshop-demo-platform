@@ -1,9 +1,9 @@
 # Fan-out de Service Mesh (HELM) a los clusters de ambiente prod.
 #
-# Service Mesh usa Helm (no Kustomize como los demas workload), por eso tiene su
+# Service Mesh usa Helm (no Kustomize como los demás workload), por eso tiene su
 # propio ApplicationSet en vez de ir en el 'list' del workload-prod: el template
 # apunta a un chart con helm.valueFiles, no a un overlay de Kustomize. Igual que
-# los demas, selecciona el cluster por el Placement clusters-prod, sin nombrarlo.
+# los demás, selecciona el cluster por el Placement clusters-prod, sin nombrarlo.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -24,7 +24,7 @@ spec:
     metadata:
       name: 'service-mesh-prod'
     spec:
-      project: workshop-platform
+      project: workshop-multicluster
       source:
         repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
         targetRevision: main

@@ -53,16 +53,36 @@
           Faltan ACS_HOST/ACS_TOKEN/QUAY_HOST/QUAY_ROBOT_USER/QUAY_ROBOT_TOKEN en
           el entorno. Exportalos antes de ejecutar; nunca los escribas aqui.
 
-    - name: Registrar Quay como Scanner + Registry en ACS
+    # Se consulta antes de crear: un POST sobre una integración existente falla, y un
+    # PUT sobre su id permite converger endpoint/credenciales si cambian (p. ej. al
+    # renombrar el registro). Mismo criterio de idempotencia que organizations.yml.
+    - name: Comprobar si la integracion ya existe
       ansible.builtin.uri:
         url: "{{ acs_api }}/imageintegrations"
-        method: POST
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: integraciones_existentes
+
+    - name: Localizar la integracion quay-company por nombre
+      ansible.builtin.set_fact:
+        integracion_quay: "{{ integraciones_existentes.json.integrations | selectattr('name', 'equalto', 'quay-company') | list | first | default({}) }}"
+
+    - name: Registrar Quay como Scanner + Registry en ACS
+      ansible.builtin.uri:
+        # Con id existente se actualiza (PUT); sin él se crea (POST).
+        url: "{{ acs_api }}/imageintegrations{{ '/' + integracion_quay.id if integracion_quay else '' }}"
+        method: "{{ 'PUT' if integracion_quay else 'POST' }}"
         headers:
           Authorization: "Bearer {{ acs_token }}"
         body_format: json
         body:
           # Sustituir "company" por el nombre de la organización de Quay (el mismo de quay/ansible/organizations.yml).
           name: quay-company
+          id: "{{ integracion_quay.id | default(omit) }}"
           type: quay
           categories:
             - REGISTRY
@@ -73,6 +93,7 @@
             oauthToken: "{{ quay_robot_token }}"
         status_code: [200]
         validate_certs: "{{ validate_certs }}"
+      changed_when: true
       no_log: true
 
     - name: Recordar el resto del ciclo

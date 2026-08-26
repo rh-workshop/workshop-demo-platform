@@ -1,8 +1,5 @@
-# Selecciona los clusters de rol produccion (environment=prod).
-#
-# En este hub, local-cluster lleva environment=prod. El Placement produce una
-# PlacementDecision que el GitOpsCluster convierte en un Secret de cluster para
-# Argo, y que el ApplicationSet lee para hacer fan-out.
+# Selecciona los clusters de rol producción (environment=prod).
+# Produce una PlacementDecision que el GitOpsCluster convierte en Secret de cluster para Argo y que el ApplicationSet lee para hacer fan-out.
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:

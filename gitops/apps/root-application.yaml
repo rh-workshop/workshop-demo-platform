@@ -1,6 +1,6 @@
-# La UNICA pieza que se aplica a mano (oc apply -f).
+# La ÚNICA pieza que se aplica a mano (oc apply -f).
 #
-# Despliega, en este orden logico, todo lo demas:
+# Despliega, en este orden lógico, todo lo demás:
 #   - gitops/clusters  : la cadena ACM+Argo (binding, placements, GitOpsCluster)
 #   - gitops/appsets   : el ApplicationSet que hace fan-out de los productos
 #                        workload a los spokes por rol
@@ -8,7 +8,7 @@
 #                        hub (acm, quay, acs)
 #
 # A partir de este apply, Argo se encarga del resto. El CR ArgoCD y este
-# AppProject NO se auto-gestionan: el AppProject va incluido aqui, pero el CR
+# AppProject NO se auto-gestionan: el AppProject va incluido aquí, pero el CR
 # ArgoCD se aplica en el bootstrap del cluster.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,7 +16,7 @@ metadata:
   name: plataforma-root
   namespace: openshift-gitops
 spec:
-  project: workshop-platform
+  project: default
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main
