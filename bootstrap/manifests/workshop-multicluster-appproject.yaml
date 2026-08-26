@@ -161,6 +161,10 @@ spec:
   # ejecuta y sus RoleBinding — gobierno de plataforma, nunca del repo de apps.
   - group: tekton.dev
     kind: Pipeline
+  # Las Task del pipeline (firma, escaneo, tagging): sin este kind el sync falla
+  # con "resource tekton.dev:Task is not permitted" y Argo no llega a gobernarlas.
+  - group: tekton.dev
+    kind: Task
   - group: ''
     kind: ServiceAccount
   - group: rbac.authorization.k8s.io
