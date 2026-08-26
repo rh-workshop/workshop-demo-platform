@@ -4,11 +4,17 @@
 # ConfigMap, no el operador. Por eso va a todos los clusters y no solo a los
 # workload — el hub también necesita retención acotada.
 #
-# Es el único ApplicationSet que usa el Placement clusters-all: en vez de fijar
-# el overlay (como service-mesh-dev/-prod, uno por ambiente), lo DERIVA de la
-# etiqueta 'environment' del cluster. Así un cluster nuevo toma su overlay solo,
-# sin tocar este fichero — el precio es que overlays/<environment> debe existir
-# para todo ambiente que se etiquete (hoy: hub, dev, prod).
+# En vez de fijar el overlay (como service-mesh-dev/-prod, uno por ambiente), lo
+# DERIVA de la etiqueta 'environment' del cluster: así un cluster nuevo toma su
+# overlay solo, sin tocar este fichero. El precio es que overlays/<environment>
+# debe existir para todo ambiente que se etiquete (hoy: hub, dev, prod).
+#
+# Usa el generador 'clusters' y NO clusterDecisionResource como los demás: aquel
+# solo devuelve el nombre y la URL del cluster (lee las PlacementDecision, que no
+# llevan más), y aquí hacen falta las ETIQUETAS. El GitOpsCluster de ACM las
+# copia del ManagedCluster al secret de cluster de Argo, que es lo que este
+# generador lee. El selector equivale al Placement clusters-all: todo cluster
+# registrado por ACM — que es justamente el que trae la etiqueta.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -23,12 +29,14 @@ spec:
   goTemplateOptions:
     - missingkey=error
   generators:
-  - clusterDecisionResource:
-      configMapRef: acm-placement
-      labelSelector:
-        matchLabels:
-          cluster.open-cluster-management.io/placement: clusters-all
-      requeueAfterSeconds: 180
+  - clusters:
+      selector:
+        matchExpressions:
+          # Todo cluster con ambiente declarado, es decir, los registrados por
+          # ACM y homologados por el bootstrap. Excluye el 'in-cluster' que Argo
+          # trae de fábrica, que no lleva etiquetas y duplicaría el hub.
+          - key: environment
+            operator: Exists
   template:
     metadata:
       # El nombre lleva el cluster porque hay una Application por cluster.
@@ -43,9 +51,13 @@ spec:
         repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
         targetRevision: main
         # El overlay sale de la etiqueta del cluster, homologada por el bootstrap.
-        path: 'monitoring/gitops/overlays/{{index .metadata.labels "environment"}}'
+        path: 'monitoring/gitops/overlays/{{.metadata.labels.environment}}'
       destination:
-        server: '{{.server}}'
+        # Para el hub se usa la URL interna en vez de la que da ACM: al ser un
+        # ManagedCluster más, ACM lo publica detrás de su cluster-proxy, y salir
+        # al proxy para hablar con el propio cluster añade una dependencia que
+        # no aporta nada. Los spokes sí van por ahí, que es su único camino.
+        server: '{{ if eq .name "local-cluster" }}https://kubernetes.default.svc{{ else }}{{ .server }}{{ end }}'
         namespace: openshift-monitoring
       syncPolicy:
         automated:
