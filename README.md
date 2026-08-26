@@ -91,9 +91,16 @@ gitops/
 ├── appsets/       # los ApplicationSet: fan-out de productos a los spokes por rol
 │                  # y descubrimiento de los servicios del repo de aplicaciones
 │                  # (workshop-services-dev, workshop-gateway-routes-dev)
-└── apps/          # las Applications de los productos hub (hub/) y el gobierno
-                   # del workshop de aplicaciones (workshop/)
+└── apps/hub/      # las Applications de lo que solo vive en el hub: los productos
+                   # (acm, quay, acs, monitoring...) y el pipeline del workshop
 ```
+
+> **¿Y las Applications de los servicios del workshop?** No existen como fichero,
+> a propósito: las genera el ApplicationSet `workshop-services-dev` escaneando
+> `apps/*/overlays/dev` en el repositorio de configuración. Añadir una carpeta
+> allí basta para que aparezca su Application; escribirla también en `apps/hub/`
+> crearía dos dueños sobre el mismo destino. En `apps/hub/` solo va lo que
+> **ningún** ApplicationSet genera.
 
 El CR `ArgoCD`, los AppProjects y las `Subscription`/`OperatorGroup` de los
 operadores del hub **no** los sincroniza Argo: son plano de control y viven en

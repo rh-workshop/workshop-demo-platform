@@ -18,6 +18,6 @@ resources:
   # Las políticas del demo-service viven en apps/demo-service/overlays/dev (las
   # despliega el ApplicationSet de servicios) y el permiso de descarga de imagen
   # va DENTRO de cada servicio (apps/<servicio>/base): ninguno amerita Application propia.
-  - workshop/workshop-pipelines-application.yaml
+  - hub/workshop-pipelines-application.yaml
   - ../clusters
   - ../appsets

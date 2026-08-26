@@ -6,12 +6,13 @@
 #   - gitops/clusters  : la cadena ACM+Argo (binding, placements, GitOpsCluster)
 #   - gitops/appsets   : el ApplicationSet que hace fan-out de los productos
 #                        workload a los spokes por rol
-#   - gitops/apps/hub  : las Applications de los productos que solo viven en el
-#                        hub (acm, quay, acs)
-#   - gitops/apps/workshop : el gobierno del workshop de aplicaciones — la
-#                        Application de pipelines (que incluye el RBAC del
-#                        namespace de imágenes); los servicios y sus políticas
-#                        los descubren los ApplicationSets workshop-* de gitops/appsets
+#   - gitops/apps/hub  : las Applications de lo que solo vive en el hub — los
+#                        productos (acm, quay, acs...) y el pipeline del
+#                        workshop, que también corre aquí
+#
+# Los SERVICIOS del workshop no tienen Application propia: los descubren los
+# ApplicationSets workshop-* de gitops/appsets, que escanean apps/*/overlays/dev
+# en el repositorio de configuración. Añadir una app allí basta para desplegarla.
 #
 # A partir de este apply, Argo se encarga del resto. Nada del plano de control
 # se auto-gestiona: el CR ArgoCD y TODOS los AppProjects (incluido el
