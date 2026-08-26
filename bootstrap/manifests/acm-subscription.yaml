@@ -1,0 +1,39 @@
+# Instalación de Red Hat ACM en el hub (día 0, imperativa).
+#
+# Huevo-gallina resuelto aquí: los operadores de los SPOKES los instala una
+# OperatorPolicy de ACM (acm/gitops/base/operators/), pero ACM aún no existe
+# cuando arranca el hub — por eso el propio ACM (y GitOps) se instalan en el
+# bootstrap, no por política.
+#
+# Multi-documento: Namespace + OperatorGroup + Subscription (recurso principal).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-cluster-management
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+---
+# ACM no admite el OperatorGroup global: necesita uno propio acotado a su namespace.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: acm-operator-group
+  namespace: open-cluster-management
+spec:
+  targetNamespaces:
+    - open-cluster-management
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: advanced-cluster-management
+  namespace: open-cluster-management
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  # Canal de la versión de ACM validada en el material.
+  channel: release-2.17
+  installPlanApproval: Automatic
+  name: advanced-cluster-management
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

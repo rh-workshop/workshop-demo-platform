@@ -1,0 +1,22 @@
+# Instalación del operador de OpenShift GitOps (día 0, imperativa).
+#
+# La instalación NO la gestiona Argo CD: es lo que Argo necesita para existir.
+# La aplica el playbook de bootstrap (bootstrap/ansible/bootstrap.yml), que
+# espera a que el CSV llegue a Succeeded antes de continuar.
+#
+# Va al namespace openshift-operators, que ya trae el OperatorGroup global del
+# cluster: por eso aquí no se declara ninguno.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-operators
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  # Canal recomendado por Red Hat para seguir la versión GA vigente.
+  channel: latest
+  installPlanApproval: Automatic
+  name: openshift-gitops-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

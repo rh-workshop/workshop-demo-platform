@@ -1,0 +1,121 @@
+---
+# Bootstrap del hub (día 0): lo IMPERATIVO que Argo CD necesita para existir y
+# que por eso Argo no debe gestionar. Es idempotente: reejecutarlo es la vía de
+# día 2 para el propio plano de control (p. ej. cambiar el tuning del CR ArgoCD).
+#
+# Qué hace, en orden:
+#   1. Instala los operadores del hub (GitOps y ACM) y espera a que estén sanos.
+#   2. Aplica el CR ArgoCD (tuning de la instancia) con server-side apply.
+#   3. Aplica el RBAC extra del controller (ClusterRole argocd-gateway-api).
+#   4. Crea TODOS los AppProjects (gitops-control, workshop-platform,
+#      workshop-multicluster, workshop) — nadie usa project: default.
+#   5. Siembra credenciales (repo-creds de Argo) desde el entorno, nunca de Git.
+#   6. Aplica las root Applications: el único punto de entrega a Argo CD.
+#
+# Uso:
+#   ansible-playbook bootstrap/ansible/bootstrap.yml \
+#     -e base_domain=<dominio-base-del-cluster>
+#
+# Variables:
+#   base_domain       — dominio base del cluster (lo que sigue a "*.apps."); sustituye
+#                       CHANGE_ME_BASE_DOMAIN en los manifiestos (obligatoria para el
+#                       AppProject workshop).
+#   root_applications — lista de YAML de Applications raíz a aplicar; por defecto
+#                       el root de este repositorio. En el cluster del workshop de
+#                       aplicaciones se sobreescribe con el root de
+#                       workshop-demo-app-config (-e '{"root_applications": [...]}').
+#
+# Requiere: la colección kubernetes.core y un KUBECONFIG con cluster-admin.
+
+- name: Bootstrap del hub — plano de control de GitOps
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # Raíz del repo, para referenciar los manifiestos versionados junto al playbook.
+    repo_root: "{{ playbook_dir }}/../.."
+    # Dominio de apps del cluster: se pasa con -e; el default deja el placeholder intacto.
+    base_domain: CHANGE_ME_BASE_DOMAIN
+    # Manifiestos del plano de control: los aplica este playbook, no Argo.
+    manifiestos_bootstrap:
+      - "{{ repo_root }}/bootstrap/manifests/argocd.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/argocd-gateway-api-clusterrole.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/gitops-control-appproject.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/workshop-platform-appproject.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/workshop-multicluster-appproject.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/workshop-appproject.yaml"
+    # Root Applications: la entrega a Argo; a partir de aquí gobierna GitOps.
+    root_applications:
+      - "{{ repo_root }}/gitops/apps/root-application.yaml"
+
+  tasks:
+    # --- 1. Operadores del hub (huevo-gallina: ACM aún no existe para instalarlos) ---
+    - name: Instalar Subscription/OperatorGroup de GitOps y ACM
+      kubernetes.core.k8s:
+        state: present
+        # El lookup permite archivos multi-documento (Namespace + OperatorGroup + Subscription).
+        definition: "{{ lookup('file', item) }}"
+      loop:
+        - "{{ repo_root }}/bootstrap/manifests/openshift-gitops-subscription.yaml"
+        - "{{ repo_root }}/bootstrap/manifests/acm-subscription.yaml"
+
+    - name: Esperar a que el CSV de cada operador llegue a Succeeded
+      kubernetes.core.k8s_info:
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        namespace: "{{ item.ns }}"
+      register: csv_info
+      # Reintenta hasta que el CSV del paquete esté en fase Succeeded.
+      until: csv_info.resources | selectattr('metadata.name', 'search', item.paquete) | selectattr('status.phase', 'equalto', 'Succeeded') | list | length > 0
+      retries: 60
+      delay: 10
+      loop:
+        - { ns: openshift-operators, paquete: openshift-gitops-operator }
+        - { ns: open-cluster-management, paquete: advanced-cluster-management }
+
+    # --- 2..4. Plano de control de Argo: CR, RBAC y AppProjects ---
+    - name: Aplicar CR ArgoCD, RBAC del controller y AppProjects (server-side apply)
+      kubernetes.core.k8s:
+        state: present
+        # El replace inyecta el dominio del cluster sin hardcodearlo en Git.
+        definition: "{{ lookup('file', item) | replace('CHANGE_ME_BASE_DOMAIN', base_domain) }}"
+        # Server-side apply: requisito para ADOPTAR recursos existentes sin recrearlos
+        # y para un CR que el operador completa con defaults.
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+      loop: "{{ manifiestos_bootstrap }}"
+
+    # --- 5. Credenciales: del entorno o de un vault, nunca de Git ---
+    - name: Sembrar repo-creds de Argo si el repositorio es privado
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: workshop-repo-creds
+            namespace: openshift-gitops
+            labels:
+              argocd.argoproj.io/secret-type: repo-creds
+          stringData:
+            url: "{{ lookup('env', 'GIT_REPO_URL') }}"
+            username: "{{ lookup('env', 'GIT_USERNAME') }}"
+            password: "{{ lookup('env', 'GIT_TOKEN') }}"
+      # Solo si hay credenciales en el entorno; los repos públicos no las necesitan.
+      when: lookup('env', 'GIT_TOKEN') | length > 0
+      no_log: true
+
+    # --- 6. Entrega a Argo CD: el único "oc apply" conceptual del modelo ---
+    - name: Aplicar las root Applications (a partir de aquí gobierna Argo)
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', item) }}"
+        # También con SSA: adopta un root ya existente sin recrearlo.
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+      loop: "{{ root_applications }}"

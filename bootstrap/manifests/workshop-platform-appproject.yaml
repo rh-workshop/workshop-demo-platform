@@ -1,0 +1,91 @@
+# AppProject de la PLATAFORMA del workshop.
+#
+# Un AppProject es la frontera de gobierno de Argo CD: acota de qué
+# repositorios puede desplegar, a qué destinos y qué tipos de recurso puede
+# crear. En una plataforma real habría un proyecto por dominio o por equipo, de
+# modo que un equipo no pueda desplegar en el espacio de otro.
+#
+# Lo crea el BOOTSTRAP, no una Application: la barandilla no se instala por el
+# mecanismo al que limita. Así desaparece el huevo-gallina (el proyecto existe
+# antes que cualquier Application que lo declare) y ningún root necesita
+# `project: default`.
+#
+# Este proyecto agrupa SOLO los componentes de plataforma (gateway, pipelines,
+# políticas, demo-service). Las Applications de los participantes usan un
+# proyecto aparte, `workshop`, con sus propias barandillas.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: workshop-platform
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  description: Componentes de plataforma del workshop de OpenShift.
+
+  # Solo se admite el repositorio de configuración del workshop.
+  sourceRepos:
+    - https://github.com/rh-workshop/workshop-demo-app-config.git
+
+  # Destinos permitidos: los namespaces de plataforma.
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: workshop-demo-dev
+    - server: https://kubernetes.default.svc
+      namespace: workshop-demo-test
+    - server: https://kubernetes.default.svc
+      namespace: platform-gateway
+    - server: https://kubernetes.default.svc
+      namespace: kuadrant-system
+    - server: https://kubernetes.default.svc
+      namespace: canary-demo-dev
+    - server: https://kubernetes.default.svc
+      namespace: circuit-breaker-demo-dev
+    - server: https://kubernetes.default.svc
+      namespace: bluegreen-demo-dev
+    - server: https://kubernetes.default.svc
+      namespace: api-demo-dev
+
+  # Recursos de ámbito de cluster: SOLO el Namespace que cada servicio declara.
+  # ClusterRole/ClusterRoleBinding quedan fuera: los aplica el bootstrap
+  # (argocd-gateway-api-clusterrole.yaml), nunca una Application.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  # Allow-list explícita (falla CERRADO): si un commit trae un kind no listado,
+  # Argo lo rechaza con "resource ... is not permitted in project" en vez de
+  # desplegarlo en silencio. Es el inventario REAL de lo que renderizan los
+  # paths de este repo (kubectl kustomize sobre cada Application) — nada más.
+  # Quedan FUERA a propósito los recursos de plataforma: Kuadrant, Gateway,
+  # Keycloak, QuayRegistry, Subscription de operador, Secret, etc.
+  namespaceResourceWhitelist:
+    # Núcleo de un microservicio: workload, servicio y su configuración.
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: ServiceAccount
+    - group: apps
+      kind: Deployment
+    # RoleBinding de los image-puller y de la pipeline (nunca ClusterRole*).
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+    # Exposición: Route del gateway y HTTPRoute de Gateway API por servicio.
+    - group: route.openshift.io
+      kind: Route
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    # Políticas de Connectivity Link a nivel de RUTA (responsabilidad del
+    # equipo de apps); el CR Kuadrant y el Gateway son de plataforma y NO entran.
+    - group: kuadrant.io
+      kind: AuthPolicy
+    - group: kuadrant.io
+      kind: RateLimitPolicy
+    # Circuit breaker del servicio (DestinationRule de Istio, ámbito de app).
+    - group: networking.istio.io
+      kind: DestinationRule
+    # Pipeline de CI del workshop (los PipelineRun los crean los alumnos).
+    - group: tekton.dev
+      kind: Pipeline

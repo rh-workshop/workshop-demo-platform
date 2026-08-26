@@ -1,0 +1,39 @@
+# Permisos adicionales del controlador de Argo CD sobre las APIs de exposición.
+#
+# El rol que instala el operador de OpenShift GitOps concede lectura sobre todo
+# el cluster, pero solo escritura sobre un conjunto acotado de grupos de API. Las
+# CRD de Gateway API y de Connectivity Link no están en ese conjunto: sin este
+# rol, la sincronización falla con "cannot patch resource gateways".
+#
+# Es plano de control: amplía los permisos del propio controller, así que lo
+# aplica el bootstrap y NO una Application de Argo — un componente no debe poder
+# ampliarse sus propios permisos desde un repositorio que él mismo sincroniza.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-gateway-api
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  - apiGroups:
+      - gateway.networking.k8s.io
+      - kuadrant.io
+    resources:
+      - "*"
+    verbs:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-gateway-api
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-gateway-api

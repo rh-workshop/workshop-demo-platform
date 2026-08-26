@@ -72,28 +72,38 @@ Dentro de cada producto, no todo se puede declarar en Git. Hay dos planos:
 
 ## Cómo se despliega
 
-Solo se aplica **una** pieza a mano; el resto lo encadena Argo:
+El día 0 lo ejecuta el **playbook de bootstrap** — idempotente, y también la vía
+de día 2 para el propio plano de control:
 
 ```bash
-oc apply -f gitops/apps/root-application.yaml
+ansible-playbook bootstrap/ansible/bootstrap.yml -e base_domain=<dominio-base-del-cluster>
 ```
 
-Esa Application raíz sincroniza `gitops/`, que contiene:
+Ese playbook instala los operadores del hub (GitOps, ACM), aplica el CR `ArgoCD`
+y el RBAC del controller, crea **todos** los AppProjects (`gitops-control`,
+`workshop-platform`, `workshop-multicluster`, `workshop`) y termina aplicando la
+Application raíz. A partir de ahí gobierna Argo: la raíz sincroniza `gitops/`,
+que contiene:
 
 ```
 gitops/
 ├── clusters/      # la cadena ACM+Argo: binding, placements, GitOpsCluster
 ├── appsets/       # los ApplicationSet que hacen fan-out a los spokes por rol
-└── apps/          # el AppProject + las Applications de los productos hub
+└── apps/          # las Applications de los productos hub
 ```
 
-El CR `ArgoCD` y las `Subscription`/`OperatorGroup` de los operadores **no** se
-gestionan aquí: se aplican en el bootstrap del cluster, una sola vez.
+El CR `ArgoCD`, los AppProjects y las `Subscription`/`OperatorGroup` de los
+operadores del hub **no** los sincroniza Argo: son plano de control y viven en
+`bootstrap/manifests/`, aplicados por el playbook. La regla que enseña el
+material: **lo que Argo necesita para existir no lo gestiona Argo** — la
+barandilla (el AppProject) no debe ser instalable por el mismo mecanismo al que
+limita.
 
 ## Estructura
 
 ```
 workshop-platform/
+├── bootstrap/              # día 0: manifiestos del plano de control + playbook (ansible/)
 ├── gitops/                 # el árbol GitOps central (clusters, appsets, apps)
 ├── quay/{gitops,ansible}/       # QuayRegistry → Argo · orgs/robots → API
 ├── keycloak/{gitops,ansible}/   # Keycloak/RealmImport → Argo · clientes → API

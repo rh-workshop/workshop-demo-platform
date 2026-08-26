@@ -1,0 +1,48 @@
+# AppProject de CONTROL: el proyecto de las Applications raíz (app of apps).
+#
+# Sustituye a `project: default` en los roots. La whitelist es mínima y falla
+# CERRADO: los roots solo pueden crear objetos de control de Argo/ACM dentro del
+# namespace de Argo. A propósito NO incluye AppProject — la barandilla no debe
+# ser instalable por el mismo mecanismo al que limita: los AppProjects los crea
+# el bootstrap, nunca una Application.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gitops-control
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  description: Applications raíz del modelo GitOps (app of apps), acotadas al plano de control.
+
+  # Solo los dos repositorios de configuración del workshop pueden ser raíz.
+  sourceRepos:
+    - https://github.com/rh-workshop/workshop-demo-app-config.git
+    - https://github.com/rh-workshop/workshop-demo-platform-config.git
+
+  # Un root solo escribe en el namespace de Argo del hub, nunca en los de carga.
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: openshift-gitops
+
+  # Ningún recurso de ámbito de cluster: un root no crea namespaces ni RBAC.
+  clusterResourceWhitelist: []
+
+  # Inventario REAL de lo que renderizan los dos roots — nada más.
+  namespaceResourceWhitelist:
+    # Applications hijas del app of apps.
+    - group: argoproj.io
+      kind: Application
+    # ApplicationSets del fan-out multi-cluster (root de plataforma).
+    - group: argoproj.io
+      kind: ApplicationSet
+    # Cadena ACM+Argo que registra los spokes (root de plataforma).
+    - group: apps.open-cluster-management.io
+      kind: GitOpsCluster
+    - group: cluster.open-cluster-management.io
+      kind: Placement
+    - group: cluster.open-cluster-management.io
+      kind: ManagedClusterSetBinding
+    # ConfigMap acm-placement que exige el generador clusterDecisionResource.
+    - group: ""
+      kind: ConfigMap
