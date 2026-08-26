@@ -1,0 +1,56 @@
+# Policy de gobierno: exige que exista un LimitRange en el namespace.
+#
+# Es la PAREJA INSEPARABLE de require-resourcequota y por eso viaja como Policy
+# con ella: una cuota sin defaults rechaza todo pod que no declare resources
+# (los de pipeline y los sidecars, tipicamente). Si la cuota la impone ACM y el
+# LimitRange lo pusiera Argo, entre que se crea una y llega el otro habria una
+# ventana en la que los despliegues fallan.
+#
+# El default de 2Gi da margen a los pasos de build (buildah) de workshop-demo-dev.
+#
+# remediationAction: enforce -> ACM lo crea donde falte. Es seguro: un
+# LimitRange solo RELLENA lo que el pod no declara, nunca recorta lo declarado.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: require-limitrange
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: require-limitrange-config
+      spec:
+        remediationAction: enforce
+        severity: low
+        # Mismo selector que require-resourcequota: las dos gobiernan el mismo
+        # conjunto de namespaces de negocio, que es lo que las hace pareja.
+        namespaceSelector:
+          include:
+            - "user*"
+            - "workshop-demo-dev"
+            - "*-demo-dev"
+          exclude:
+            - "openshift-*"
+            - "kube-*"
+            - default
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: default-limits
+            spec:
+              limits:
+                - type: Container
+                  defaultRequest:
+                    cpu: 25m
+                    memory: 64Mi
+                  default:
+                    cpu: "1"
+                    memory: 2Gi

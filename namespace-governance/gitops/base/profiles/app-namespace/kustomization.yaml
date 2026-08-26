@@ -4,10 +4,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # La pareja ResourceQuota + LimitRange es inseparable: la cuota sin defaults
-  # bloquearía los pods que no declaran resources.
-  - default-resourcequota.yaml
-  - default-limitrange.yaml
+  # La pareja ResourceQuota + LimitRange NO está aquí: la imponen las Policies
+  # require-resourcequota y require-limitrange de ACM. Es una regla transversal
+  # ("todo namespace de negocio debe tener cuota y defaults"), y como tal alcanza
+  # también a los namespaces que aún no existen — un Kustomize solo alcanza los
+  # que enumera. Declararla además aquí crearía dos dueños del mismo objeto.
   # RBAC por GRUPO (nunca usuarios): admin, developer y viewer.
   - platform-admins-rolebinding.yaml
   - app-developers-rolebinding.yaml

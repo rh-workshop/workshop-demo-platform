@@ -1,0 +1,15 @@
+# Une la Policy con el Placement: "aplica require-limitrange a los clusters que
+# selecciona clusters-hub". Sin este binding la Policy no evalua nada.
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: require-limitrange-binding
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-hub
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: require-limitrange
