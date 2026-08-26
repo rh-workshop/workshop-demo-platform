@@ -8,5 +8,6 @@ resources:
   - hub/monitoring-application.yaml
   - hub/pipelines-application.yaml
   - hub/developer-hub-application.yaml
+  - hub/connectivity-link-application.yaml
   - ../clusters
   - ../appsets

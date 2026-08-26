@@ -1,0 +1,41 @@
+# Application de connectivity-link en el HUB: el Gateway compartido, el CR de
+# Kuadrant y las políticas transversales (TLSPolicy + AuthPolicy por defecto).
+#
+# Los servicios de demostración del workshop corren en el propio hub, así que el
+# hub también necesita el gateway. Antes esta pieza estaba DUPLICADA en el repo
+# de aplicaciones (workshop-demo-app-config/platform/); la fuente de verdad es
+# ESTE repositorio, y el repo de apps ya no declara plataforma.
+#
+# El hostname del Gateway y el issuer del AuthPolicy son valores de día 0: se
+# fijan en vivo con el dominio real del cluster y Argo los respeta vía
+# ignoreDifferences. La base queda genérica con marcadores.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: connectivity-link-hub
+  namespace: openshift-gitops
+spec:
+  project: workshop-multicluster
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: connectivity-link/gitops/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kuadrant-system
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      jqPathExpressions:
+        - .spec.listeners[].hostname
+    - group: kuadrant.io
+      kind: AuthPolicy
+      jqPathExpressions:
+        - .spec.defaults.rules.authentication[]?.jwt.issuerUrl
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
