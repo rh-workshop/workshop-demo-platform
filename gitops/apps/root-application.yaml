@@ -16,6 +16,10 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: plataforma-root
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: gitops
+    workshop.redhat.com/component: platform-root
   namespace: openshift-gitops
 spec:
   project: gitops-control

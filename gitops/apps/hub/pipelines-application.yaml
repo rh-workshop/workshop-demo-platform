@@ -8,6 +8,11 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: pipelines
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: pipelines
+    workshop.redhat.com/environment: hub
   namespace: openshift-gitops
 spec:
   project: workshop-multicluster

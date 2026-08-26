@@ -24,6 +24,8 @@ spec:
     metadata:
       name: 'service-mesh-prod'
       labels:
+        # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+        workshop.redhat.com/layer: infrastructure
         # Permite agrupar en la consola las dos Applications de un mismo componente.
         workshop.redhat.com/component: service-mesh
         workshop.redhat.com/environment: prod
