@@ -12,6 +12,11 @@ apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: workload-prod
+  labels:
+    # Mismas etiquetas que las Applications que genera, para filtrarlo junto a ellas.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: workload
+    workshop.redhat.com/environment: prod
   namespace: openshift-gitops
 spec:
   goTemplate: true

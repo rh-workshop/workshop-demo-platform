@@ -8,6 +8,11 @@ apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: workshop-gateway-routes-dev
+  labels:
+    # Mismas etiquetas que las Applications que genera, para filtrarlo junto a ellas.
+    workshop.redhat.com/layer: application
+    workshop.redhat.com/component: workshop-gateway-routes
+    workshop.redhat.com/environment: dev
   namespace: openshift-gitops
 spec:
   goTemplate: true

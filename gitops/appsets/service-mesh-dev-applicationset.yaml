@@ -8,6 +8,11 @@ apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: service-mesh-dev
+  labels:
+    # Mismas etiquetas que las Applications que genera, para filtrarlo junto a ellas.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: service-mesh
+    workshop.redhat.com/environment: dev
   namespace: openshift-gitops
 spec:
   goTemplate: true

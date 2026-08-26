@@ -9,9 +9,9 @@
 # repo puede desplegar.
 #
 # El patrón `apps/*/overlays/dev` NO cruza segmentos: excluye a propósito los
-# subdirectorios `gateway-route/` (los recoge el ApplicationSet hermano) y a
-# `apps/image-pullers/` (solo tiene base/, sin overlays; es una Application
-# estática en gitops/apps/workshop/).
+# subdirectorios `gateway-route/` (los recoge el ApplicationSet hermano). Los
+# RoleBinding de descarga de imagen viven en `shared-rbac/image-pullers` del
+# mismo repo y los despliega una Application estática (gitops/apps/workshop/).
 #
 # Convención de nombres que asume la plantilla: la carpeta se llama
 # `<componente>-service`; el namespace de destino es `<componente>-demo-dev`,
@@ -20,6 +20,11 @@ apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: workshop-services-dev
+  labels:
+    # Mismas etiquetas que las Applications que genera, para filtrarlo junto a ellas.
+    workshop.redhat.com/layer: application
+    workshop.redhat.com/component: workshop-services
+    workshop.redhat.com/environment: dev
   namespace: openshift-gitops
 spec:
   goTemplate: true
