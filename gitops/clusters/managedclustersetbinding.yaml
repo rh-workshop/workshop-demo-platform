@@ -7,6 +7,10 @@
 # selecciona nada.
 #
 # En este entorno ambos clusters (hub y spoke) estan en el set "default".
+#
+# NO unificar con el binding homonimo de open-cluster-management: cada namespace
+# consumidor de Placements necesita SU ManagedClusterSetBinding (aqui lee Argo;
+# alla, los PlacementBinding de las Policies). No son duplicacion.
 apiVersion: cluster.open-cluster-management.io/v1beta2
 kind: ManagedClusterSetBinding
 metadata:

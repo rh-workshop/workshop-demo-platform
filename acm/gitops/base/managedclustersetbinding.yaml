@@ -3,6 +3,10 @@
 # Sin este binding, los Placement de este namespace no ven ningun cluster: los
 # clusterSets de un Placement se intersectan con los sets vinculados a SU
 # namespace. Es el error clasico "No valid ManagedClusterSetBindings found".
+#
+# NO unificar con el binding homonimo de openshift-gitops: cada namespace
+# consumidor de Placements necesita SU ManagedClusterSetBinding (aqui lo usan
+# los PlacementBinding de las Policies; alla, Argo). No son duplicacion.
 apiVersion: cluster.open-cluster-management.io/v1beta2
 kind: ManagedClusterSetBinding
 metadata:
