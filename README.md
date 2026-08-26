@@ -105,7 +105,14 @@ elemento nuevo. Si el conjunto es uno y fijo, el generador sobra.
 |---|---|---|
 | Servicios del workshop | el dev añade y quita apps | AppSet `workshop-services-dev`, generador `git`: escanea `apps/*/overlays/dev` |
 | Operadores de workload (keycloak, connectivity-link, cert-manager, metallb) | ACM añade y quita clusters | AppSet `workload-dev`/`-prod`, generador `matrix(clusterDecisionResource × list)` |
-| Operadores solo del hub (acm, quay, acs, monitoring, pipelines) | **nada**: un destino conocido | Application suelta en `apps/hub/` |
+| Configuración de monitorización | va a **todos** los clusters, hub incluido | AppSet `monitoring` sobre `clusters-all`; el overlay sale de la etiqueta `environment` |
+| Operadores solo del hub (acm, quay, acs, pipelines) | **nada**: un destino conocido | Application suelta en `apps/hub/` |
+
+Las etiquetas de las que dependen los Placement (`environment`, `role`) las
+homologa el playbook de bootstrap sobre **todos** los ManagedCluster: ACM no las
+pone al importar un spoke, y sin ellas ningún Placement lo elige — el cluster se
+queda sin desplegar en silencio. Añadir un cluster es añadir una entrada a
+`managed_clusters` en el playbook; nada más lo nombra.
 
 Por eso **los operadores sí pasan por ApplicationSet** — los de workload, que
 hacen fan-out a los spokes. Los del hub no, porque un generador que siempre

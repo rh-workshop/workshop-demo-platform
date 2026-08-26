@@ -6,6 +6,8 @@ resources:
   - workload-prod-applicationset.yaml
   - service-mesh-dev-applicationset.yaml
   - service-mesh-prod-applicationset.yaml
+  # A todos los clusters (hub incluido): deriva el overlay de 'environment'.
+  - monitoring-applicationset.yaml
   # Descubrimiento de los servicios del workshop en el repo de aplicaciones.
   - workshop-services-dev-applicationset.yaml
   - workshop-gateway-routes-dev-applicationset.yaml

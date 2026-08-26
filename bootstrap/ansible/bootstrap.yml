@@ -46,6 +46,19 @@
       - "{{ repo_root }}/bootstrap/manifests/workshop-platform-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/workshop-multicluster-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/workshop-appproject.yaml"
+    # Inventario de clusters y sus etiquetas. Es lo ÚNICO que hay que tocar al
+    # añadir un cluster: los Placement lo recogen solo, sin nombrarlo.
+    # Sustituir los nombres por los del entorno: el hub es siempre 'local-cluster'.
+    managed_clusters:
+      - name: local-cluster
+        environment: hub
+        role: hub
+      - name: CHANGE_ME_CLUSTER_DEV
+        environment: dev
+        role: workload
+      - name: CHANGE_ME_CLUSTER_PROD
+        environment: prod
+        role: workload
     # Root Applications: la entrega a Argo; a partir de aquí gobierna GitOps.
     root_applications:
       - "{{ repo_root }}/gitops/apps/root-application.yaml"
@@ -109,7 +122,34 @@
       when: lookup('env', 'GIT_TOKEN') | length > 0
       no_log: true
 
-    # --- 6. Entrega a Argo CD: el único "oc apply" conceptual del modelo ---
+    # --- 6. Homologar las etiquetas de los ManagedCluster ---
+    # Los Placement seleccionan por etiqueta, así que TODOS los clusters deben
+    # llevar el mismo juego. Al importar un spoke, ACM no pone ninguna de las
+    # dos: sin esto, un cluster recién importado no lo elige ningún Placement y
+    # queda sin desplegar en silencio.
+    #
+    #   environment: dev|prod|hub  → QUÉ ambiente sirve (elige el overlay)
+    #   role:        hub|workload  → SI aloja el plano de control de GitOps/ACM
+    #
+    # Ambas son necesarias: el hub es a la vez un ambiente ('hub', porque también
+    # expone APIs y se monitoriza) y el sitio donde vive Argo. Mezclarlas en una
+    # sola obligaría a preguntar "¿es el hub?" con un nombre propio de cluster.
+    - name: Homologar etiquetas de ambiente y rol en los ManagedCluster
+      kubernetes.core.k8s:
+        state: patched
+        api_version: cluster.open-cluster-management.io/v1
+        kind: ManagedCluster
+        name: "{{ item.name }}"
+        definition:
+          metadata:
+            labels:
+              environment: "{{ item.environment }}"
+              role: "{{ item.role }}"
+      loop: "{{ managed_clusters }}"
+      loop_control:
+        label: "{{ item.name }} → environment={{ item.environment }} role={{ item.role }}"
+
+    # --- 7. Entrega a Argo CD: el único "oc apply" conceptual del modelo ---
     - name: Aplicar las root Applications (a partir de aquí gobierna Argo)
       kubernetes.core.k8s:
         state: present

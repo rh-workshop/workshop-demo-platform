@@ -1,0 +1,59 @@
+# Fan-out de la configuración de monitorización a TODOS los clusters.
+#
+# Monitoriza el stack que OpenShift ya trae de serie: aquí solo viaja su
+# ConfigMap, no el operador. Por eso va a todos los clusters y no solo a los
+# workload — el hub también necesita retención acotada.
+#
+# Es el único ApplicationSet que usa el Placement clusters-all: en vez de fijar
+# el overlay (como service-mesh-dev/-prod, uno por ambiente), lo DERIVA de la
+# etiqueta 'environment' del cluster. Así un cluster nuevo toma su overlay solo,
+# sin tocar este fichero — el precio es que overlays/<environment> debe existir
+# para todo ambiente que se etiquete (hoy: hub, dev, prod).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monitoring
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: monitoring
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+  - clusterDecisionResource:
+      configMapRef: acm-placement
+      labelSelector:
+        matchLabels:
+          cluster.open-cluster-management.io/placement: clusters-all
+      requeueAfterSeconds: 180
+  template:
+    metadata:
+      # El nombre lleva el cluster porque hay una Application por cluster.
+      name: 'monitoring-{{.name}}'
+      labels:
+        workshop.redhat.com/layer: infrastructure
+        workshop.redhat.com/component: monitoring
+        workshop.redhat.com/cluster: '{{.name}}'
+    spec:
+      project: workshop-multicluster
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+        targetRevision: main
+        # El overlay sale de la etiqueta del cluster, homologada por el bootstrap.
+        path: 'monitoring/gitops/overlays/{{index .metadata.labels "environment"}}'
+      destination:
+        server: '{{.server}}'
+        namespace: openshift-monitoring
+      syncPolicy:
+        automated:
+          # prune: false a propósito. El ConfigMap lo consume el Cluster
+          # Monitoring Operator, dueño del namespace openshift-monitoring; si
+          # Argo borrara recursos ahí al dejar de verlos en Git, tumbaría la
+          # monitorización del cluster. Argo lo mantiene al día, nunca limpia.
+          prune: false
+          selfHeal: true
+  syncPolicy:
+    preserveResourcesOnDeletion: true
