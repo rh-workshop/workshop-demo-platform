@@ -1,0 +1,48 @@
+# Namespaces de plataforma que viven SOLO en el hub, centralizados aquí para
+# que el inventario de namespaces y su gobierno se lea en un único componente.
+#
+# Solo entran los productos hub-only (Quay, ACS, Developer Hub, Pipelines): sus
+# Application ya no declaran el Namespace y este componente lo adopta.
+#
+# Quedan FUERA a propósito:
+# - Los namespaces de productos multi-cluster (keycloak, cert-manager,
+#   metallb-system, kuadrant-system, platform-gateway, istio-system): su
+#   Namespace debe viajar con el producto a cada cluster donde despliega, y
+#   este componente solo se aplica en el hub.
+# - open-cluster-management y los namespaces de operadores: los crea el
+#   componente acm (huevo-gallina del bootstrap).
+# - Los namespaces de las aplicaciones (*-demo-dev): los declara su repo de
+#   aplicaciones; aquí solo se les añade cuota, límites y RBAC (ver README).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quay-enterprise
+  labels:
+    app.kubernetes.io/part-of: workshop-platform
+    workshop.redhat.com/environment: hub
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stackrox
+  labels:
+    app.kubernetes.io/part-of: workshop-platform
+    workshop.redhat.com/environment: hub
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: developer-hub
+  labels:
+    app.kubernetes.io/part-of: workshop-platform
+    workshop.redhat.com/environment: hub
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-pipelines
+  labels:
+    app.kubernetes.io/part-of: workshop-platform
+    workshop.redhat.com/environment: hub
+    # El operador de monitoring del cluster recoge las métricas de Tekton.
+    openshift.io/cluster-monitoring: "true"

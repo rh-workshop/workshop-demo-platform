@@ -1,0 +1,13 @@
+# Prometheus del cluster raspa las métricas de los pods de aplicación.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-monitoring
+  namespace: workshop-demo-dev canary-demo-dev bluegreen-demo-dev circuit-breaker-demo-dev api-demo-dev
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: monitoring

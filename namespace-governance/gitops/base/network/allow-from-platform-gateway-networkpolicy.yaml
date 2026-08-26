@@ -1,0 +1,14 @@
+# El tráfico de negocio entra SIEMPRE por el Gateway compartido de
+# platform-gateway (Envoy resuelve el Service y ataca directo al pod).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-platform-gateway
+  namespace: workshop-demo-dev canary-demo-dev bluegreen-demo-dev circuit-breaker-demo-dev api-demo-dev
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: platform-gateway

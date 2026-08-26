@@ -1,0 +1,66 @@
+# Cuotas de los namespaces de APLICACIONES (dev). El nombre y los valores son
+# EXACTAMENTE los que exige la Policy de ACM require-resourcequota: así la
+# Policy verifica lo que Git declara, en vez de crear la cuota por enforce.
+#
+# Consumo real medido: cada servicio pide 10m CPU / 32Mi por pod (1-4 pods por
+# namespace); el sobre estándar 4 CPU / 8Gi req deja margen de sobra incluso
+# para los pods de pipeline que corren en workshop-demo-dev.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: workshop-demo-dev
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: canary-demo-dev
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: bluegreen-demo-dev
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: circuit-breaker-demo-dev
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: api-demo-dev
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi

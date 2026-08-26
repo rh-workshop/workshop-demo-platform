@@ -1,0 +1,83 @@
+# Cuotas de los namespaces de PLATAFORMA del hub, dimensionadas sobre la suma
+# REAL de requests/limits de los pods en marcha más margen para rollouts
+# (surge) y crecimiento; una cuota corta impide crear pods nuevos.
+#
+# Medido con `oc get pods -o jsonpath` (suma de requests declarados):
+# - quay-enterprise:     ~20.5 CPU / ~38Gi req, ~38 CPU / ~152Gi lim (15 pods)
+# - stackrox:            ~14.5 CPU / ~30Gi req, ~56 CPU / ~89Gi lim (22 pods)
+# - developer-hub:       ~1.8 CPU / ~4Gi req,  ~8 CPU / ~16Gi lim
+# - openshift-pipelines: ~0.4 CPU / ~0.4Gi req declarado (la mayoría hereda
+#   los defaults del LimitRange), 19 pods
+# - kuadrant-system:     ~0.9 CPU / ~0.7Gi req
+# - platform-gateway:    ~0.1 CPU / ~128Mi req (el Gateway puede escalar)
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: quay-enterprise
+spec:
+  hard:
+    requests.cpu: "32"
+    requests.memory: 56Gi
+    limits.cpu: "64"
+    limits.memory: 224Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: stackrox
+spec:
+  hard:
+    requests.cpu: "24"
+    requests.memory: 48Gi
+    limits.cpu: "80"
+    limits.memory: 128Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: developer-hub
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: openshift-pipelines
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "24"
+    limits.memory: 48Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: kuadrant-system
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+  namespace: platform-gateway
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi

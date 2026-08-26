@@ -10,8 +10,9 @@
 #
 # El patrón `apps/*/overlays/dev` NO cruza segmentos: excluye a propósito los
 # subdirectorios `gateway-route/` (los recoge el ApplicationSet hermano). El
-# permiso de descarga de imagen NO va por servicio: es un único RoleBinding en
-# el namespace de imágenes, dentro de workshop-pipelines/gitops/ (este repo).
+# permiso de descarga de imagen va DENTRO de cada servicio: un RoleBinding en
+# apps/<servicio>/base con metadata.namespace fijo en workshop-demo-dev (el
+# dueño del ImageStream), por lo que el overlay dev no lleva namespace global.
 #
 # Convención de nombres que asume la plantilla: la carpeta se llama
 # `<componente>-service`; el namespace de destino es `<componente>-demo-dev`,

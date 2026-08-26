@@ -14,7 +14,7 @@ resources:
   # ningún ApplicationSet (los servicios sí — ver gitops/appsets/workshop-*).
   # Las políticas del demo-service viven en apps/demo-service/overlays/dev (las
   # despliega el ApplicationSet de servicios) y el permiso de descarga de imagen
-  # va DENTRO de workshop-pipelines: ninguno amerita Application propia.
+  # va DENTRO de cada servicio (apps/<servicio>/base): ninguno amerita Application propia.
   - workshop/workshop-pipelines-application.yaml
   - ../clusters
   - ../appsets
