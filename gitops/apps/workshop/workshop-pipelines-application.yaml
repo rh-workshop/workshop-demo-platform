@@ -2,6 +2,11 @@
 # Argo CD gobierna la DEFINICIÓN del pipeline; las ejecuciones (PipelineRun) las
 # dispara quien construye, y no las gestiona Argo.
 #
+# Incluye también el RBAC del namespace de imágenes: el RoleBinding único que
+# permite a los servicios de los demás namespaces tirar del registro interno de
+# workshop-demo-dev. Antes era una Application aparte (image-pullers-dev) con 4
+# RoleBinding idénticos; se consolidó aquí porque es el mismo gobierno.
+#
 # Los manifiestos vivían en workshop-demo-app-config/platform/pipelines/: se
 # movieron a este repo (workshop-pipelines/gitops/) porque el pipeline monta el
 # token con permiso de escritura sobre el repo de configuración; quien edita el

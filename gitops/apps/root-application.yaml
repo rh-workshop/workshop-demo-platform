@@ -8,9 +8,9 @@
 #                        workload a los spokes por rol
 #   - gitops/apps/hub  : las Applications de los productos que solo viven en el
 #                        hub (acm, quay, acs)
-#   - gitops/apps/workshop : el gobierno del workshop de aplicaciones — las
-#                        Applications que no genera ningún ApplicationSet
-#                        (image-pullers, pipelines); los servicios y sus políticas
+#   - gitops/apps/workshop : el gobierno del workshop de aplicaciones — la
+#                        Application de pipelines (que incluye el RBAC del
+#                        namespace de imágenes); los servicios y sus políticas
 #                        los descubren los ApplicationSets workshop-* de gitops/appsets
 #
 # A partir de este apply, Argo se encarga del resto. Nada del plano de control

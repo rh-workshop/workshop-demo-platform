@@ -10,11 +10,11 @@ resources:
   - hub/pipelines-application.yaml
   - hub/developer-hub-application.yaml
   - hub/connectivity-link-application.yaml
-  # Gobierno del workshop de aplicaciones: las Applications que no genera
+  # Gobierno del workshop de aplicaciones: la única Application que no genera
   # ningún ApplicationSet (los servicios sí — ver gitops/appsets/workshop-*).
-  # Las políticas del demo-service ya NO tienen Application propia: viven en
-  # apps/demo-service/overlays/dev y las despliega el ApplicationSet de servicios.
-  - workshop/image-pullers-dev-application.yaml
+  # Las políticas del demo-service viven en apps/demo-service/overlays/dev (las
+  # despliega el ApplicationSet de servicios) y el permiso de descarga de imagen
+  # va DENTRO de workshop-pipelines: ninguno amerita Application propia.
   - workshop/workshop-pipelines-application.yaml
   - ../clusters
   - ../appsets
