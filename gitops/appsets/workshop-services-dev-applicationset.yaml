@@ -58,19 +58,11 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{if eq (index .path.segments 1) "demo-service"}}workshop-demo-dev{{else}}{{trimSuffix "-service" (index .path.segments 1)}}-demo-dev{{end}}'
-      # El dominio real del cluster se fija en vivo (día 0) y Argo lo respeta: el repo queda genérico.
-      ignoreDifferences:
-        - group: gateway.networking.k8s.io
-          kind: HTTPRoute
-          jsonPointers:
-            - /spec/hostnames
-        # authentication es un OBJETO (clave 'token-valido'), no un array: el
-        # jqPathExpression .authentication[]? no devolvía ruta y el issuer nunca
-        # se llegó a ignorar. Con jsonPointers se nombra la ruta exacta.
-        - group: kuadrant.io
-          kind: AuthPolicy
-          jsonPointers:
-            - /spec/rules/authentication/token-valido/jwt/issuerUrl
+      # Sin ignoreDifferences para el hostname ni el issuer: los overlays llevan el
+      # dominio real del cluster de laboratorio, así que Git y cluster coinciden y
+      # Argo gobierna ambos campos. Ignorarlos obligaba a parchearlos a mano y un
+      # sync manual (que no respeta ignoreDifferences) devolvía el placeholder,
+      # dejando 404 en el gateway y 401 con tokens válidos.
       syncPolicy:
         automated:
           prune: true
