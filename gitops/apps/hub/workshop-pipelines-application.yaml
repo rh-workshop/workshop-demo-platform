@@ -15,7 +15,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: workshop-pipelines
+  name: config-workshop-pipelines
   labels:
     # Distingue de un vistazo qué es infraestructura y qué es aplicación.
     workshop.redhat.com/layer: infrastructure

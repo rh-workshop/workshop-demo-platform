@@ -12,7 +12,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: connectivity-link-hub
+  name: config-connectivity-link-hub
   labels:
     # Distingue de un vistazo qué es infraestructura y qué es aplicación.
     workshop.redhat.com/layer: infrastructure

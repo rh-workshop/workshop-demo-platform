@@ -27,7 +27,7 @@ spec:
       requeueAfterSeconds: 180
   template:
     metadata:
-      name: 'service-mesh-prod'
+      name: 'config-service-mesh-prod'
       labels:
         # Distingue de un vistazo qué es infraestructura y qué es aplicación.
         workshop.redhat.com/layer: infrastructure

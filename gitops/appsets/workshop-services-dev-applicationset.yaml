@@ -40,7 +40,7 @@ spec:
   template:
     metadata:
       # Onda 2 — los servicios van después de las rutas del gateway (onda 1).
-      name: '{{index .path.segments 1}}-dev'
+      name: 'app-{{index .path.segments 1}}-dev'
       labels:
         # Distingue de un vistazo qué es infraestructura y qué es aplicación.
         workshop.redhat.com/layer: application

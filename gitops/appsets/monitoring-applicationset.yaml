@@ -40,7 +40,7 @@ spec:
   template:
     metadata:
       # El nombre lleva el cluster porque hay una Application por cluster.
-      name: 'monitoring-{{.name}}'
+      name: 'config-monitoring-{{.name}}'
       labels:
         workshop.redhat.com/layer: infrastructure
         workshop.redhat.com/component: monitoring

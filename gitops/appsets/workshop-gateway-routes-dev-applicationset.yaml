@@ -27,7 +27,7 @@ spec:
   template:
     metadata:
       # Onda 1 — la ruta existe antes de que el servicio la necesite.
-      name: '{{trimSuffix "-service" (index .path.segments 1)}}-gateway-route-dev'
+      name: 'app-{{trimSuffix "-service" (index .path.segments 1)}}-gateway-route-dev'
       labels:
         # Distingue de un vistazo qué es infraestructura y qué es aplicación.
         workshop.redhat.com/layer: application

@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: acm
+  name: config-acm
   labels:
     # Distingue de un vistazo qué es infraestructura y qué es aplicación.
     workshop.redhat.com/layer: infrastructure

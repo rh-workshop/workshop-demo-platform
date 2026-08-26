@@ -43,7 +43,7 @@ spec:
             namespace: metallb-system
   template:
     metadata:
-      name: '{{.producto}}-prod'
+      name: 'config-{{.producto}}-prod'
       labels:
         # Distingue de un vistazo qué es infraestructura y qué es aplicación.
         workshop.redhat.com/layer: infrastructure
