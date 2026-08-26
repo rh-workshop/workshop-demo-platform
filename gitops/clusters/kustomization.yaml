@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - managedclustersetbinding.yaml
-  - placements/clusters-all-placement.yaml
-  - placements/clusters-dev-placement.yaml
-  - placements/clusters-prod-placement.yaml
+  - placements/clusters-all.yaml
+  - placements/clusters-dev.yaml
+  - placements/clusters-prod.yaml
   - gitopscluster.yaml

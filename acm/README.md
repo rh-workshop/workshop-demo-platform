@@ -30,11 +30,12 @@ resuelto.)
 ```
 gitops/base/
 ├── placements/            # los Placement, COMPARTIDOS entre políticas
-│   ├── clusters-hub-placement.yaml         # role=hub (el cluster de management)
-│   └── clusters-workload-placement.yaml    # environment in [dev, prod]
-└── policies/              # cada Policy con su PlacementBinding
-    ├── <nombre>-policy.yaml
-    └── <nombre>-placementbinding.yaml
+│   ├── clusters-hub.yaml       # role=hub (el cluster de management)
+│   └── clusters-workload.yaml  # environment in [dev, prod]
+└── policies/              # una carpeta por política
+    └── <política>/
+        ├── policy.yaml           # la política (o <ámbito>-policy.yaml si tiene varias)
+        └── placementbinding.yaml # a qué Placement se dirige
 ```
 
 Los `Placement` van en un directorio propio y NO dentro de la carpeta de una
