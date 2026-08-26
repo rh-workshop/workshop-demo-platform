@@ -23,6 +23,11 @@ spec:
   template:
     metadata:
       name: 'service-mesh-prod'
+      labels:
+        # Permite agrupar en la consola las dos Applications de un mismo componente.
+        workshop.redhat.com/component: service-mesh
+        workshop.redhat.com/environment: prod
+        workshop.redhat.com/cluster: '{{.name}}'
     spec:
       project: workshop-multicluster
       source:

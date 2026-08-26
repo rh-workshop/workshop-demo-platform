@@ -64,11 +64,14 @@ spec:
   # TektonConfig del operador de Pipelines (cluster-scoped).
   - group: operator.tekton.dev
     kind: TektonConfig
-  # Istio e IstioCNI del sail-operator (Service Mesh 3, cluster-scoped).
+  # Istio, IstioCNI e IstioRevisionTag del sail-operator (Service Mesh 3, cluster-scoped).
   - group: sailoperator.io
     kind: Istio
   - group: sailoperator.io
     kind: IstioCNI
+  # El overlay de prod ancla la revision estable del mesh con un IstioRevisionTag.
+  - group: sailoperator.io
+    kind: IstioRevisionTag
   # Allow-list explícita de recursos namespaced: es el inventario REAL de lo
   # que renderizan los overlays de este repo (kubectl kustomize / helm
   # template). Si aparece un kind nuevo, Argo lo rechaza con "resource ... is
