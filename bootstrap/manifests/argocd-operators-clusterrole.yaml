@@ -1,0 +1,54 @@
+# Permisos adicionales del controlador de Argo CD sobre los CRs de los operadores
+# de plataforma (ACM, ACS, Quay, RHDH, Tekton).
+#
+# Mismo razonamiento que argocd-gateway-api: el rol del operador de GitOps da
+# lectura global pero escritura acotada; los grupos de API de estos productos no
+# están en ese conjunto y la sincronización falla con "forbidden: cannot create/patch".
+#
+# Es plano de control: amplía los permisos del propio controller, así que lo
+# aplica el bootstrap y NO una Application de Argo — un componente no debe poder
+# ampliarse sus propios permisos desde un repositorio que él mismo sincroniza.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-platform-operators
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  - apiGroups:
+      # ACM: el hub, los placements y el motor de políticas.
+      - operator.open-cluster-management.io
+      - cluster.open-cluster-management.io
+      - policy.open-cluster-management.io
+      - apps.open-cluster-management.io
+      # ACS: Central, SecuredCluster y las políticas declarativas.
+      - platform.stackrox.io
+      - config.stackrox.io
+      # Quay, Developer Hub y Pipelines.
+      - quay.redhat.com
+      - rhdh.redhat.com
+      - operator.tekton.dev
+      # Keycloak, MetalLB y Service Mesh (para el hub; en los spokes aplica el token del cluster secret).
+      - k8s.keycloak.org
+      - metallb.io
+      - sailoperator.io
+      - security.istio.io
+    resources:
+      - "*"
+    verbs:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-platform-operators
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-platform-operators

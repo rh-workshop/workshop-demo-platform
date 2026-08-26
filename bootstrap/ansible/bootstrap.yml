@@ -41,6 +41,7 @@
     manifiestos_bootstrap:
       - "{{ repo_root }}/bootstrap/manifests/argocd.yaml"
       - "{{ repo_root }}/bootstrap/manifests/argocd-gateway-api-clusterrole.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/argocd-operators-clusterrole.yaml"
       - "{{ repo_root }}/bootstrap/manifests/gitops-control-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/workshop-platform-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/workshop-multicluster-appproject.yaml"
