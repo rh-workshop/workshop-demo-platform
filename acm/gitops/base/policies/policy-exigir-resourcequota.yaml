@@ -5,9 +5,10 @@
 # ResourceQuota con topes de CPU y memoria: sin ella, una carga defectuosa podria
 # consumir todo el cluster.
 #
-# remediationAction: inform -> solo REPORTA si se cumple o no; no crea nada. Es
-# lo prudente para empezar: primero se ve el mapa de cumplimiento y luego, si se
-# decide, se cambia a enforce para que ACM cree la cuota donde falte.
+# remediationAction: enforce -> ACM crea la cuota donde falte. Es seguro aqui:
+# los user* ya tienen una cuota MAS restrictiva (workshop-quota) y un LimitRange
+# con defaults, asi que anadir platform-quota (mas laxa) no cambia el tope
+# efectivo (siempre gana la cuota mas restrictiva) ni rechaza pods sin requests.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -15,7 +16,7 @@ metadata:
   namespace: open-cluster-management
 spec:
   disabled: false
-  remediationAction: inform
+  remediationAction: enforce
   policy-templates:
   - objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
@@ -23,13 +24,15 @@ spec:
       metadata:
         name: exigir-resourcequota-config
       spec:
-        remediationAction: inform
+        remediationAction: enforce
         severity: low
-        # namespaceSelector: gobierna los namespaces de NEGOCIO (bian-*, user*),
-        # no 'default' (que no protege ninguna app real). Excluye los de sistema.
+        # namespaceSelector: gobierna los namespaces de NEGOCIO (user*), no
+        # 'default' (que no protege ninguna app real). Excluye los de sistema.
+        # Los *-demo-dev quedan FUERA a proposito: ejecutan builds y generadores
+        # de carga sin requests y no tienen LimitRange con defaults; imponerles
+        # una cuota de computo rechazaria esos pods al recrearse.
         namespaceSelector:
           include:
-            - "bian-*"
             - "user*"
           exclude:
             - "openshift-*"

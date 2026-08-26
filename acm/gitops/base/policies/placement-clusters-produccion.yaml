@@ -16,7 +16,12 @@ spec:
   clusterSets:
   - default
   predicates:
+  # En este entorno los namespaces de negocio (user*) viven en el HUB, no en el
+  # cluster con environment=prod: evaluar la Policy alli dejaba un template-error
+  # perpetuo ("no namespace specified") porque el selector no casaba ninguno.
+  # En un despliegue real, con las cargas en el cluster de produccion, el
+  # predicado correcto vuelve a ser environment=prod.
   - requiredClusterSelector:
       labelSelector:
         matchLabels:
-          environment: prod
+          local-cluster: "true"

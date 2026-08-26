@@ -5,11 +5,10 @@
 # Ojo: esta aplicación de Argo corre solo en el hub. Los namespaces de los
 # clusters workload los distribuye la ConfigurationPolicy de
 # install-operators-workload-policy.yaml, que sí llega a los spokes.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: quay-enterprise
----
+#
+# quay-enterprise y kuadrant-system NO se declaran aquí: ya los declara la
+# Application de su producto (quay y connectivity-link-hub); duplicarlos deja
+# a esta app OutOfSync perpetua por el tracking-id ajeno del otro dueño.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -29,8 +28,3 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: cert-manager-operator
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: kuadrant-system

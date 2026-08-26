@@ -23,6 +23,19 @@ spec:
     dynamicPluginsConfigMapName: dynamic-plugins-rhdh
     route:
       enabled: true
+    # Secretos inyectados como env: el backend service-to-service secret y (en
+    # prod) las credenciales OIDC de Keycloak. Se crean por ESO, nunca en Git.
+    # Nota: extraEnvs y extraFiles viven bajo spec.application segun el CRD
+    # v1alpha5; bajo spec.deployment el API server los poda en silencio.
+    extraEnvs:
+      secrets:
+        - name: rhdh-backend-secret
+    # El rbac-policy.csv se monta como fichero para que el plugin RBAC lo lea.
+    extraFiles:
+      mountPath: /opt/app-root/src/rbac
+      configMaps:
+        - name: rbac-policy-rhdh
+          key: rbac-policy.csv
   # NO-PRODUCCION: replicas 2 y resources ajustados requieren DB externa (con la
   # DB embebida no se debe escalar). Se declara para prod; en el lab con DB
   # embebida el operador mantiene 1 replica.
@@ -41,14 +54,3 @@ spec:
                   limits:
                     cpu: "2"
                     memory: 3Gi
-    # Secretos inyectados como env: el backend service-to-service secret y (en
-    # prod) las credenciales OIDC de Keycloak. Se crean por ESO, nunca en Git.
-    extraEnvs:
-      secrets:
-        - name: rhdh-backend-secret
-    # El rbac-policy.csv se monta como fichero para que el plugin RBAC lo lea.
-    extraFiles:
-      mountPath: /opt/app-root/src/rbac
-      configMaps:
-        - name: rbac-policy-rhdh
-          key: rbac-policy.csv
