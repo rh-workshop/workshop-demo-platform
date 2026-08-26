@@ -65,8 +65,6 @@ spec:
       kind: Service
     - group: ""
       kind: ConfigMap
-    - group: ""
-      kind: ServiceAccount
     - group: apps
       kind: Deployment
     # RoleBinding de los image-puller y de la pipeline (nunca ClusterRole*).
@@ -86,6 +84,6 @@ spec:
     # Circuit breaker del servicio (DestinationRule de Istio, ámbito de app).
     - group: networking.istio.io
       kind: DestinationRule
-    # Pipeline de CI del workshop (los PipelineRun los crean los alumnos).
-    - group: tekton.dev
-      kind: Pipeline
+    # El Pipeline de CI y su ServiceAccount ya NO entran: se movieron a
+    # workshop-demo-platform-config (workshop-pipelines/gitops/) porque montan
+    # el token de escritura del repo de configuración — gobierno de plataforma.

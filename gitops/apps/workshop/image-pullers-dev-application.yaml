@@ -1,0 +1,33 @@
+# Onda 1 — los permisos de descarga de imagen de TODOS los servicios.
+#
+# Van juntos en una sola Application porque comparten destino: el namespace
+# dueño del ImageStream (workshop-demo-dev), que no es donde corren los pods.
+# Tenerlos separados obligaba a una Application por RoleBinding, sin ganar nada.
+#
+# Vivía en workshop-demo-app-config/bootstrap/: se movió aquí porque crear
+# Applications es gobierno de plataforma, no configuración de aplicación.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: image-pullers-dev
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: application
+    workshop.redhat.com/component: image-pullers
+    workshop.redhat.com/environment: dev
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: workshop-platform
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
+    targetRevision: main
+    path: apps/image-pullers/base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: workshop-demo-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

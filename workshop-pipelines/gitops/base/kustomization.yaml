@@ -1,0 +1,10 @@
+# Definiciones de los pipelines (CI y CD separados) y la identidad que los ejecuta.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - serviceaccount-builder.yaml
+  - rolebinding-builder-push-images.yaml
+  - rolebinding-builder-pipelines-scc.yaml
+  - pipeline-ci-build-image.yaml
+  - pipeline-cd-deploy-application.yaml

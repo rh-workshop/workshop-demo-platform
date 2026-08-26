@@ -1,0 +1,9 @@
+# El pipeline se instala en el namespace de desarrollo, que es donde se
+# construye y se publica la imagen del entorno.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: workshop-demo-dev
+
+resources:
+  - ../../base

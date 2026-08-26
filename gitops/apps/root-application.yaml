@@ -8,6 +8,10 @@
 #                        workload a los spokes por rol
 #   - gitops/apps/hub  : las Applications de los productos que solo viven en el
 #                        hub (acm, quay, acs)
+#   - gitops/apps/workshop : el gobierno del workshop de aplicaciones — las
+#                        Applications que no genera ningún ApplicationSet
+#                        (image-pullers, policies, pipelines); los servicios los
+#                        descubren los ApplicationSets workshop-* de gitops/appsets
 #
 # A partir de este apply, Argo se encarga del resto. Nada del plano de control
 # se auto-gestiona: el CR ArgoCD y TODOS los AppProjects (incluido el

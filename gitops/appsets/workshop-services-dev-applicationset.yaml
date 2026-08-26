@@ -1,0 +1,73 @@
+# Descubrimiento de los SERVICIOS del workshop en el repo de aplicaciones.
+#
+# El generador `git` de directorios recorre `apps/*/overlays/dev` del repo
+# workshop-demo-app-config: el equipo de aplicaciones crea la carpeta de su
+# servicio y este ApplicationSet la detecta solo — sin PR al repo de
+# plataforma y, sobre todo, SIN tocar el plano de gobierno. La plantilla
+# (project, destino, syncPolicy, ignoreDifferences) la define plataforma aquí;
+# el AppProject workshop-platform (allow-list, falla cerrado) acota lo que ese
+# repo puede desplegar.
+#
+# El patrón `apps/*/overlays/dev` NO cruza segmentos: excluye a propósito los
+# subdirectorios `gateway-route/` (los recoge el ApplicationSet hermano) y a
+# `apps/image-pullers/` (solo tiene base/, sin overlays; es una Application
+# estática en gitops/apps/workshop/).
+#
+# Convención de nombres que asume la plantilla: la carpeta se llama
+# `<componente>-service`; el namespace de destino es `<componente>-demo-dev`,
+# salvo el servicio original `demo-service`, que vive en `workshop-demo-dev`.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: workshop-services-dev
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - git:
+        repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
+        revision: main
+        directories:
+          - path: apps/*/overlays/dev
+  template:
+    metadata:
+      # Onda 2 — los servicios van después de las rutas del gateway (onda 1).
+      name: '{{index .path.segments 1}}-dev'
+      labels:
+        # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+        workshop.redhat.com/layer: application
+        workshop.redhat.com/component: '{{trimSuffix "-service" (index .path.segments 1)}}'
+        workshop.redhat.com/environment: dev
+      annotations:
+        argocd.argoproj.io/sync-wave: "2"
+    spec:
+      project: workshop-platform
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
+        targetRevision: main
+        path: '{{.path.path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{if eq (index .path.segments 1) "demo-service"}}workshop-demo-dev{{else}}{{trimSuffix "-service" (index .path.segments 1)}}-demo-dev{{end}}'
+      # El dominio real del cluster se fija en vivo (día 0) y Argo lo respeta: el repo queda genérico.
+      ignoreDifferences:
+        - group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          jsonPointers:
+            - /spec/hostnames
+        - group: kuadrant.io
+          kind: AuthPolicy
+          jqPathExpressions:
+            - .spec.rules.authentication[]?.jwt.issuerUrl
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - RespectIgnoreDifferences=true
+          - CreateNamespace=true
+  # Si se borra el ApplicationSet, las Applications generadas sobreviven.
+  syncPolicy:
+    preserveResourcesOnDeletion: true

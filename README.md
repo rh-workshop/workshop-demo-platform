@@ -88,8 +88,11 @@ que contiene:
 ```
 gitops/
 ├── clusters/      # la cadena ACM+Argo: binding, placements, GitOpsCluster
-├── appsets/       # los ApplicationSet que hacen fan-out a los spokes por rol
-└── apps/          # las Applications de los productos hub
+├── appsets/       # los ApplicationSet: fan-out de productos a los spokes por rol
+│                  # y descubrimiento de los servicios del repo de aplicaciones
+│                  # (workshop-services-dev, workshop-gateway-routes-dev)
+└── apps/          # las Applications de los productos hub (hub/) y el gobierno
+                   # del workshop de aplicaciones (workshop/)
 ```
 
 El CR `ArgoCD`, los AppProjects y las `Subscription`/`OperatorGroup` de los
@@ -111,8 +114,18 @@ workshop-platform/
 ├── cert-manager/gitops/    # ClusterIssuer
 ├── connectivity-link/gitops/    # Kuadrant, Gateway
 ├── pipelines/gitops/       # TektonConfig (+ firma con Chains)
+├── workshop-pipelines/     # gitops/: CI y CD del workshop de aplicaciones · runs/: PipelineRun de ejemplo
 └── acs/{gitops,ansible}/        # Central/SecuredCluster → Argo · políticas → API
 ```
+
+> **Por qué los pipelines del workshop viven aquí y no en el repo de
+> aplicaciones:** el pipeline de CI monta el workspace `git-credentials`, un
+> token con permiso de ESCRITURA sobre `workshop-demo-app-config` (promociona
+> el digest). Quien edita el pipeline controla ese token, así que su definición
+> es gobierno de plataforma. Por la misma razón las **Applications** de los
+> servicios no las declara el repo de aplicaciones: las generan los
+> ApplicationSets `workshop-*` de `gitops/appsets/` a partir de sus carpetas
+> `apps/*/overlays/dev`.
 
 Cada `gitops/` sigue Kustomize: `base/` con el *qué* y `overlays/<ambiente>/` con
 el *dónde y cuánto*. El **hostname** de cada producto expuesto (Keycloak, Gateway)

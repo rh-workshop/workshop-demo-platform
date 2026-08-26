@@ -35,6 +35,9 @@ spec:
     namespace: openshift-pipelines
   - server: '*'
     namespace: developer-hub
+  # CI del workshop: el Pipeline y su identidad se instalan en el namespace de desarrollo.
+  - server: '*'
+    namespace: workshop-demo-dev
   # Workloads (hub y spokes): Connectivity Link, Keycloak, cert-manager, MetalLB y Service Mesh.
   - server: '*'
     namespace: kuadrant-system
@@ -140,3 +143,11 @@ spec:
   # Service Mesh: mTLS del mesh.
   - group: security.istio.io
     kind: PeerAuthentication
+  # CI del workshop (workshop-pipelines/gitops/): el Pipeline, la cuenta que lo
+  # ejecuta y sus RoleBinding — gobierno de plataforma, nunca del repo de apps.
+  - group: tekton.dev
+    kind: Pipeline
+  - group: ''
+    kind: ServiceAccount
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding

@@ -1,0 +1,60 @@
+# Ejecución del pipeline de CI.
+#
+# Un PipelineRun es una EJECUCIÓN concreta, no una definición: por eso vive en
+# "workshop-pipelines/runs/" (junto al pipeline) y no lo gestiona Argo CD. Se crea con "oc create" (no "oc apply"),
+# porque cada ejecución necesita un nombre distinto; de ahí "generateName".
+#
+# REGLA DEL MONOREPO: si el cambio toca el código común (internal/ de la raíz),
+# afecta a TODAS las apps — hay que lanzar también el run de api-service, o la
+# otra imagen queda construida con la versión antigua de lo común. La etiqueta
+# OCI org.opencontainers.image.revision de cada imagen dice con qué commit se
+# construyó ("oc image info <imagen>").
+#
+#   oc create -f workshop-pipelines/runs/pipelinerun-ci-build-image.yaml -n workshop-demo-dev
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: ci-build-image-
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  pipelineRef:
+    name: ci-build-image
+  # Identidad con permiso para publicar en el registro de imágenes.
+  taskRunTemplate:
+    serviceAccountName: builder
+  # Cota explícita: si el run se cuelga (registro caído, push bloqueado) no queda corriendo para siempre.
+  timeouts:
+    pipeline: 1h0m0s
+  params:
+    - name: image
+      value: image-registry.openshift-image-registry.svc:5000/workshop-demo-dev/app-workshop:1.0.0
+  workspaces:
+    # Solución canónica de Tekton para compartir un PVC RWO entre tareas: el asistente de afinidad (activo por defecto) las coprograma en el mismo nodo.
+    # Por eso NO se deshabilita con la anotación pipeline.tekton.dev/affinity-assistant y basta ReadWriteOnce.
+    # El asistente además actúa de primer consumidor, así que también funciona con StorageClasses WaitForFirstConsumer.
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          # Sustituir por una StorageClass RWO del cluster (o borrar la línea para usar la default).
+          storageClassName: CHANGE_ME_STORAGECLASS
+          resources:
+            requests:
+              storage: 1Gi
+    - name: config
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          # Sustituir por una StorageClass RWO del cluster (o borrar la línea para usar la default).
+          storageClassName: CHANGE_ME_STORAGECLASS
+          resources:
+            requests:
+              storage: 1Gi
+    - name: git-credentials
+      # Secret basic-auth con permiso de push al repo de configuración. Se crea
+      # aparte (nunca se versiona) y se referencia aquí por su nombre.
+      secret:
+        secretName: git-credentials

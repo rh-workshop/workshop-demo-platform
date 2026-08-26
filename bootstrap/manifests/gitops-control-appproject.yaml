@@ -15,9 +15,10 @@ metadata:
 spec:
   description: Applications raíz del modelo GitOps (app of apps), acotadas al plano de control.
 
-  # Solo los dos repositorios de configuración del workshop pueden ser raíz.
+  # Solo el repositorio de PLATAFORMA puede ser raíz: el repo de aplicaciones
+  # quedó fuera a propósito — quien commitea ahí no puede crear Applications ni
+  # ApplicationSets, sus servicios los descubre el ApplicationSet de plataforma.
   sourceRepos:
-    - https://github.com/rh-workshop/workshop-demo-app-config.git
     - https://github.com/rh-workshop/workshop-demo-platform-config.git
 
   # Un root solo escribe en el namespace de Argo del hub, nunca en los de carga.

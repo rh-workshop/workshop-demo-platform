@@ -21,9 +21,9 @@
 #                       CHANGE_ME_BASE_DOMAIN en los manifiestos (obligatoria para el
 #                       AppProject workshop).
 #   root_applications — lista de YAML de Applications raíz a aplicar; por defecto
-#                       el root de este repositorio. En el cluster del workshop de
-#                       aplicaciones se sobreescribe con el root de
-#                       workshop-demo-app-config (-e '{"root_applications": [...]}').
+#                       el root de este repositorio, que es el ÚNICO: el repo de
+#                       aplicaciones ya no aporta roots (sus servicios los
+#                       descubren los ApplicationSets workshop-* de gitops/appsets/).
 #
 # Requiere: la colección kubernetes.core y un KUBECONFIG con cluster-admin.
 

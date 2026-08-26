@@ -1,0 +1,141 @@
+# Pipeline de CI: construye la imagen y la promociona en el repo de configuración.
+#
+# Es la mitad "integración" del flujo: toma el CÓDIGO (repo de aplicación),
+# construye la imagen, la publica en el registro, y luego escribe el digest en
+# el repo de CONFIGURACIÓN. Ese git push es lo que dispara el CD.
+# La firma NO la hace ninguna task: Tekton Chains (activo en el operador) firma
+# la imagen y genera la atestación in-toto automáticamente al terminar el run.
+#
+# Maneja los DOS repos: lee el de aplicación, escribe en el de configuración.
+# Este flujo promociona a DEV con push directo; hacia PROD la promoción se hace
+# vía Pull Request sobre el overlay de prod, nunca con push directo.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ci-build-image
+spec:
+  params:
+    - {name: app-repo, default: "https://github.com/rh-workshop/workshop-demo-app.git"}
+    - {name: config-repo, default: "https://github.com/rh-workshop/workshop-demo-app-config.git"}
+    - {name: revision, default: main}
+    # Rama del repo de configuración que se clona y a la que se promociona el digest.
+    - {name: config-revision, default: main}
+    - name: image
+    - {name: containerfile, default: ./Containerfile}
+    - {name: overlay-path, default: apps/demo-service/overlays/dev}
+    # Nombre LÓGICO de la imagen en el kustomization (campo images[].name), no la URL del registro.
+    - {name: image-name, default: app-workshop}
+    # Argumentos de construcción (--build-arg) para el Containerfile del monorepo, p. ej. ["APP=api-service"].
+    - {name: build-args, type: array, default: []}
+  workspaces:
+    - name: source
+    - name: config
+    - name: git-credentials
+  results:
+    - name: image-digest
+      value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)
+  tasks:
+    - name: clone-source-code
+      # Un reintento absorbe los fallos transitorios de red contra el repositorio remoto.
+      retries: 1
+      taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: git-clone}, {name: namespace, value: openshift-pipelines}]}
+      params:
+        - {name: URL, value: $(params.app-repo)}
+        - {name: REVISION, value: $(params.revision)}
+      workspaces: [{name: output, workspace: source}]
+
+    - name: build-and-publish-image
+      runAfter: [clone-source-code]
+      taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: buildah}, {name: namespace, value: openshift-pipelines}]}
+      params:
+        - {name: IMAGE, value: $(params.image)}
+        - {name: DOCKERFILE, value: $(params.containerfile)}
+        # Verificación TLS activa: el pod de buildah confía en la CA del registro interno (validado en vivo).
+        - {name: TLS_VERIFY, value: "true"}
+        # El Containerfile del monorepo elige el binario con ARG APP: aquí se le pasa tal cual.
+        # GIT_COMMIT viaja SIEMPRE: el Containerfile lo estampa como etiqueta OCI
+        # org.opencontainers.image.revision, y como el monorepo es un único módulo Go ese
+        # commit identifica también la versión exacta del código común (internal/) que
+        # lleva el binario — así se sabe qué versión corre en cada imagen desplegada.
+        - name: BUILD_ARGS
+          value: ["$(params.build-args[*])", "GIT_COMMIT=$(tasks.clone-source-code.results.COMMIT)"]
+      workspaces: [{name: source, workspace: source}]
+
+    - name: clone-config-repo
+      runAfter: [build-and-publish-image]
+      # Un reintento absorbe los fallos transitorios de red contra el repositorio remoto.
+      retries: 1
+      taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: git-clone}, {name: namespace, value: openshift-pipelines}]}
+      params:
+        - {name: URL, value: $(params.config-repo)}
+        - {name: REVISION, value: $(params.config-revision)}
+      workspaces: [{name: output, workspace: config}]
+
+    # Promociona el digest con "kustomize edit set image": entiende la semántica del
+    # kustomization (no corrompe overlays con varias imágenes, como haría un sed) y el
+    # "*" conserva el newName existente a la vez que elimina el newTag.
+    - name: set-image-digest
+      runAfter: [clone-config-repo]
+      params:
+        - {name: overlay-path, value: $(params.overlay-path)}
+        - {name: image-name, value: $(params.image-name)}
+        - {name: image-digest, value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)}
+      taskSpec:
+        params:
+          - {name: overlay-path, type: string}
+          - {name: image-name, type: string}
+          - {name: image-digest, type: string}
+        workspaces:
+          - name: config
+        steps:
+          - name: kustomize-set-image
+            # La imagen de Argo CD del operador GitOps ya instalado trae kustomize y git: no hace falta traer nada nuevo al cluster.
+            image: registry.redhat.io/openshift-gitops-1/argocd-rhel9:1.21
+            workingDir: $(workspaces.config.path)/$(params.overlay-path)
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              kustomize edit set image "$(params.image-name)=*@$(params.image-digest)"
+              echo "Overlay actualizado:" && cat kustomization.yaml
+
+    - name: push-config
+      runAfter: [set-image-digest]
+      taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: git-cli}, {name: namespace, value: openshift-pipelines}]}
+      params:
+        - {name: GIT_USER_NAME, value: "pipeline-ci"}
+        - {name: GIT_USER_EMAIL, value: "pipeline-ci@ejemplo.local"}
+        # La task git-cli borra el workspace entero antes de correr (DELETE_EXISTING vale "true" por defecto): hay que apagarlo o pierde el clon de la tarea anterior.
+        - {name: DELETE_EXISTING, value: "false"}
+        - name: GIT_SCRIPT
+          value: |
+            set -eu
+            # El workspace se monta en rutas distintas según la task que lo use
+            # (git-clone lo llama "output" y git-cli "source"), así que se parte
+            # de la ruta que declara ESTA task en vez de asumir el directorio.
+            cd $(workspaces.source.path)
+            # Se añade SOLO el fichero tocado: un "commit -a" arrastraría cualquier otro cambio del workspace.
+            git add $(params.overlay-path)/kustomization.yaml
+            # Sin cambios (mismo digest) no hay nada que promocionar: se sale con éxito.
+            if git diff --cached --quiet; then
+              echo "El overlay ya apunta a este digest; no se promociona nada."
+              exit 0
+            fi
+            git commit -m "ci: promote $(params.image-name) to digest $(tasks.build-and-publish-image.results.IMAGE_DIGEST)"
+            # Reintento con rebase: si otro PipelineRun empujó antes, el push sería non-fast-forward.
+            # git-clone deja el repo en detached HEAD: hay que calificar la rama destino.
+            for intento in 1 2 3; do
+              if git push origin HEAD:$(params.config-revision); then
+                exit 0
+              fi
+              echo "Push rechazado (intento ${intento}): se rebasa sobre el remoto y se reintenta."
+              git fetch origin $(params.config-revision)
+              git rebase FETCH_HEAD
+            done
+            echo "No se pudo empujar tras 3 intentos." >&2
+            exit 1
+      workspaces:
+        - {name: source, workspace: config}
+        - {name: basic-auth, workspace: git-credentials}

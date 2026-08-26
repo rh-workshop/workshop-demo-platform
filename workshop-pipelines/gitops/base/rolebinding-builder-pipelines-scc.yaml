@@ -1,0 +1,21 @@
+# Acceso del builder a la SCC de OpenShift Pipelines.
+#
+# Las tareas de construcción necesitan la SCC "pipelines-scc" que instala el
+# operador (permite, entre otras cosas, el grupo de sistema de archivos que
+# requiere el volumen compartido entre tareas). La cuenta "pipeline" que crea el
+# operador ya la tiene; al usar una cuenta propia hay que concedérsela
+# explícitamente. Sin esto, el pod queda bloqueado con "unable to validate
+# against any security context constraint".
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: builder-pipelines-scc
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: builder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pipelines-scc-clusterrole

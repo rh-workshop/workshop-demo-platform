@@ -10,5 +10,10 @@ resources:
   - hub/pipelines-application.yaml
   - hub/developer-hub-application.yaml
   - hub/connectivity-link-application.yaml
+  # Gobierno del workshop de aplicaciones: las Applications que no genera
+  # ningún ApplicationSet (los servicios sí — ver gitops/appsets/workshop-*).
+  - workshop/image-pullers-dev-application.yaml
+  - workshop/policies-dev-application.yaml
+  - workshop/workshop-pipelines-application.yaml
   - ../clusters
   - ../appsets

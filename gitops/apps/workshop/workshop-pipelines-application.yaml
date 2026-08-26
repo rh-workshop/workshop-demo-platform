@@ -1,0 +1,37 @@
+# Onda 2 — definiciones de construcción (Pipeline e identidad que lo ejecuta).
+# Argo CD gobierna la DEFINICIÓN del pipeline; las ejecuciones (PipelineRun) las
+# dispara quien construye, y no las gestiona Argo.
+#
+# Los manifiestos vivían en workshop-demo-app-config/platform/pipelines/: se
+# movieron a este repo (workshop-pipelines/gitops/) porque el pipeline monta el
+# token con permiso de escritura sobre el repo de configuración; quien edita el
+# pipeline controla ese token, y eso es gobierno de plataforma. Por lo mismo la
+# Application corre en el AppProject workshop-multicluster (plataforma), no en
+# workshop-platform (aplicaciones).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: workshop-pipelines
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: pipelines
+    workshop.redhat.com/environment: dev
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: workshop-multicluster
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: workshop-pipelines/gitops/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: workshop-demo-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
