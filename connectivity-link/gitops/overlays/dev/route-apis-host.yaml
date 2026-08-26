@@ -6,4 +6,4 @@ metadata:
   namespace: platform-gateway
 spec:
   # Sustituir por el dominio del cluster de DESARROLLO: apis.apps.<cluster-dev>.<dominio-base>
-  host: apis.apps.cluster-dev.ejemplo.com
+  host: apis.apps.cluster-qthlq.dyn.redhatworkshops.io
