@@ -3,7 +3,7 @@
 # Sin esto, el secret shared-gateway-https del Gateway no lo genera nadie de forma
 # declarativa (antes salia de un recurso fuera de Git). El issuer se parchea por
 # overlay: en el lab un selfsigned; en prod la CA corporativa o ACME real
-# (NO-PRODUCCION usar selfsigned; ver docs/produccion-fuera-del-lab.md).
+# (NO-PRODUCCION usar selfsigned; ver docs/production-outside-the-lab.md).
 apiVersion: kuadrant.io/v1
 kind: TLSPolicy
 metadata:

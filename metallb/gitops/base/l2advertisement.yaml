@@ -2,7 +2,7 @@
 #
 # NO-PRODUCCION: L2 tiene un solo nodo activo por VIP (cuello de botella, failover
 # ARP lento). En prod = BGP+BFD (ECMP real, failover sub-segundo). Ver
-# docs/produccion-fuera-del-lab.md.
+# docs/production-outside-the-lab.md.
 #
 # Se anuncian ambos pools. En prod conviene acotar `interfaces` a la NIC de datos
 # y `nodeSelectors` a los nodos de borde, para no anunciar por cualquier interfaz

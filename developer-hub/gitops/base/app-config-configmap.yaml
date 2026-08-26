@@ -24,7 +24,7 @@ data:
               subject: gitops-clients
     # Autenticacion: en prod, OIDC contra el Keycloak de la plataforma (no guest).
     # NO-PRODUCCION: las credenciales del cliente OIDC van por Secret (ESO); aqui
-    # se referencian por variable. Ver docs/produccion-fuera-del-lab.md.
+    # se referencian por variable. Ver docs/production-outside-the-lab.md.
     auth:
       environment: production
       providers:

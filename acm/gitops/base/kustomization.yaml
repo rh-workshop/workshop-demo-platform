@@ -3,9 +3,9 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - multiclusterhub.yaml
-  - policies/policy-exigir-resourcequota.yaml
-  - policies/placement-clusters-produccion.yaml
-  - policies/placementbinding-exigir-resourcequota.yaml
+  - policies/policy-require-resourcequota.yaml
+  - policies/placement-clusters-prod.yaml
+  - policies/placementbinding-require-resourcequota.yaml
   - operators/operator-namespaces.yaml
   - operators/managedclustersetbinding.yaml
   - operators/install-operators-hub-policy.yaml

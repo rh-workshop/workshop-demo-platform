@@ -2,7 +2,7 @@
 # keycloak-tls que consume spec.http.tlsSecret del CR Keycloak.
 #
 # NO-PRODUCCION: en prod el cert va de la CA corporativa (cert-manager/ESO), no
-# del service-CA interno. Ver docs/produccion-fuera-del-lab.md.
+# del service-CA interno. Ver docs/production-outside-the-lab.md.
 apiVersion: v1
 kind: Service
 metadata:

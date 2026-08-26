@@ -7,7 +7,7 @@ metadata:
 placementRef:
   apiGroup: cluster.open-cluster-management.io
   kind: Placement
-  name: operadores-hub
+  name: operators-hub
 subjects:
   - apiGroup: policy.open-cluster-management.io
     kind: Policy

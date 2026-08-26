@@ -2,7 +2,7 @@
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: operadores-hub
+  name: operators-hub
   namespace: open-cluster-management
 spec:
   clusterSets:

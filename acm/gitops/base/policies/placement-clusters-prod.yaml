@@ -7,7 +7,7 @@
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: clusters-produccion
+  name: clusters-prod
   namespace: open-cluster-management
 spec:
   # El clusterSet debe estar vinculado a este namespace por un ManagedClusterSetBinding

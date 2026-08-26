@@ -4,18 +4,18 @@
 #
 # NO-PRODUCCION: el email y el solver dependen del entorno del cliente; en prod la
 # cuenta ACME va por ESO. En banca suele ser la CA corporativa (issuer tipo `ca`)
-# en vez de Let's Encrypt. Ver docs/produccion-fuera-del-lab.md.
+# en vez de Let's Encrypt. Ver docs/production-outside-the-lab.md.
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: acme-produccion
+  name: acme-production
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
     # El correo de contacto es opcional en ACME; un placeholder literal rompe el registro de la cuenta.
     # El correo real del cliente se inyecta fuera de Git (parche del overlay o ESO), nunca aquí.
     privateKeySecretRef:
-      name: acme-produccion-account-key
+      name: acme-production-account-key
     solvers:
       - http01:
           ingress:

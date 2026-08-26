@@ -27,4 +27,4 @@ spec:
     scannerComponent: AutoSense
   # NO-PRODUCCION: clusterName y centralEndpoint valen solo para el hub (Central
   # local). Un spoke necesita el endpoint de la Route de Central + init bundle
-  # (Secret via ESO, no en Git). Ver docs/produccion-fuera-del-lab.md.
+  # (Secret via ESO, no en Git). Ver docs/production-outside-the-lab.md.

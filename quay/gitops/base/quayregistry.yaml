@@ -17,14 +17,14 @@ spec:
       managed: true
     # NO-PRODUCCION: postgres gestionado = 1 pod sin HA. En prod = DB externa
     # gestionada (managed: false + DB_URI en el config bundle). Ver
-    # docs/produccion-fuera-del-lab.md.
+    # docs/production-outside-the-lab.md.
     - kind: postgres
       managed: true
     - kind: redis
       managed: true
     # NO-PRODUCCION: objectstorage gestionado usa NooBaa ("disponibilidad limitada"
     # según Red Hat). En prod = S3/RADOS GW/Azure Blob (managed: false +
-    # DISTRIBUTED_STORAGE_CONFIG). Ver docs/produccion-fuera-del-lab.md.
+    # DISTRIBUTED_STORAGE_CONFIG). Ver docs/production-outside-the-lab.md.
     - kind: objectstorage
       managed: true
     - kind: route
@@ -35,7 +35,7 @@ spec:
       managed: true
     # Clair ON: escaneo de vulnerabilidades en el registro (gate al push). Decisión
     # de arquitectura: ACS lee estos resultados vía integración Scanner+Registry en
-    # vez de re-escanear (ver docs/backlog-produccion.md). La doc exige que si clair
+    # vez de re-escanear (ver docs/production-backlog.md). La doc exige que si clair
     # es managed, clairpostgres también.
     - kind: clair
       managed: true

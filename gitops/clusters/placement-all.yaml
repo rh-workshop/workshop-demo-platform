@@ -6,7 +6,7 @@
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: clusters-todos
+  name: clusters-all
   namespace: openshift-gitops
 spec:
   clusterSets:

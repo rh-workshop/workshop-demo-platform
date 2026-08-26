@@ -3,7 +3,7 @@
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: operadores-workload
+  name: operators-workload
   namespace: open-cluster-management
 spec:
   clusterSets:

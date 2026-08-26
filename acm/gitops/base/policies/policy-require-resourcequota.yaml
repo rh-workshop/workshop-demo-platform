@@ -12,7 +12,7 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
-  name: exigir-resourcequota
+  name: require-resourcequota
   namespace: open-cluster-management
 spec:
   disabled: false
@@ -22,7 +22,7 @@ spec:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
       metadata:
-        name: exigir-resourcequota-config
+        name: require-resourcequota-config
       spec:
         remediationAction: enforce
         severity: low

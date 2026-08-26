@@ -43,13 +43,13 @@ referencia de Red Hat separa las dos cosas:
 
 | Tarea | Herramienta | Donde |
 |---|---|---|
-| **Instalar el operador** (+ fijar canal) | **ACM Policy** (`OperatorPolicy`) | `acm/gitops/base/operadores/` |
+| **Instalar el operador** (+ fijar canal) | **ACM Policy** (`OperatorPolicy`) | `acm/gitops/base/operators/` |
 | **Configurar el operando** (los CR) | **Argo CD** | `<producto>/gitops/` |
 
 `OperatorPolicy` es superior a una `Subscription` a secas: no solo crea el objeto,
 **verifica que el operador quedo sano** (CSV instalado, deployment disponible, CRD
-presente). Se agrupan en dos Policies por destino — `instalar-operadores-hub`
-(quay, acs, developer-hub, pipelines) e `instalar-operadores-workload` (keycloak,
+presente). Se agrupan en dos Policies por destino — `install-operators-hub`
+(quay, acs, developer-hub, pipelines) e `install-operators-workload` (keycloak,
 metallb, cert-manager, connectivity-link) — cada una con su Placement por rol.
 
 Asi, un cluster nuevo importado por ACM recibe sus operadores por politica, y Argo

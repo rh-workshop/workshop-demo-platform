@@ -33,7 +33,7 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 |---|---|---|
 | Service Mesh | El chart crea `IstioCNI` pero no el namespace `istio-cni` → no arregla el `IstioCNINotFound` | ✅ |
 | ACS | El playbook parte de premisa falsa ("no hay CRD"); existe `SecurityPolicy` (Policy-as-Code) | ✅ |
-| ACM | Placement `clusters-produccion` con set `global` sin binding; OperatorPolicy sin version pinning | ✅ |
+| ACM | Placement `clusters-prod` con set `global` sin binding; OperatorPolicy sin version pinning | ✅ |
 
 ---
 
@@ -134,7 +134,7 @@ son de laboratorio y aquí se registra qué falta para llevarlas a producción.
 | # | Sev | Hallazgo | Grupo | Estado |
 |---|---|---|---|---|
 | 1 | 🔴 | operators/ validado server-side; se aplica al hacer el app-of-apps | A | ✅ |
-| 2 | 🔴 | Placement `clusters-produccion` clusterSet global→default | A | ✅ |
+| 2 | 🔴 | Placement `clusters-prod` clusterSet global→default | A | ✅ |
 | 3 | 🔴 | OperatorPolicy con `versions` (pin) + `upgradeApproval: Automatic` | A | ✅ |
 | 4 | 🟠 | Namespaces de operadores creados en el árbol | A | ✅ |
 | 5 | 🟠 | Policy quota: namespaceSelector (bian-*/user*) + limits | A | ✅ |

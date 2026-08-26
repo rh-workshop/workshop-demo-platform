@@ -13,7 +13,7 @@ metadata:
 spec:
   # NO-PRODUCCION: enableLocalDb usa la DB embebida del operador (1Gi, sin backup
   # ni HA). En prod = PostgreSQL externo (enableLocalDb: false + POSTGRES_* por
-  # Secret via ESO). Ver docs/produccion-fuera-del-lab.md.
+  # Secret via ESO). Ver docs/production-outside-the-lab.md.
   database:
     enableLocalDb: true
   application:

@@ -16,7 +16,7 @@
 #   oc delete pod -n openshift-pipelines -l app=tekton-chains-controller
 # NO-PRODUCCIÓN: en prod la clave privada vive en Azure Key Vault y se sincroniza
 # por ESO; y se firma en formato clásico .sig (cosign v3 firma DSSE por defecto y
-# ACS 4.x no lo descubre). Ver docs/produccion-fuera-del-lab.md.
+# ACS 4.x no lo descubre). Ver docs/production-outside-the-lab.md.
 #
 # El almacenamiento oci de Chains empuja las firmas al registro: el SA
 # 'pipeline' del namespace necesita credenciales de push a Quay (un pull/push

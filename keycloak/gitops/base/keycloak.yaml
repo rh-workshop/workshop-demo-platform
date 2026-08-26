@@ -15,7 +15,7 @@ spec:
     # NO-PRODUCCION: apunta al PostgreSQL en-cluster (1 pod, sin HA ni backup) que
     # despliega el propio lab. En prod = DB gestionada externa (Azure Database for
     # PostgreSQL / RDS Multi-AZ); el host se parchea en overlays/prod. Ver
-    # docs/produccion-fuera-del-lab.md.
+    # docs/production-outside-the-lab.md.
     host: keycloak-pgsql
     database: keycloak
     usernameSecret:

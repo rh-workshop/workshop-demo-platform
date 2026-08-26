@@ -4,4 +4,4 @@ resources:
   - namespace.yaml
   - central.yaml
   - securedcluster.yaml
-  - policies/prohibir-latest-securitypolicy.yaml
+  - policies/disallow-latest-tag-securitypolicy.yaml

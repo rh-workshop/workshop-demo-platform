@@ -1,6 +1,6 @@
 # En prod el cert del Gateway lo emite la CA corporativa (patron habitual en
 # banca), no el selfsigned "a pelo": aqui la representa la CA propia workshop-ca.
-# NO se usa acme-produccion: el listener es un wildcard y ACME con solver http01
+# NO se usa acme-production: el listener es un wildcard y ACME con solver http01
 # no puede emitir wildcards (exige dns01), asi que el cert jamas saldria y el
 # Gateway quedaria sin secret. ACME queda disponible para hosts concretos con
 # dominio publico real.

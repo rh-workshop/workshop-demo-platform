@@ -19,5 +19,5 @@ spec:
   placementRef:
     apiVersion: cluster.open-cluster-management.io/v1beta1
     kind: Placement
-    name: clusters-todos
+    name: clusters-all
     namespace: openshift-gitops

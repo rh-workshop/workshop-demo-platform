@@ -6,7 +6,7 @@ metadata:
 placementRef:
   apiGroup: cluster.open-cluster-management.io
   kind: Placement
-  name: operadores-workload
+  name: operators-workload
 subjects:
   - apiGroup: policy.open-cluster-management.io
     kind: Policy

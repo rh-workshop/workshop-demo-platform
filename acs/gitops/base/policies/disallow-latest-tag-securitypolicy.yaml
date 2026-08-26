@@ -11,7 +11,7 @@
 apiVersion: config.stackrox.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: prohibir-etiqueta-latest
+  name: disallow-latest-tag
   namespace: stackrox
 spec:
   policyName: Prohibir la etiqueta latest
