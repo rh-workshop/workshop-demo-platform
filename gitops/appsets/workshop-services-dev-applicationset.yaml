@@ -8,9 +8,10 @@
 # el AppProject workshop-platform (allow-list, falla cerrado) acota lo que ese
 # repo puede desplegar.
 #
-# El patrón `apps/*/overlays/dev` NO cruza segmentos: excluye a propósito los
-# subdirectorios `gateway-route/` (los recoge el ApplicationSet hermano). El
-# permiso de descarga de imagen va DENTRO de cada servicio: un RoleBinding en
+# El patrón `apps/*/overlays/dev` NO cruza segmentos, así que cada servicio da
+# UNA Application con todo lo suyo: Deployment, Service, HTTPRoute, AuthPolicy y
+# RateLimitPolicy. La entrada al gateway (una Route única) es de plataforma y
+# vive en connectivity-link. El permiso de descarga de imagen va DENTRO de cada servicio: un RoleBinding en
 # apps/<servicio>/base con metadata.namespace fijo en workshop-demo-dev (el
 # dueño del ImageStream), por lo que el overlay dev no lleva namespace global.
 #
