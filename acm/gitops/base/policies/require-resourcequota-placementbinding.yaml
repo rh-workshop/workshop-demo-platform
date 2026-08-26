@@ -1,5 +1,5 @@
 # Une la Policy con el Placement: "aplica require-resourcequota a los clusters que
-# selecciona clusters-prod". Sin este binding la Policy no evalua nada.
+# selecciona governed-clusters". Sin este binding la Policy no evalua nada.
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
@@ -8,7 +8,7 @@ metadata:
 placementRef:
   apiGroup: cluster.open-cluster-management.io
   kind: Placement
-  name: clusters-prod
+  name: governed-clusters
 subjects:
 - apiGroup: policy.open-cluster-management.io
   kind: Policy

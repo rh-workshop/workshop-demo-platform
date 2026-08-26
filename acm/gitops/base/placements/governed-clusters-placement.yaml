@@ -1,17 +1,18 @@
-# A que clusters se aplica la Policy.
+# A que clusters se aplican las politicas de gobierno de cargas (hoy require-resourcequota).
 #
-# El Placement selecciona los clusters gestionados que tengan la etiqueta
-# environment=prod. OJO: los predicados de un Placement se combinan con O (union),
-# no con Y; con un solo predicado no hay ambiguedad, pero es la trampa clasica al
-# anadir mas.
+# OJO nombre: NO confundir con el Placement clusters-prod de openshift-gitops
+# (gitops/clusters/), que selecciona environment=prod para el fan-out de Argo.
+#
+# OJO: los predicados de un Placement se combinan con O (union), no con Y; con un
+# solo predicado no hay ambiguedad, pero es la trampa clasica al anadir mas.
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
-  name: clusters-prod
+  name: governed-clusters
   namespace: open-cluster-management
 spec:
   # El clusterSet debe estar vinculado a este namespace por un ManagedClusterSetBinding
-  # (ver operators/managedclustersetbinding.yaml). Los 3 clusters estan en 'default';
+  # (ver ../managedclustersetbinding.yaml). Los 3 clusters estan en 'default';
   # con 'global' sin binding en este namespace, el Placement seleccionaria 0 clusters.
   clusterSets:
   - default

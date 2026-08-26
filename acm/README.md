@@ -21,9 +21,39 @@ resuelto.)
 | Recurso | Qué hace |
 |---|---|
 | `MultiClusterHub` | Enciende el hub de ACM (gestión de clusters, gobierno, observabilidad) |
-| `Policy` | La regla de gobierno: exige que exista una `ResourceQuota` en el namespace |
-| `Placement` | A qué clusters gestionados aplica la política (`environment=prod`) |
-| `PlacementBinding` | Une la `Policy` con el `Placement` |
+| `Policy` | La regla de gobierno (instalar operadores, exigir `ResourceQuota`…) |
+| `Placement` | A qué clusters gestionados aplica cada política |
+| `PlacementBinding` | Une cada `Policy` con su `Placement` |
+
+## Estructura: placements centralizados
+
+```
+gitops/base/
+├── placements/            # los Placement, COMPARTIBLES entre políticas
+│   ├── operators-hub-placement.yaml        # role=hub
+│   ├── operators-workload-placement.yaml   # environment in [dev, prod]
+│   └── governed-clusters-placement.yaml    # clusters con cargas gobernadas
+└── policies/              # cada Policy con su PlacementBinding
+    ├── <nombre>-policy.yaml
+    └── <nombre>-placementbinding.yaml
+```
+
+Los `Placement` van en un directorio propio y NO dentro de la carpeta de una
+política: un mismo Placement puede dirigir varias políticas (varios
+`PlacementBinding`, o un `PolicySet`), así que anidarlo bajo una de ellas sería
+engañoso. Es la convención del
+[policy-collection](https://github.com/open-cluster-management-io/policy-collection)
+upstream: las contribuciones ya no incluyen el placement, porque "placement
+resources can be shared to avoid duplication".
+
+> **¿Por qué NO se unifican con los Placement de `gitops/clusters/`?** Aquellos
+> (`clusters-all/dev/prod`) viven en `openshift-gitops` porque los consumen el
+> `GitOpsCluster` y el generador `clusterDecisionResource` de los
+> ApplicationSets, que leen las `PlacementDecision` en el namespace de Argo. Los
+> de aquí viven en `open-cluster-management` porque `Policy`, `Placement` y
+> `PlacementBinding` deben compartir namespace (regla del framework de
+> gobierno). Son dos consumidores distintos con requisitos de namespace
+> incompatibles: la separación es correcta, no una duplicación.
 
 Las políticas de ACM **sí** son CRs (a diferencia de las de ACS, que van por API):
 aquí Ansible no hace falta.
