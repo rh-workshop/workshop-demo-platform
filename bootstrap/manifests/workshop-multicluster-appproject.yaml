@@ -77,6 +77,10 @@ spec:
   # TektonConfig del operador de Pipelines (cluster-scoped).
   - group: operator.tekton.dev
     kind: TektonConfig
+  # Console del operador de consola (singleton cluster-scoped): connectivity-link
+  # la parchea para activar el plugin de Kuadrant en la consola web.
+  - group: operator.openshift.io
+    kind: Console
   # Istio, IstioCNI e IstioRevisionTag del sail-operator (Service Mesh 3, cluster-scoped).
   - group: sailoperator.io
     kind: Istio

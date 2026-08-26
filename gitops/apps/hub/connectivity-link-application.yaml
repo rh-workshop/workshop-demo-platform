@@ -37,6 +37,12 @@ spec:
       kind: AuthPolicy
       jqPathExpressions:
         - .spec.defaults.rules.authentication[]?.jwt.issuerUrl
+    # El host de la Route del gateway compartido también es valor de día 0:
+    # se fija en vivo con el dominio real y Argo lo respeta.
+    - group: route.openshift.io
+      kind: Route
+      jsonPointers:
+        - /spec/host
   syncPolicy:
     automated:
       prune: false

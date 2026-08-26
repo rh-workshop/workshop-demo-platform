@@ -25,17 +25,18 @@ spec:
         memory: 256Mi
     route:
       enabled: true
-  # Controller: uso medido ~2.4Gi con ~12 Applications y 3 clusters gestionados; la request sube a 2Gi para
-  # reflejar el consumo estable y el límite se mantiene en 4Gi (~58% de uso, margen suficiente para un hub pequeño).
+  # Controller: con ~27 Applications y 3 clusters gestionados el pico de caché superó los 4Gi y el pod
+  # entró en OOMKilled (CrashLoopBackOff), dejando los syncs colgados en Running. El límite sube a 8Gi
+  # (medido en vivo: el arranque estabiliza ~5Gi) y la request a 3Gi para proteger el scheduling.
   # Los processors se dejan en el default (status 20 / operation 10): upstream solo recomienda subirlos con miles de apps.
   controller:
     resources:
       limits:
         cpu: "2"
-        memory: 4Gi
+        memory: 8Gi
       requests:
         cpu: 250m
-        memory: 2Gi
+        memory: 3Gi
   # Namespaces de usuario del workshop autorizados a declarar sus propias Applications.
   sourceNamespaces:
     - user*

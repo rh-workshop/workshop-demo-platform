@@ -1,0 +1,42 @@
+# UNA Route: el Gateway compartido es uno, y esta es su unica puerta de entrada.
+#
+# NO expone ningun servicio. Los servicios los publica Connectivity Link con sus
+# HTTPRoute, que viven junto a cada aplicacion y se diferencian por PATH bajo
+# este mismo host (modelo de dominio compartido). Anadir un servicio nuevo NO
+# requiere tocar este fichero: basta su HTTPRoute con el path correspondiente.
+#
+# POR QUE HACE FALTA EN ESTE CLUSTER: el IngressController publica con
+# HostNetwork (ocupa el 443 de los nodos) y el DNS comodin *.apps.<dominio>
+# resuelve a la IP publica del router HAProxy. MetalLB si asigna IP externa al
+# Gateway, pero del rango privado 10.10.10.0/24: no es enrutable desde internet,
+# asi que apuntarle un DNS publico no serviria — el paquete nunca llegaria.
+# El trafico entra por el router, y el router solo enruta hosts con una Route
+# admitida: sin esto, 503 antes de alcanzar el gateway.
+#
+# EN UN CLUSTER CON BALANCEADOR PUBLICO ESTA ROUTE SOBRA: el DNS apunta directo
+# a la IP del Service del Gateway y el trafico no pasa por el router.
+#
+# passthrough porque el TLS lo termina el propio Gateway (listener mode:
+# Terminate + TLSPolicy de Kuadrant): el router no debe abrir la conexion.
+#
+# No se usa wildcardPolicy Subdomain: reclamaria el subdominio ENTERO
+# (apps.<dominio>), que otras Routes del cluster ya tienen tomado, y el router
+# la rechaza con HostAlreadyClaimed. Verificado en vivo.
+#
+# El host se parchea por overlay con el dominio real del cluster.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: shared-gateway-apis
+  namespace: platform-gateway
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  host: apis.apps.cluster.ejemplo.com
+  port:
+    targetPort: 443
+  tls:
+    termination: passthrough
+  to:
+    kind: Service
+    name: shared-gateway-istio

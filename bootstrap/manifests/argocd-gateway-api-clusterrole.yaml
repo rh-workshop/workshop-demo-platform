@@ -22,6 +22,16 @@ rules:
       - "*"
     verbs:
       - "*"
+  # La Route del gateway compartido (shared-gateway-apis) vive en Git: el rol del
+  # operador concede parchear Routes existentes pero no crearlas; sin esto el sync
+  # falla con "cannot create resource routes" al estrenar el manifiesto.
+  - apiGroups:
+      - route.openshift.io
+    resources:
+      - routes
+      - routes/custom-host
+    verbs:
+      - "*"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
