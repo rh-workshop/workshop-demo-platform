@@ -1,0 +1,13 @@
+# Perfil de namespace de PLATAFORMA (operadores/productos del hub): cuota y
+# límites con defaults holgados más RBAC de admin/viewer. Sin NetworkPolicy a
+# propósito: los flujos internos de un operador (webhooks, conversion,
+# scanners) son suyos y una policy genérica los rompería sin aportar valor.
+# La cuota trae el sobre estándar (4 CPU / 8Gi req): cada namespace que
+# necesite más la parchea en namespaces/<ns>/ (Quay, ACS...).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - default-resourcequota.yaml
+  - default-limitrange.yaml
+  - platform-admins-rolebinding.yaml
+  - platform-viewers-rolebinding.yaml

@@ -1,0 +1,19 @@
+# LimitRange de plataforma: OBLIGATORIO al poner cuota. Una ResourceQuota
+# sobre requests/limits rechaza cualquier pod que no los declare; este
+# LimitRange inyecta defaults a los contenedores que vienen sin ellos (varios
+# pods de Quay, Tekton y Kuadrant no declaran nada). Los defaults son holgados
+# a propósito: los operadores fijan sus propios resources y solo los huérfanos
+# los heredan.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 50m
+        memory: 128Mi
+      default:
+        cpu: "1"
+        memory: 4Gi

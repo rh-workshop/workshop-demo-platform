@@ -1,0 +1,10 @@
+# Namespace hub-only adoptado de su producto (su Application ya no lo declara).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-pipelines
+  labels:
+    app.kubernetes.io/part-of: workshop-platform
+    workshop.redhat.com/environment: hub
+    # El operador de monitoring del cluster recoge las métricas de Tekton.
+    openshift.io/cluster-monitoring: "true"

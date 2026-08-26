@@ -1,0 +1,12 @@
+# Gobierno de kuadrant-system (multi-cluster: su Namespace viaja con el
+# producto; aquí solo cuota, límites y RBAC del hub). Desviaciones del perfil:
+# default de memoria más corto (2Gi) y lectura extra para app-developers,
+# que depuran aquí la exposición de sus APIs.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kuadrant-system
+resources:
+  - ../../profiles/platform-namespace
+  - app-developers-rolebinding.yaml
+patches:
+  - path: limitrange-patch.yaml

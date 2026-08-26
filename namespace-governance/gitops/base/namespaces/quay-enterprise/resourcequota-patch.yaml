@@ -1,0 +1,11 @@
+# Medido: ~20.5 CPU / ~38Gi req, ~38 CPU / ~152Gi lim (15 pods) + margen surge.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+spec:
+  hard:
+    requests.cpu: "32"
+    requests.memory: 56Gi
+    limits.cpu: "64"
+    limits.memory: 224Gi

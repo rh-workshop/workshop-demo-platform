@@ -1,0 +1,13 @@
+# Sobre estándar de plataforma; los namespaces con consumo real mayor
+# (quay-enterprise, stackrox...) lo parchean en su directorio. Una cuota corta
+# impide crear pods nuevos: dimensionar SIEMPRE sobre consumo medido + margen.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi

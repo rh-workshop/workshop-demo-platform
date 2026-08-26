@@ -1,0 +1,11 @@
+# Gobierno de developer-hub (hub-only, Namespace adoptado del producto).
+# Desviación del perfil: más limits — RHDH y su Postgres burstean por encima
+# del sobre estándar.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: developer-hub
+resources:
+  - namespace.yaml
+  - ../../profiles/platform-namespace
+patches:
+  - path: resourcequota-patch.yaml

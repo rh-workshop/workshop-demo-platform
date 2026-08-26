@@ -1,0 +1,11 @@
+# Gobierno de openshift-pipelines (hub-only, Namespace adoptado del producto).
+# Desviación del perfil: más limits — 19 pods de Tekton heredan los defaults
+# holgados del LimitRange y la suma de limits supera el sobre estándar.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: openshift-pipelines
+resources:
+  - namespace.yaml
+  - ../../profiles/platform-namespace
+patches:
+  - path: resourcequota-patch.yaml

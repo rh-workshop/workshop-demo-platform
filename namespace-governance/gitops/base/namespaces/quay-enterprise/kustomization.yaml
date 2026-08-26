@@ -1,0 +1,10 @@
+# Gobierno de quay-enterprise (hub-only, Namespace adoptado del producto).
+# Desviación del perfil: cuota grande — Quay corre 15 pods con requests altos.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: quay-enterprise
+resources:
+  - namespace.yaml
+  - ../../profiles/platform-namespace
+patches:
+  - path: resourcequota-patch.yaml

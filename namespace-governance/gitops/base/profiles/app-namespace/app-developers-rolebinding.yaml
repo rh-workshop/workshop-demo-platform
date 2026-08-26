@@ -1,0 +1,14 @@
+# Perfil APP DEVELOPER: despliega (edit) en los namespaces de aplicaciones.
+# Grupo genérico: el cluster real mapeará su grupo de Entra/LDAP equivalente.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app-developers-edit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: app-developers

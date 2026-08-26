@@ -1,0 +1,14 @@
+# Perfil PLATFORM ADMIN: administra el namespace (admin permite gestionar RBAC
+# local; las cuotas no: esas son de este componente). Grupo, nunca usuarios.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: platform-admins

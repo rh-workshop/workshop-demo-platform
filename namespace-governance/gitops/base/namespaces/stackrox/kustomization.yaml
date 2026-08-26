@@ -1,0 +1,10 @@
+# Gobierno de stackrox (hub-only, Namespace adoptado del producto).
+# Desviación del perfil: cuota grande — ACS corre 22 pods con limits altos.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stackrox
+resources:
+  - namespace.yaml
+  - ../../profiles/platform-namespace
+patches:
+  - path: resourcequota-patch.yaml

@@ -1,0 +1,12 @@
+# Medido: ~0.4 CPU / ~0.4Gi req declarado; 19 pods heredan defaults del
+# LimitRange, de ahí el techo alto de limits.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "24"
+    limits.memory: 48Gi

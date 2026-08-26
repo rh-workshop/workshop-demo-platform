@@ -1,0 +1,14 @@
+# Los pods de Envoy del Gateway son ligeros: default de memoria a 2Gi.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 50m
+        memory: 128Mi
+      default:
+        cpu: "1"
+        memory: 2Gi
