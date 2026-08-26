@@ -1,5 +1,0 @@
-# Namespace donde el operador de OpenShift Pipelines despliega Tekton y Chains.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: openshift-pipelines

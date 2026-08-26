@@ -1,7 +1,0 @@
-# Developer Hub vive UNICAMENTE en el hub: es un portal de gestion centralizado,
-# no una carga de negocio. Una sola instancia ve las apps de todos los clusters a
-# traves de sus plugins (Kubernetes, Argo CD, Tekton) apuntando a los spokes.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: developer-hub

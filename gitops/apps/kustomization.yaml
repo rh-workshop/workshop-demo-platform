@@ -3,6 +3,9 @@ kind: Kustomization
 # El AppProject workshop-multicluster NO va aquí: lo crea el bootstrap
 # (bootstrap/manifests/), porque la barandilla no se instala a sí misma.
 resources:
+  # Primero el gobierno de namespaces (sync-wave -1): inventario, cuotas,
+  # RBAC por grupo y aislamiento de red, antes de que nada despliegue dentro.
+  - hub/namespace-governance-application.yaml
   - hub/acm-application.yaml
   - hub/quay-application.yaml
   - hub/acs-application.yaml

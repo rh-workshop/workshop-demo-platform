@@ -1,0 +1,31 @@
+# Application del gobierno de namespaces: inventario de Namespace hub-only,
+# cuotas, límites, RBAC por grupo y aislamiento de red.
+#
+# sync-wave -1: el gobierno de un namespace debe existir ANTES de que los demás
+# componentes desplieguen dentro (cuotas y LimitRange condicionan la admisión
+# de los pods que crean).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: namespace-governance
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: namespace-governance
+    workshop.redhat.com/environment: hub
+spec:
+  project: workshop-multicluster
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: namespace-governance/gitops/overlays/hub
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      # prune false: borrar por accidente una cuota o un RoleBinding de un
+      # namespace vivo no debe pasar solo; se poda a mano y con revisión.
+      prune: false
+      selfHeal: true

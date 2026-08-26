@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Inventario de namespaces de plataforma hub-only (adoptados de sus productos).
+  - namespaces/namespaces.yaml
+  # Cuotas y límites por namespace: la pareja ResourceQuota + LimitRange es
+  # inseparable (la cuota sin defaults bloquearía los pods sin resources).
+  - quotas/platform-resourcequota.yaml
+  - quotas/platform-limitrange.yaml
+  - quotas/app-resourcequota.yaml
+  - quotas/app-limitrange.yaml
+  # RBAC por GRUPO (nunca usuarios): tres perfiles — admin, developer, viewer.
+  - rbac/platform-admins-rolebinding.yaml
+  - rbac/app-developers-rolebinding.yaml
+  - rbac/platform-viewers-rolebinding.yaml
+  # Aislamiento de red de los namespaces de aplicaciones.
+  - network/allow-same-namespace-networkpolicy.yaml
+  - network/allow-from-platform-gateway-networkpolicy.yaml
+  - network/allow-from-monitoring-networkpolicy.yaml
+  - network/allow-from-openshift-ingress-networkpolicy.yaml

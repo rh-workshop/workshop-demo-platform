@@ -38,6 +38,16 @@ spec:
   # CI del workshop: el Pipeline y su identidad se instalan en el namespace de desarrollo.
   - server: '*'
     namespace: workshop-demo-dev
+  # Gobierno de los namespaces de aplicaciones (namespace-governance): cuota,
+  # límites, RBAC por grupo y aislamiento de red — no workloads de negocio.
+  - server: '*'
+    namespace: canary-demo-dev
+  - server: '*'
+    namespace: bluegreen-demo-dev
+  - server: '*'
+    namespace: circuit-breaker-demo-dev
+  - server: '*'
+    namespace: api-demo-dev
   # Workloads (hub y spokes): Connectivity Link, Keycloak, cert-manager, MetalLB y Service Mesh.
   - server: '*'
     namespace: kuadrant-system
@@ -151,3 +161,11 @@ spec:
     kind: ServiceAccount
   - group: rbac.authorization.k8s.io
     kind: RoleBinding
+  # Gobierno de namespaces (namespace-governance/gitops/): cuotas, límites y
+  # aislamiento de red por namespace.
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  - group: networking.k8s.io
+    kind: NetworkPolicy

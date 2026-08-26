@@ -1,5 +1,0 @@
-# Namespace de Red Hat Advanced Cluster Security (RHACS / StackRox).
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: stackrox
