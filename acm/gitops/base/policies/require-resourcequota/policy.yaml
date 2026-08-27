@@ -9,6 +9,12 @@
 # los user* ya tienen una cuota MAS restrictiva (workshop-quota) y un LimitRange
 # con defaults, asi que anadir platform-quota (mas laxa) no cambia el tope
 # efectivo (siempre gana la cuota mas restrictiva) ni rechaza pods sin requests.
+#
+# object-templates-raw en vez de namespaceSelector: el rango recorre los
+# namespaces de negocio que EXISTEN en cada cluster. En un spoke sin namespaces
+# de negocio el rango queda vacio y la policy es Compliant; con namespaceSelector
+# cero coincidencias daba NonCompliant ("has no namespace specified") y por eso
+# el binding solo alcanzaba al hub — dejando los spokes sin gobierno.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -26,41 +32,68 @@ spec:
       spec:
         remediationAction: enforce
         severity: low
-        # namespaceSelector: gobierna los namespaces de NEGOCIO (user* y los
-        # *-demo-dev), no 'default' (que no protege ninguna app real). Excluye
-        # los de sistema. Los *-demo-dev entran porque namespace-governance ya
-        # declara en Git la cuota estandar Y un LimitRange con defaults: la
-        # Policy VERIFICA lo que Git declara en vez de crear la cuota por
-        # enforce, y ningun pod sin requests queda rechazado.
-        namespaceSelector:
-          include:
-            - "user*"
-            - "workshop-demo-dev"
-            - "*-demo-dev"
-          exclude:
-            - "openshift-*"
-            - "kube-*"
-            - default
-        object-templates:
-        - complianceType: musthave
-          objectDefinition:
-            apiVersion: v1
-            kind: ResourceQuota
-            metadata:
-              name: platform-quota
-            spec:
-              hard:
-                requests.cpu: '4'
-                requests.memory: 8Gi
-                # limits ademas de requests: sin techo de limits, un pod puede
-                # pedir poco y consumir mucho en picos.
-                #
-                # El techo cuenta los SIDECARS, no solo la aplicacion: en un
-                # namespace del mesh cada pod lleva istio-proxy e istio-validation,
-                # que piden 2 CPU de limite CADA UNO. Un servicio que pide 200m
-                # consume en realidad 4200m de cuota. Con el valor anterior ('8')
-                # bastaban dos pods para agotarla: los ReplicaSet nuevos no creaban
-                # pod y el Deployment quedaba en 'exceeded its progress deadline'
-                # sin causa aparente.
-                limits.cpu: '24'
-                limits.memory: 24Gi
+        object-templates-raw: |
+          {{- /* Namespaces de NEGOCIO: user* y los *-demo-dev; nunca los de sistema. */ -}}
+          {{- range (lookup "v1" "Namespace" "" "").items }}
+          {{- $ns := .metadata.name }}
+          {{- if and (or (hasPrefix "user" $ns) (hasSuffix "-demo-dev" $ns)) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
+          - complianceType: musthave
+            objectDefinition:
+              apiVersion: v1
+              kind: ResourceQuota
+              metadata:
+                name: platform-quota
+                namespace: {{ $ns }}
+              spec:
+                hard:
+                  requests.cpu: '4'
+                  requests.memory: 8Gi
+                  # limits ademas de requests: sin techo de limits, un pod puede
+                  # pedir poco y consumir mucho en picos.
+                  #
+                  # El techo cuenta los SIDECARS, no solo la aplicacion: en un
+                  # namespace del mesh cada pod lleva istio-proxy e istio-validation,
+                  # que piden 2 CPU de limite CADA UNO. Un servicio que pide 200m
+                  # consume en realidad 4200m de cuota. Con el valor anterior ('8')
+                  # bastaban dos pods para agotarla: los ReplicaSet nuevos no creaban
+                  # pod y el Deployment quedaba en 'exceeded its progress deadline'
+                  # sin causa aparente.
+                  limits.cpu: '24'
+                  limits.memory: 24Gi
+          {{- end }}
+          {{- end }}
+  # La cuota EFECTIVA de los alumnos es workshop-quota (mas restrictiva que
+  # platform-quota): antes no la vigilaba ninguna Policy y un valor alterado a
+  # mano quedaba invisible. musthave con los valores completos: enforce repara
+  # el drift y la crea en cualquier user* nuevo.
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: require-workshop-quota-config
+      spec:
+        remediationAction: enforce
+        severity: low
+        object-templates-raw: |
+          {{- /* Solo los namespaces de alumno user*. */ -}}
+          {{- range (lookup "v1" "Namespace" "" "").items }}
+          {{- $ns := .metadata.name }}
+          {{- if hasPrefix "user" $ns }}
+          - complianceType: musthave
+            objectDefinition:
+              apiVersion: v1
+              kind: ResourceQuota
+              metadata:
+                name: workshop-quota
+                namespace: {{ $ns }}
+              spec:
+                hard:
+                  requests.cpu: '2'
+                  requests.memory: 4Gi
+                  limits.cpu: '4'
+                  limits.memory: 8Gi
+                  pods: '20'
+                  persistentvolumeclaims: '4'
+                  requests.storage: 8Gi
+          {{- end }}
+          {{- end }}

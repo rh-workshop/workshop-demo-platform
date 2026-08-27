@@ -10,6 +10,10 @@
 #
 # remediationAction: enforce -> ACM lo crea donde falte. Es seguro: un
 # LimitRange solo RELLENA lo que el pod no declara, nunca recorta lo declarado.
+#
+# object-templates-raw en vez de namespaceSelector: mismo motivo que en
+# require-resourcequota — cero namespaces coincidentes debe ser Compliant para
+# poder extender la Policy a los spokes sin ruido.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -27,30 +31,26 @@ spec:
       spec:
         remediationAction: enforce
         severity: low
-        # Mismo selector que require-resourcequota: las dos gobiernan el mismo
-        # conjunto de namespaces de negocio, que es lo que las hace pareja.
-        namespaceSelector:
-          include:
-            - "user*"
-            - "workshop-demo-dev"
-            - "*-demo-dev"
-          exclude:
-            - "openshift-*"
-            - "kube-*"
-            - default
-        object-templates:
-        - complianceType: musthave
-          objectDefinition:
-            apiVersion: v1
-            kind: LimitRange
-            metadata:
-              name: default-limits
-            spec:
-              limits:
-                - type: Container
-                  defaultRequest:
-                    cpu: 25m
-                    memory: 64Mi
-                  default:
-                    cpu: "1"
-                    memory: 2Gi
+        object-templates-raw: |
+          {{- /* Mismo conjunto de namespaces de negocio que require-resourcequota. */ -}}
+          {{- range (lookup "v1" "Namespace" "" "").items }}
+          {{- $ns := .metadata.name }}
+          {{- if and (or (hasPrefix "user" $ns) (hasSuffix "-demo-dev" $ns)) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
+          - complianceType: musthave
+            objectDefinition:
+              apiVersion: v1
+              kind: LimitRange
+              metadata:
+                name: default-limits
+                namespace: {{ $ns }}
+              spec:
+                limits:
+                  - type: Container
+                    defaultRequest:
+                      cpu: 25m
+                      memory: 64Mi
+                    default:
+                      cpu: "1"
+                      memory: 2Gi
+          {{- end }}
+          {{- end }}

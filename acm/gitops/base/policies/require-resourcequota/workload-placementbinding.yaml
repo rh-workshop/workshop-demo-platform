@@ -1,0 +1,17 @@
+# Extiende require-resourcequota a los clusters workload: sin este binding los
+# spokes quedaban sin gobierno de cuota. Es seguro porque la Policy usa
+# object-templates-raw: en un spoke sin namespaces de negocio evalua vacio y
+# queda Compliant, sin ruido.
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: require-resourcequota-workload-binding
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-workload
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: require-resourcequota

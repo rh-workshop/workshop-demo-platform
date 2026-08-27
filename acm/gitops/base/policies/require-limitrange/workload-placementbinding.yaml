@@ -1,0 +1,16 @@
+# Extiende require-limitrange a los clusters workload: viaja en pareja con
+# require-resourcequota tambien en el alcance — mismos clusters, mismos
+# namespaces. Compliant en spokes sin namespaces de negocio (rango vacio).
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: require-limitrange-workload-binding
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-workload
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: require-limitrange

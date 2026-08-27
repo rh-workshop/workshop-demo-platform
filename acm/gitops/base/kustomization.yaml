@@ -15,6 +15,8 @@ resources:
   - policies/install-operators/workload-placementbinding.yaml
   - policies/require-resourcequota/policy.yaml
   - policies/require-resourcequota/placementbinding.yaml
+  - policies/require-resourcequota/workload-placementbinding.yaml
   # Pareja inseparable de la anterior: la cuota sin defaults bloquea despliegues.
   - policies/require-limitrange/policy.yaml
   - policies/require-limitrange/placementbinding.yaml
+  - policies/require-limitrange/workload-placementbinding.yaml
