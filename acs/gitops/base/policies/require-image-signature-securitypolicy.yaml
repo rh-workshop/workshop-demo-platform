@@ -13,6 +13,9 @@
 apiVersion: config.stackrox.io/v1alpha1
 kind: SecurityPolicy
 metadata:
+  annotations:
+    # El CRD lo instala ACM (OperatorPolicy), no este sync: sin esto el dry-run del arranque en frio invalida la Application entera.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   name: require-image-signature
   namespace: stackrox
 spec:

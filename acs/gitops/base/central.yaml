@@ -6,6 +6,9 @@
 apiVersion: platform.stackrox.io/v1alpha1
 kind: Central
 metadata:
+  annotations:
+    # El CRD lo instala ACM (OperatorPolicy), no este sync: sin esto el dry-run del arranque en frio invalida la Application entera.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   name: stackrox-central-services
   namespace: stackrox
 spec:

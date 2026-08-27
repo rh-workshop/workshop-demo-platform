@@ -44,6 +44,14 @@ spec:
       jsonPointers:
         - /spec/host
   syncPolicy:
+    retry:
+      # Arranque en frio: el CRD del producto lo instala ACM por su cuenta y puede
+      # tardar minutos. Sin backoff, Argo agota los 5 intentos rapidos y se rinde.
+      limit: 20
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
     automated:
       prune: false
       selfHeal: true

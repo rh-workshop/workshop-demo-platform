@@ -8,6 +8,9 @@
 apiVersion: rhdh.redhat.com/v1alpha5
 kind: Backstage
 metadata:
+  annotations:
+    # El CRD lo instala ACM (OperatorPolicy), no este sync: sin esto el dry-run del arranque en frio invalida la Application entera.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   name: developer-hub
   namespace: developer-hub
 spec:

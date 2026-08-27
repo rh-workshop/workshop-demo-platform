@@ -6,6 +6,9 @@
 apiVersion: quay.redhat.com/v1
 kind: QuayRegistry
 metadata:
+  annotations:
+    # El CRD lo instala ACM (OperatorPolicy), no este sync: sin esto el dry-run del arranque en frio invalida la Application entera.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   name: company-quay
   namespace: quay-enterprise
 spec:
