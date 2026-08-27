@@ -170,6 +170,10 @@ spec:
     kind: Task
   - group: ''
     kind: ServiceAccount
+  # Role namespaced del gobierno de workshop-demo-dev (app-developer-no-secrets);
+  # los ClusterRole siguen fuera: solo los aplica el bootstrap.
+  - group: rbac.authorization.k8s.io
+    kind: Role
   - group: rbac.authorization.k8s.io
     kind: RoleBinding
   # Gobierno de namespaces (namespace-governance/gitops/): cuotas, límites y
