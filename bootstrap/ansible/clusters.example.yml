@@ -1,0 +1,40 @@
+# Inventario de clusters del entorno — PLANTILLA.
+#
+# Copiar a clusters.yml (mismo directorio) y poner los valores del entorno
+# propio. clusters.yml está en .gitignore: NUNCA se versiona, porque nombra
+# clusters reales. Las credenciales tampoco van aquí: solo el NOMBRE de la
+# variable de entorno que las contiene.
+#
+# Cada spoke necesita, además de sus etiquetas, el acceso para el import:
+#   api_url        — URL de la API del spoke (https://api...:6443).
+#   token_env      — nombre de la variable de entorno con un token cluster-admin
+#                    del spoke (p. ej. el de `oc whoami -t`), o bien:
+#   kubeconfig_env — nombre de la variable de entorno con la RUTA a un
+#                    kubeconfig cluster-admin del spoke.
+# El hub (local-cluster) no lleva acceso: no se importa a sí mismo.
+
+# Dominio de apps del cluster HUB (lo que sigue a "*.").
+base_domain: apps.cluster-CAMBIAME.example.com
+
+# StorageClass para volúmenes persistentes (retención de Prometheus en prod).
+storage_class: ""
+
+# Derivados del base_domain por defecto; descomentar solo para sobreescribir.
+# quay_host: company-quay-quay-enterprise.apps.cluster-CAMBIAME.example.com
+# keycloak_host: sso.apps.cluster-CAMBIAME.example.com
+
+managed_clusters:
+  # El hub es siempre 'local-cluster': es el nombre canónico con el que ACM se refiere a sí mismo.
+  - name: local-cluster
+    environment: hub
+    role: hub
+  - name: cluster-CAMBIAME-DEV
+    environment: dev
+    role: workload
+    api_url: https://api.cluster-CAMBIAME-DEV.example.com:6443
+    token_env: SPOKE_DEV_TOKEN
+  - name: cluster-CAMBIAME-PROD
+    environment: prod
+    role: workload
+    api_url: https://api.cluster-CAMBIAME-PROD.example.com:6443
+    token_env: SPOKE_PROD_TOKEN

@@ -7,6 +7,9 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
+  annotations:
+    # Wave 4: el generador clusterDecisionResource lee PlacementDecisions, que no existen hasta la wave 3.
+    argocd.argoproj.io/sync-wave: "4"
   name: service-mesh-prod
   labels:
     # Mismas etiquetas que las Applications que genera, para filtrarlo junto a ellas.

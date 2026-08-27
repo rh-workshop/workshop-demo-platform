@@ -13,8 +13,8 @@ data:
       retentionSize: 40GiB
       volumeClaimTemplate:
         spec:
-          # Sustituir por una StorageClass del cluster de PRODUCCION.
-          storageClassName: CHANGE_ME_STORAGECLASS
+          # StorageClass del cluster de PRODUCCIÓN (variable storage_class del bootstrap; ajustar al cambiar de entorno).
+          storageClassName: ocs-external-storagecluster-ceph-rbd
           resources:
             requests:
               storage: 50Gi

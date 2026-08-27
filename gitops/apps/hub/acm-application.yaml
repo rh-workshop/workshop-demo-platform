@@ -8,6 +8,9 @@ metadata:
     workshop.redhat.com/layer: infrastructure
     workshop.redhat.com/component: acm
     workshop.redhat.com/environment: hub
+  annotations:
+    # Wave 0: ACM instala el MultiClusterHub y con él los CRDs (Placement, GitOpsCluster) que la wave 3 necesita.
+    argocd.argoproj.io/sync-wave: "0"
   namespace: openshift-gitops
 spec:
   project: workshop-multicluster

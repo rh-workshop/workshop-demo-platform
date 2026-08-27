@@ -18,6 +18,9 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
+  annotations:
+    # Wave 4: el generador clusterDecisionResource lee PlacementDecisions, que no existen hasta la wave 3.
+    argocd.argoproj.io/sync-wave: "4"
   name: monitoring
   labels:
     # Distingue de un vistazo qué es infraestructura y qué es aplicación.

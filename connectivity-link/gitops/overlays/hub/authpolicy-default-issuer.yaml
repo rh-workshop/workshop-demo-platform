@@ -9,6 +9,5 @@ spec:
       authentication:
         token-valido:
           jwt:
-            # Dominio del cluster HUB. Un overlay por CLUSTER, no por ambiente: el hostname
-    # es literal y dos clusters no pueden compartirlo.
-            issuerUrl: https://sso.apps.cluster-qthlq.dyn.redhatworkshops.io/realms/workshop
+            # Dominio del cluster HUB (un overlay por CLUSTER: el hostname es literal y dos clusters no pueden compartirlo).
+            issuerUrl: https://sso.apps.ocp.4t8cv.sandbox3572.opentlc.com/realms/workshop

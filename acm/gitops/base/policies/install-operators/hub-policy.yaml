@@ -14,6 +14,9 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   name: install-operators-hub
   namespace: open-cluster-management
 spec:
@@ -81,7 +84,7 @@ spec:
           complianceType: musthave
           upgradeApproval: Automatic
           versions:
-            - openshift-pipelines-operator-rh.v1.23.1   # pin: solo esta CSV; el upgrade se decide por PR en Git
+            - openshift-pipelines-operator-rh.v1.23.2   # pin: solo esta CSV; el upgrade se decide por PR en Git
           subscription:
             name: openshift-pipelines-operator-rh
             namespace: openshift-operators

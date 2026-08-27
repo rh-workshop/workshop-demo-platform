@@ -7,4 +7,4 @@ metadata:
 spec:
   hostname:
     # Sustituir por el dominio del cluster de DESARROLLO: sso.apps.<cluster-dev>.<dominio-base>
-    hostname: sso.apps.cluster-pvsbw.dyn.redhatworkshops.io
+    hostname: sso.apps.ocp.6zxpx.sandbox2570.opentlc.com

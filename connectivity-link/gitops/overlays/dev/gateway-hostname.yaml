@@ -10,7 +10,7 @@ spec:
     port: 443
     protocol: HTTPS
     # Dominio del cluster de laboratorio: al cambiar de cluster hay que actualizarlo aqui.
-    hostname: '*.apps.cluster-pvsbw.dyn.redhatworkshops.io'
+    hostname: '*.apps.ocp.6zxpx.sandbox2570.opentlc.com'
     allowedRoutes:
       namespaces:
         from: Selector

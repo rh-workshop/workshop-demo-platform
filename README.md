@@ -73,17 +73,54 @@ Dentro de cada producto, no todo se puede declarar en Git. Hay dos planos:
 ## Cómo se despliega
 
 El día 0 lo ejecuta el **playbook de bootstrap** — idempotente, y también la vía
-de día 2 para el propio plano de control:
+de día 2 para el propio plano de control. Todo lo específico del entorno es
+**parametrizable**: cualquiera lo reutiliza con sus propios clusters sin tocar
+el playbook.
 
 ```bash
-ansible-playbook bootstrap/ansible/bootstrap.yml -e base_domain=<dominio-base-del-cluster>
+# 1. Describir el entorno propio: copiar la plantilla y editarla (queda fuera de Git)
+cp bootstrap/ansible/clusters.example.yml bootstrap/ansible/clusters.yml
+
+# 2. Credenciales de los spokes, SIEMPRE por el entorno (nunca en Git):
+#    un token cluster-admin (oc whoami -t) o la ruta a un kubeconfig por spoke,
+#    en la variable que cada entrada de clusters.yml declara (token_env/kubeconfig_env)
+export SPOKE_DEV_KUBECONFIG=/ruta/al/kubeconfig-dev
+export SPOKE_PROD_KUBECONFIG=/ruta/al/kubeconfig-prod
+
+# 3. (Solo repos privados) credenciales del repositorio Git
+export GIT_REPO_URL=... GIT_USERNAME=... GIT_TOKEN=...
+
+# 4. Ejecutar con el KUBECONFIG del HUB activo
+ansible-playbook bootstrap/ansible/bootstrap.yml
 ```
+
+Variables (defaults en el playbook; valores reales en `clusters.yml`, o con `-e`):
+
+| Variable | Qué es | Default |
+|---|---|---|
+| `base_domain` | dominio de apps completo del hub (`apps.cluster-X...`) | *(obligatoria)* |
+| `managed_clusters` | inventario: nombre, `environment`, `role` y, por spoke, `api_url` + `token_env`/`kubeconfig_env` | solo `local-cluster` |
+| `quay_host` | hostname del registro Quay | derivado de `base_domain` |
+| `keycloak_host` | hostname del SSO | derivado de `base_domain` |
+| `storage_class` | StorageClass para volúmenes persistentes | `""` (la default del cluster) |
+| `use_metallb` | desplegar MetalLB (solo bare-metal; en cloud sobra) | `true` |
+
+> **MetalLB solo en bare-metal.** En un cloud (AWS, Azure, GCP) el cloud provider
+> ya provisiona un balanceador real para cada `Service` de tipo LoadBalancer, y
+> MetalLB en modo L2 **no funciona**: la red virtual no reenvía el ARP gratuito en
+> el que se apoya, así que las IPs del pool no serían enrutables. Poner
+> `use_metallb: false` evita instalar un componente inservible que además dejaría
+> el Gateway esperando una IP que nunca llega.
 
 Ese playbook instala los operadores del hub (GitOps, ACM), aplica el CR `ArgoCD`
 y el RBAC del controller, crea **todos** los AppProjects (`gitops-control`,
-`workshop-platform`, `workshop-multicluster`, `workshop`) y termina aplicando la
-Application raíz. A partir de ahí gobierna Argo: la raíz sincroniza `gitops/`,
-que contiene:
+`workshop-platform`, `workshop-multicluster`, `workshop`), aplica la Application
+raíz, espera a que Argo deje el `MultiClusterHub` en `Running` y entonces
+**importa los spokes en ACM** (namespace + `ManagedCluster` +
+`KlusterletAddonConfig` + `auto-import-secret`, esperando a que cada uno quede
+`Available`) y homologa sus etiquetas `environment`/`role`. El import es
+idempotente: un spoke ya unido no se re-importa. A partir de ahí gobierna Argo:
+la raíz sincroniza `gitops/`, que contiene:
 
 ```
 gitops/
@@ -94,6 +131,29 @@ gitops/
 └── apps/hub/      # las Applications de lo que solo vive en el hub: los productos
                    # (acm, quay, acs, monitoring...) y el pipeline del workshop
 ```
+
+### El orden de arranque: por qué hay sync-waves
+
+En un cluster **nuevo** los CRDs de ACM (`Placement`, `ManagedClusterSetBinding`,
+`GitOpsCluster`) todavía no existen: los instala el `MultiClusterHub`, que a su vez
+lo crea Argo al sincronizar `acm/`. Sin orden explícito la raíz intenta aplicarlo
+todo a la vez, los recursos que usan esos CRDs fallan, y como el sync se aborta
+entero **tampoco se crea el `MultiClusterHub`**: el arranque se bloquea a sí mismo.
+
+Las `sync-wave` rompen ese ciclo — Argo no pasa de una wave hasta que la anterior
+está sana:
+
+| Wave | Qué | Por qué ahí |
+|---|---|---|
+| `-1` | `namespace-governance` | Las cuotas y el RBAC existen antes de que nada despliegue dentro |
+| `0` | `config-acm` | Crea el `MultiClusterHub`, que instala los CRDs de ACM |
+| `2` | Resto de productos del hub | Ya hay plataforma donde apoyarse |
+| `3` | `Placement`, `ManagedClusterSetBinding`, `GitOpsCluster` | Sus CRDs existen desde la wave 0 |
+| `4` | Los `ApplicationSet` | El generador `clusterDecisionResource` lee las `PlacementDecision` de la wave 3 |
+
+El `SkipDryRunOnMissingResource=true` de esos recursos es complementario, no
+alternativo: evita que el dry-run inicial invalide el sync, pero **no** ordena la
+aplicación real. Hacen falta las dos cosas.
 
 ### Cuándo un ApplicationSet y cuándo una Application suelta
 
@@ -112,7 +172,9 @@ Las etiquetas de las que dependen los Placement (`environment`, `role`) las
 homologa el playbook de bootstrap sobre **todos** los ManagedCluster: ACM no las
 pone al importar un spoke, y sin ellas ningún Placement lo elige — el cluster se
 queda sin desplegar en silencio. Añadir un cluster es añadir una entrada a
-`managed_clusters` en el playbook; nada más lo nombra.
+`managed_clusters` en `bootstrap/ansible/clusters.yml` (con su `api_url` y la
+variable de entorno de sus credenciales) y reejecutar el bootstrap, que lo
+importa y lo etiqueta; nada más lo nombra.
 
 Por eso **los operadores sí pasan por ApplicationSet** — los de workload, que
 hacen fan-out a los spokes. Los del hub no, porque un generador que siempre

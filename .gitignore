@@ -5,3 +5,6 @@ vault-password*
 *-secret.yaml
 *.key
 *.pem
+
+# Inventario real de clusters del bootstrap: nombra clusters reales, nunca a Git
+bootstrap/ansible/clusters.yml

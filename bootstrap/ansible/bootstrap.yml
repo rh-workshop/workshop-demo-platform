@@ -11,32 +11,52 @@
 #      workshop-multicluster, workshop) — nadie usa project: default.
 #   5. Siembra credenciales (repo-creds de Argo) desde el entorno, nunca de Git.
 #   6. Aplica las root Applications: el único punto de entrega a Argo CD.
+#   7. Espera a que Argo levante el MultiClusterHub y ACM quede Running.
+#   8. IMPORTA los spokes en ACM (ManagedCluster + KlusterletAddonConfig +
+#      auto-import-secret) y espera a que cada uno quede Available.
+#   9. Homologa las etiquetas environment/role de TODOS los ManagedCluster.
 #
 # Uso:
-#   ansible-playbook bootstrap/ansible/bootstrap.yml \
-#     -e base_domain=<dominio-base-del-cluster>
+#   1. Copiar clusters.example.yml a clusters.yml (queda fuera de Git) y poner
+#      ahí el inventario de clusters del entorno propio.
+#   2. Exportar las credenciales de los spokes en el entorno (ver clusters.yml).
+#   3. Ejecutar:
+#        ansible-playbook bootstrap/ansible/bootstrap.yml
+#      (cualquier variable admite -e, p. ej. -e base_domain=apps.cluster-X.example.com)
 #
-# Variables:
-#   base_domain       — dominio base del cluster (lo que sigue a "*.apps."); sustituye
-#                       CHANGE_ME_BASE_DOMAIN en los manifiestos (obligatoria para el
-#                       AppProject workshop).
-#   root_applications — lista de YAML de Applications raíz a aplicar; por defecto
-#                       el root de este repositorio, que es el ÚNICO: el repo de
-#                       aplicaciones ya no aporta roots (sus servicios los
-#                       descubren los ApplicationSets workshop-* de gitops/appsets/).
+# Variables (defaults abajo; los valores reales van en clusters.yml, nunca aquí):
+#   base_domain       — dominio de apps del cluster HUB (lo que sigue a "*.").
+#   quay_host         — hostname del registro Quay; por defecto se deriva del base_domain.
+#   keycloak_host     — hostname del SSO; por defecto se deriva del base_domain.
+#   storage_class     — StorageClass para volúmenes persistentes (monitorización de prod).
+#   managed_clusters  — inventario de clusters: nombre, etiquetas y acceso de import.
+#   root_applications — lista de YAML de Applications raíz a aplicar.
 #
-# Requiere: la colección kubernetes.core y un KUBECONFIG con cluster-admin.
+# Credenciales: SIEMPRE por variables de entorno (lookup('env', ...)) o vault.
+# Ningún token ni kubeconfig se escribe en Git ni en el inventario.
+#
+# Requiere: la colección kubernetes.core y un KUBECONFIG con cluster-admin del HUB.
 
-- name: Bootstrap del hub — plano de control de GitOps
+- name: Bootstrap del hub — plano de control de GitOps y ACM
   hosts: localhost
   connection: local
   gather_facts: false
 
+  # El inventario real (clusters.yml) pisa estos defaults; -e pisa a ambos.
+  vars_files:
+    - "{{ lookup('first_found', ['clusters.yml', 'clusters.example.yml'], errors='ignore') }}"
+
   vars:
     # Raíz del repo, para referenciar los manifiestos versionados junto al playbook.
     repo_root: "{{ playbook_dir }}/../.."
-    # Dominio de apps del cluster: se pasa con -e; el default deja el placeholder intacto.
+    # Dominio de apps del cluster hub: se fija en clusters.yml o con -e.
     base_domain: CHANGE_ME_BASE_DOMAIN
+    # Hostname del registro Quay (ruta managed del QuayRegistry company-quay en quay-enterprise).
+    quay_host: "company-quay-quay-enterprise.{{ base_domain }}"
+    # Hostname del SSO (overlay de Keycloak del ambiente).
+    keycloak_host: "sso.{{ base_domain }}"
+    # StorageClass para los volúmenes persistentes; vacío = la default del cluster.
+    storage_class: ""
     # Manifiestos del plano de control: los aplica este playbook, no Argo.
     manifiestos_bootstrap:
       - "{{ repo_root }}/bootstrap/manifests/argocd.yaml"
@@ -47,22 +67,17 @@
       - "{{ repo_root }}/bootstrap/manifests/workshop-multicluster-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/workshop-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/default-appproject.yaml"
-    # Inventario de clusters y sus etiquetas. Es lo ÚNICO que hay que tocar al
-    # añadir un cluster: los Placement lo recogen solo, sin nombrarlo.
-    # Sustituir los nombres por los del entorno: el hub es siempre 'local-cluster'.
+    # Inventario de clusters por defecto: SOLO el hub. El inventario real, con
+    # los spokes y su acceso, vive en clusters.yml (copiar de clusters.example.yml).
     managed_clusters:
       - name: local-cluster
         environment: hub
         role: hub
-      - name: CHANGE_ME_CLUSTER_DEV
-        environment: dev
-        role: workload
-      - name: CHANGE_ME_CLUSTER_PROD
-        environment: prod
-        role: workload
     # Root Applications: la entrega a Argo; a partir de aquí gobierna GitOps.
     root_applications:
       - "{{ repo_root }}/gitops/apps/root-application.yaml"
+    # Spokes a importar: todo cluster del inventario que declare api_url.
+    spokes: "{{ managed_clusters | selectattr('api_url', 'defined') | list }}"
 
   tasks:
     # --- 1. Operadores del hub (huevo-gallina: ACM aún no existe para instalarlos) ---
@@ -93,8 +108,8 @@
     - name: Aplicar CR ArgoCD, RBAC del controller y AppProjects (server-side apply)
       kubernetes.core.k8s:
         state: present
-        # El replace inyecta el dominio del cluster sin hardcodearlo en Git.
-        definition: "{{ lookup('file', item) | replace('CHANGE_ME_BASE_DOMAIN', base_domain) }}"
+        # Los replace inyectan los valores del entorno sin hardcodearlos en Git.
+        definition: "{{ lookup('file', item) | replace('CHANGE_ME_BASE_DOMAIN', base_domain) | replace('CHANGE_ME_QUAY_HOST', quay_host) | replace('CHANGE_ME_KEYCLOAK_HOST', keycloak_host) | replace('CHANGE_ME_STORAGECLASS', storage_class) }}"
         # Server-side apply: requisito para ADOPTAR recursos existentes sin recrearlos
         # y para un CR que el operador completa con defaults.
         apply: true
@@ -123,18 +138,151 @@
       when: lookup('env', 'GIT_TOKEN') | length > 0
       no_log: true
 
-    # --- 6. Homologar las etiquetas de los ManagedCluster ---
+    # --- 6. Entrega a Argo CD: el único "oc apply" conceptual del modelo ---
+    - name: Aplicar las root Applications (a partir de aquí gobierna Argo)
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', item) }}"
+        # También con SSA: adopta un root ya existente sin recrearlo.
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+      loop: "{{ root_applications }}"
+
+    # --- 7. Esperar el hub de ACM ---
+    # El MultiClusterHub lo crea Argo (Application acm) al sincronizar la root:
+    # hasta que ACM no está Running no existen ni el CRD ManagedCluster ni el
+    # import de clusters. Por eso este wait va DESPUÉS de la entrega a Argo.
+    - name: Esperar a que el MultiClusterHub llegue a Running (lo crea Argo; tarda varios minutos)
+      kubernetes.core.k8s_info:
+        api_version: operator.open-cluster-management.io/v1
+        kind: MultiClusterHub
+        namespace: open-cluster-management
+        name: multiclusterhub
+      register: mch_info
+      until: >-
+        mch_info.resources is defined and
+        mch_info.resources | length > 0 and
+        (mch_info.resources[0].status.phase | default('')) == 'Running'
+      retries: 90
+      delay: 20
+
+    # --- 8. Importar los spokes en ACM ---
+    # Idempotente: si el cluster ya está importado, los apply no cambian nada y
+    # el auto-import-secret ni se crea (solo hace falta para el primer join).
+    - name: Crear el namespace de cada spoke en el hub
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ item.name }}"
+      loop: "{{ spokes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Declarar el ManagedCluster de cada spoke (hubAcceptsClient)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: cluster.open-cluster-management.io/v1
+          kind: ManagedCluster
+          metadata:
+            name: "{{ item.name }}"
+            labels:
+              cluster.open-cluster-management.io/clusterset: default
+              environment: "{{ item.environment }}"
+              role: "{{ item.role }}"
+          spec:
+            hubAcceptsClient: true
+      loop: "{{ spokes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Habilitar los addons de ACM en cada spoke (KlusterletAddonConfig)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: agent.open-cluster-management.io/v1
+          kind: KlusterletAddonConfig
+          metadata:
+            name: "{{ item.name }}"
+            namespace: "{{ item.name }}"
+          spec:
+            clusterName: "{{ item.name }}"
+            clusterNamespace: "{{ item.name }}"
+            clusterLabels:
+              cloud: auto-detect
+              vendor: auto-detect
+            # policyController es imprescindible: sin él las OperatorPolicy no llegan al spoke.
+            applicationManager:
+              enabled: true
+            policyController:
+              enabled: true
+            certPolicyController:
+              enabled: true
+            searchCollector:
+              enabled: true
+      loop: "{{ spokes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Consultar si cada spoke ya hizo join (para no re-importarlo)
+      kubernetes.core.k8s_info:
+        api_version: cluster.open-cluster-management.io/v1
+        kind: ManagedCluster
+        name: "{{ item.name }}"
+      register: mc_estado
+      loop: "{{ spokes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Crear el auto-import-secret de los spokes pendientes de join
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: auto-import-secret
+            namespace: "{{ item.item.name }}"
+          # El acceso sale del ENTORNO: token (token_env + api_url) o kubeconfig (kubeconfig_env = ruta).
+          stringData: "{{ {'autoImportRetry': '10'} | combine({'token': lookup('env', item.item.token_env), 'server': item.item.api_url} if item.item.token_env is defined else {'kubeconfig': lookup('file', lookup('env', item.item.kubeconfig_env))}) }}"
+      # Solo si el spoke aún no está unido: el secret es de un solo uso (ACM lo consume).
+      when: >-
+        item.resources | default([]) | map(attribute='status.conditions', default=[]) | flatten
+        | selectattr('type', 'equalto', 'ManagedClusterJoined')
+        | selectattr('status', 'equalto', 'True') | list | length == 0
+      loop: "{{ mc_estado.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      no_log: true
+
+    - name: Esperar a que cada spoke quede Available en ACM
+      kubernetes.core.k8s_info:
+        api_version: cluster.open-cluster-management.io/v1
+        kind: ManagedCluster
+        name: "{{ item.name }}"
+      register: mc_disponible
+      until: >-
+        mc_disponible.resources | default([]) | map(attribute='status.conditions', default=[]) | flatten
+        | selectattr('type', 'equalto', 'ManagedClusterConditionAvailable')
+        | selectattr('status', 'equalto', 'True') | list | length > 0
+      retries: 60
+      delay: 10
+      loop: "{{ spokes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # --- 9. Homologar las etiquetas de los ManagedCluster ---
     # Los Placement seleccionan por etiqueta, así que TODOS los clusters deben
-    # llevar el mismo juego. Al importar un spoke, ACM no pone ninguna de las
-    # dos: sin esto, un cluster recién importado no lo elige ningún Placement y
-    # queda sin desplegar en silencio.
+    # llevar el mismo juego. Cubre también el local-cluster (que no pasa por el
+    # import) y re-homologa spokes importados a mano por fuera de este playbook.
     #
     #   environment: dev|prod|hub  → QUÉ ambiente sirve (elige el overlay)
     #   role:        hub|workload  → SI aloja el plano de control de GitOps/ACM
-    #
-    # Ambas son necesarias: el hub es a la vez un ambiente ('hub', porque también
-    # expone APIs y se monitoriza) y el sitio donde vive Argo. Mezclarlas en una
-    # sola obligaría a preguntar "¿es el hub?" con un nombre propio de cluster.
     - name: Homologar etiquetas de ambiente y rol en los ManagedCluster
       kubernetes.core.k8s:
         state: patched
@@ -149,15 +297,3 @@
       loop: "{{ managed_clusters }}"
       loop_control:
         label: "{{ item.name }} → environment={{ item.environment }} role={{ item.role }}"
-
-    # --- 7. Entrega a Argo CD: el único "oc apply" conceptual del modelo ---
-    - name: Aplicar las root Applications (a partir de aquí gobierna Argo)
-      kubernetes.core.k8s:
-        state: present
-        definition: "{{ lookup('file', item) }}"
-        # También con SSA: adopta un root ya existente sin recrearlo.
-        apply: true
-        server_side_apply:
-          field_manager: bootstrap-ansible
-          force_conflicts: true
-      loop: "{{ root_applications }}"

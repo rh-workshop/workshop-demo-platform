@@ -6,6 +6,11 @@
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
+  annotations:
+    # El CRD lo trae ACM, que instala el MISMO sync (app acm): sin esto, el dry-run del arranque en frio invalida todo el sync de la root.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # Wave 3: los CRDs de ACM (Placement, GitOpsCluster) no existen hasta que el MultiClusterHub termina de instalarlos.
+    argocd.argoproj.io/sync-wave: "3"
   name: clusters-all
   namespace: openshift-gitops
 spec:

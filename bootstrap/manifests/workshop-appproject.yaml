@@ -8,8 +8,8 @@
 # cluster. `sourceNamespaces` permite que cada alumno declare su Application en
 # su propio namespace (Apps-in-any-namespace).
 #
-# CHANGE_ME_BASE_DOMAIN = dominio de apps del cluster (*.apps.<cluster>); el
-# playbook de bootstrap lo sustituye con la variable `base_domain`.
+# CHANGE_ME_BASE_DOMAIN = dominio de apps COMPLETO del cluster (apps.<cluster>...);
+# el playbook de bootstrap lo sustituye con la variable `base_domain`.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -25,7 +25,7 @@ spec:
     warn: true
   # Solo el repositorio git interno del workshop.
   sourceRepos:
-    - http://git-server-workshop-git.apps.CHANGE_ME_BASE_DOMAIN/workshop.git
+    - http://git-server-workshop-git.CHANGE_ME_BASE_DOMAIN/workshop.git
   # Solo los namespaces de alumno.
   destinations:
     - namespace: user*
