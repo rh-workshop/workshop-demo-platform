@@ -10,4 +10,4 @@ spec:
         token-valido:
           jwt:
             # Sustituir por el dominio del cluster de PRODUCCIÓN: https://sso.apps.<cluster-prod>.<dominio-base>/realms/workshop
-            issuerUrl: https://sso.apps.cluster-prod.ejemplo.com/realms/workshop
+            issuerUrl: https://sso.apps.cluster-lrr82.dyn.redhatworkshops.io/realms/workshop

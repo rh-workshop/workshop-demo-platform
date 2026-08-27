@@ -1,0 +1,14 @@
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: shared-gateway-default
+  namespace: platform-gateway
+spec:
+  defaults:
+    rules:
+      authentication:
+        token-valido:
+          jwt:
+            # Dominio del cluster HUB. Un overlay por CLUSTER, no por ambiente: el hostname
+    # es literal y dos clusters no pueden compartirlo.
+            issuerUrl: https://sso.apps.cluster-qthlq.dyn.redhatworkshops.io/realms/workshop

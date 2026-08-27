@@ -10,4 +10,4 @@ spec:
         token-valido:
           jwt:
             # Dominio del cluster de laboratorio: al cambiar de cluster hay que actualizarlo aqui.
-            issuerUrl: https://sso.apps.cluster-qthlq.dyn.redhatworkshops.io/realms/workshop
+            issuerUrl: https://sso.apps.cluster-pvsbw.dyn.redhatworkshops.io/realms/workshop
