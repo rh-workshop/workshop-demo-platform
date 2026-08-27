@@ -156,3 +156,80 @@ una plataforma con frontera de gobierno seria (y en material que la enseña), el
 AppProject es la **barandilla**, y la barandilla no debe ser instalable por el
 mismo mecanismo al que limita. Crearlo en el bootstrap cuesta una tarea de
 Ansible y elimina el huevo-gallina, el `project: default` y el riesgo de prune.
+
+## 7. Secretos manuales del día-0 (recetas de recreación)
+
+Ningún Secret vive en Git. Los del CI están documentados en
+`workshop-pipelines/README.md`; estos dos NO lo estaban y el día-0 de un
+cluster nuevo se atasca justo ahí:
+
+### `quay-config-bundle` (namespace `quay-enterprise`)
+
+Lo referencia `quay/gitops/base/quayregistry.yaml` (`configBundleSecret`); sin
+él el operador de Quay no reconcilia el `QuayRegistry`. Contiene un único
+`config.yaml` con las claves de instancia (`SECRET_KEY`, `DATABASE_SECRET_KEY`)
+y los toggles de features (auth por base de datos, auto-prune, cuotas):
+
+```bash
+# SECRET_KEY y DATABASE_SECRET_KEY: aleatorias y ÚNICAS por instalación; el
+# resto de claves se copia de la instalación de referencia (o de la consola de
+# config de Quay). Guardar el config.yaml resultante fuera de Git.
+cat > /tmp/quay-config.yaml <<YAML
+SECRET_KEY: "$(openssl rand -hex 32)"
+DATABASE_SECRET_KEY: "$(openssl rand -hex 32)"
+AUTHENTICATION_TYPE: Database
+FEATURE_USER_INITIALIZE: true
+FEATURE_USER_CREATION: false
+FEATURE_ANONYMOUS_ACCESS: false
+FEATURE_GARBAGE_COLLECTION: true
+FEATURE_AUTO_PRUNE: true
+FEATURE_CHANGE_TAG_EXPIRATION: true
+DEFAULT_TAG_EXPIRATION: 2w
+TAG_EXPIRATION_OPTIONS: [2w, 4w, 8w]
+FEATURE_GENERAL_OCI_SUPPORT: true
+FEATURE_REFERRERS_API: true
+FEATURE_QUOTA_MANAGEMENT: true
+FEATURE_USER_LOG_ACCESS: true
+YAML
+oc create secret generic quay-config-bundle -n quay-enterprise \
+  --from-file=config.yaml=/tmp/quay-config.yaml
+rm /tmp/quay-config.yaml
+```
+
+### `rhdh-backend-secret` (namespace `developer-hub`)
+
+Lo referencia `developer-hub/gitops/base/app-config-configmap.yaml`
+(`${BACKEND_SECRET}`, el token de servicio del backend de Backstage); sin él el
+pod de Developer Hub arranca en CrashLoop por variable sin resolver:
+
+```bash
+oc create secret generic rhdh-backend-secret -n developer-hub \
+  --from-literal=BACKEND_SECRET="$(openssl rand -base64 32)"
+```
+
+## 8. La cuenta de Argo CD del pipeline (decisión de seguridad)
+
+El paso de CD (`argocd-task-sync-and-wait`) usaba `admin` con la password real
+en `argocd-env-secret`, dentro de `workshop-demo-dev` — el namespace donde el
+grupo `app-developers` tenía `edit` (que incluye `get secrets`): leer ese
+Secret escalaba a control total del GitOps de los 3 clusters. Se corrigió en
+DOS capas, para que ninguna dependa de la otra:
+
+1. **Cuenta local `pipeline`** (`bootstrap/manifests/argocd.yaml`:
+   `extraConfig` + `rbac`): solo `get`/`sync` sobre las Applications del
+   proyecto `workshop-platform`. Alta de la password:
+
+   ```bash
+   PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
+   HASH=$(htpasswd -nbBC 10 "" "$PASS" | tr -d ':\n' | sed 's/\$2y/\$2a/')
+   oc patch secret argocd-secret -n openshift-gitops -p \
+     "{\"stringData\":{\"accounts.pipeline.password\":\"$HASH\",\"accounts.pipeline.passwordMtime\":\"$(date -u +%FT%TZ)\"}}"
+   oc create secret generic argocd-env-secret -n workshop-demo-dev \
+     --from-literal=ARGOCD_USERNAME=pipeline --from-literal=ARGOCD_PASSWORD="$PASS" \
+     --dry-run=client -o yaml | oc apply -f -
+   ```
+
+2. **`app-developers` sin `secrets` en `workshop-demo-dev`**
+   (`namespace-governance/.../workshop-demo-dev/`): Role propio equivalente a
+   `edit` pero sin `secrets` ni `serviceaccounts`; el resto de namespaces de
+   aplicación conservan `edit` porque no albergan secretos de CI.
