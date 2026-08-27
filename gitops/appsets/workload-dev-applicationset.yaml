@@ -42,8 +42,12 @@ spec:
             namespace: kuadrant-system
           - producto: cert-manager
             namespace: cert-manager
-          - producto: metallb
-            namespace: metallb-system
+          # MetalLB solo aplica en BARE-METAL. En un cloud (AWS/Azure/GCP) el proveedor
+          # ya provisiona un balanceador por cada Service LoadBalancer, y MetalLB en L2
+          # no funciona: la red virtual no reenvia el ARP gratuito del que depende.
+          # Descomentar SOLO en un entorno bare-metal (ver use_metallb en clusters.yml).
+          # - producto: metallb
+          #   namespace: metallb-system
   template:
     metadata:
       name: 'config-{{.producto}}-dev'
@@ -64,6 +68,14 @@ spec:
         server: '{{.server}}'
         namespace: '{{.namespace}}'
       syncPolicy:
+        retry:
+          # Arranque en frio: los CRDs (Kuadrant, producto) los instala ACM por su
+          # cuenta y pueden tardar minutos. Sin backoff Argo agota 5 intentos y se rinde.
+          limit: 20
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
         automated:
           prune: false
           selfHeal: true

@@ -67,6 +67,14 @@ spec:
       # sync manual (que no respeta ignoreDifferences) devolvía el placeholder,
       # dejando 404 en el gateway y 401 con tokens válidos.
       syncPolicy:
+        retry:
+          # Arranque en frio: los CRDs (Kuadrant, producto) los instala ACM por su
+          # cuenta y pueden tardar minutos. Sin backoff Argo agota 5 intentos y se rinde.
+          limit: 20
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
         automated:
           prune: true
           selfHeal: true
