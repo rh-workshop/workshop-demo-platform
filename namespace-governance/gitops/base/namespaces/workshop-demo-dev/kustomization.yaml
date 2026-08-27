@@ -1,4 +1,6 @@
-# Gobierno de workshop-demo-dev: el perfil estándar de aplicación, sin desviaciones.
+# Gobierno de workshop-demo-dev: perfil de aplicación con UNA desviación de
+# seguridad — aquí viven los Secrets del CI, así que app-developers NO recibe
+# `edit` (que incluye get secrets) sino un Role equivalente sin secrets.
 # El Namespace lo declara su repo de aplicaciones; aquí solo cuota, límites,
 # RBAC y red (recursos nuevos, sin conflicto de ownership).
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -6,3 +8,13 @@ kind: Kustomization
 namespace: workshop-demo-dev
 resources:
   - ../../profiles/app-namespace
+  - app-developers-role.yaml
+  - app-developers-rolebinding.yaml
+patches:
+  # Retira el RoleBinding `edit` del perfil: lo reemplaza app-developers-no-secrets.
+  - patch: |-
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: app-developers-edit
+      $patch: delete

@@ -1,0 +1,59 @@
+# Role de desarrollador ACOTADO para workshop-demo-dev: como `edit` pero SIN
+# secrets. En este namespace viven los Secrets del CI (argocd-env-secret,
+# git-credentials, cosign-signing-key, quay-push-credentials,
+# acs-pipeline-credentials) y con ClusterRole `edit` cualquier miembro de
+# app-developers los leía — escalada directa al GitOps de los 3 clusters.
+# Los demás namespaces de aplicación conservan `edit`: no albergan secretos de CI.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-developer-no-secrets
+rules:
+  # Workloads: despliegue y ciclo de vida completo.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets", "deployments/scale", "statefulsets/scale"]
+    verbs: ["*"]
+  # Núcleo del namespace SIN secrets ni serviceaccounts (identidades del CI).
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/exec", "pods/portforward", "services", "configmaps", "endpoints", "persistentvolumeclaims", "replicationcontrollers"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["events", "resourcequotas", "limitranges"]
+    verbs: ["get", "list", "watch"]
+  # Jobs y CronJobs.
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["*"]
+  # Autoescalado.
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["*"]
+  # Exposición: Route clásica y Gateway API.
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["*"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["*"]
+  # Políticas de Connectivity Link a nivel de ruta (ámbito de app).
+  - apiGroups: ["kuadrant.io"]
+    resources: ["authpolicies", "ratelimitpolicies"]
+    verbs: ["*"]
+  # Circuit breaker del servicio (DestinationRule de Istio).
+  - apiGroups: ["networking.istio.io"]
+    resources: ["destinationrules"]
+    verbs: ["*"]
+  # Builds e imágenes del flujo S2I del workshop.
+  - apiGroups: ["build.openshift.io"]
+    resources: ["buildconfigs", "builds", "buildconfigs/instantiate", "builds/log"]
+    verbs: ["*"]
+  - apiGroups: ["image.openshift.io"]
+    resources: ["imagestreams", "imagestreamtags", "imagestreamimages"]
+    verbs: ["*"]
+  # CI: lanzar runs y leer las definiciones; las Task/Pipeline las gobierna Argo.
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns", "taskruns"]
+    verbs: ["*"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelines", "tasks"]
+    verbs: ["get", "list", "watch"]

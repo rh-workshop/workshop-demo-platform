@@ -40,6 +40,23 @@ spec:
   # Namespaces de usuario del workshop autorizados a declarar sus propias Applications.
   sourceNamespaces:
     - user*
+  # Cuenta LOCAL para el CD del pipeline: el paso argocd-task-sync-and-wait deja
+  # de usar `admin` (cuya password vive en argocd-env-secret, en el namespace del
+  # CI). Aunque alguien leyera ese Secret, esta cuenta solo puede get/sync en el
+  # proyecto workshop-platform — no controla los 3 clusters.
+  extraConfig:
+    accounts.pipeline: apiKey, login
+  # RBAC de Argo: conserva las dos líneas que ponía el operador (admin para los
+  # cluster-admins) y añade el rol mínimo de la cuenta pipeline.
+  rbac:
+    defaultPolicy: ""
+    scopes: "[groups]"
+    policy: |
+      g, system:cluster-admins, role:admin
+      g, cluster-admins, role:admin
+      p, role:ci-pipeline, applications, get, workshop-platform/*, allow
+      p, role:ci-pipeline, applications, sync, workshop-platform/*, allow
+      g, pipeline, role:ci-pipeline
   # Health checks personalizados: sin ellos Argo marca Healthy recursos que aún no están operativos.
   resourceHealthChecks:
     # Application anidada (patrón app-of-apps): propaga el estado real de salud de la app hija.
