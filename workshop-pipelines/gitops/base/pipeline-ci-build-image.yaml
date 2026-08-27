@@ -58,7 +58,7 @@ spec:
     - name: acs-credentials
   results:
     - name: image-digest
-      value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)
+      value: $(tasks.resolve-digest.results.image-digest)
     # Los results de Pipeline solo admiten results de tasks (no params): la referencia completa es <image-repository>@<image-digest>.
     - name: immutable-tag
       value: $(tasks.resolve-image-tags.results.immutable-tag)
@@ -73,8 +73,9 @@ spec:
       workspaces: [{name: output, workspace: source}]
 
     # --- SECCIÓN TAGGING: deriva el tag inmutable del commit REAL clonado y
-    # aplica la GUARDA DE IDEMPOTENCIA: si git-<sha> ya existe en el registro, el
-    # commit ya tiene su imagen y el pipeline se corta con instrucciones claras.
+    # aplica la IDEMPOTENCIA: si git-<sha> ya existe en el registro, el commit ya
+    # tiene su imagen y NO se reconstruye — se reutiliza el digest existente y el
+    # pipeline continúa (firma, escaneo y promoción sí corren sobre ese digest).
     # Reconstruir daría OTRO digest (los builds no son reproducibles bit a bit),
     # el tag se re-apuntaría y el digest anterior quedaría huérfano: Quay lo
     # purga y todo commit del repo de config que lo referencie pierde el rollback.
@@ -94,6 +95,8 @@ spec:
         results:
           # Tag inmutable git-<sha-corto>: nunca se reutiliza ni se mueve.
           - name: immutable-tag
+          # Digest ya publicado bajo ese tag, o el centinela "none" si hay que construir.
+          - name: existing-digest
         steps:
           - name: compute-and-check-tag
             image: registry.redhat.io/rhel9/skopeo:9.8
@@ -106,26 +109,31 @@ spec:
               AUTH="$(workspaces.registry-credentials.path)/config.json"
               SHORT=$(printf '%s' "$(params.commit)" | cut -c1-7)
               TAG="git-${SHORT}"
+              EXISTING="none"
               # Se listan los tags del repositorio; un repo aún no creado (primer build) no es un error.
               if SALIDA=$(skopeo list-tags --authfile "$AUTH" "docker://$(params.image-repository)" 2>&1); then
                 if printf '%s\n' "$SALIDA" | grep -q "\"${TAG}\""; then
-                  DIGEST=$(skopeo inspect --no-tags --format '{{.Digest}}' --authfile "$AUTH" "docker://$(params.image-repository):${TAG}")
-                  echo "ERROR: el tag ${TAG} ya existe en el registro (digest ${DIGEST})." >&2
-                  echo "Un commit se construye UNA sola vez: no se reconstruye para no dejar huérfano el digest anterior." >&2
-                  echo "Para re-promocionar, usa el digest existente en el overlay del repo de configuración." >&2
-                  exit 1
+                  EXISTING=$(skopeo inspect --no-tags --format '{{.Digest}}' --authfile "$AUTH" "docker://$(params.image-repository):${TAG}")
+                  echo "El tag ${TAG} ya existe (digest ${EXISTING}): NO se reconstruye."
+                  echo "El pipeline continúa con firma, escaneo y promoción sobre ese digest."
                 fi
               else
                 # Repo inexistente = primer build; cualquier otro fallo (red, credencial) es de infraestructura y corta.
                 case "$SALIDA" in
-                  *"name unknown"*|*"NAME_UNKNOWN"*|*"unable to retrieve auth token"*"repository not found"*) echo "Primer build: el repositorio aún no existe en el registro." ;;
+                  *"name unknown"*|*"NAME_UNKNOWN"*|*"repository not found"*) echo "Primer build: el repositorio aún no existe en el registro." ;;
                   *) echo "ERROR de infraestructura consultando el registro:" >&2; printf '%s\n' "$SALIDA" >&2; exit 1 ;;
                 esac
               fi
+              printf '%s' "$EXISTING" | tee $(results.existing-digest.path)
               printf 'git-%s' "$SHORT" | tee $(results.immutable-tag.path)
 
     - name: build-and-publish-image
       runAfter: [resolve-image-tags]
+      # La construcción solo corre si el commit aún no tiene imagen publicada (idempotencia).
+      when:
+        - input: $(tasks.resolve-image-tags.results.existing-digest)
+          operator: in
+          values: ["none"]
       taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: buildah}, {name: namespace, value: openshift-pipelines}]}
       params:
         # La imagen nace YA con su tag inmutable; el digest sale como result y manda de aquí en adelante.
@@ -145,14 +153,78 @@ spec:
         # Credencial del robot para el push al registro corporativo.
         - {name: dockerconfig, workspace: registry-credentials}
 
-    # --- SECCIÓN FIRMA: cosign firma el digest recién publicado (formato .sig que ACS verifica).
-    - name: sign-image
+    # Anota el digest del build en el workspace: un result de una task SALTADA no es
+    # consumible (Tekton saltaría en cascada a quien lo refiencie), el fichero sí.
+    - name: record-digest
       runAfter: [build-and-publish-image]
+      when:
+        - input: $(tasks.resolve-image-tags.results.existing-digest)
+          operator: in
+          values: ["none"]
+      params:
+        - {name: image-digest, value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)}
+      taskSpec:
+        params:
+          - {name: image-digest, type: string}
+        workspaces:
+          - name: source
+        steps:
+          - name: write-digest
+            image: registry.redhat.io/ubi9/ubi-minimal:9.6
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              printf '%s' "$(params.image-digest)" > "$(workspaces.source.path)/.image-digest"
+      workspaces:
+        - {name: source, workspace: source}
+
+    # Resuelve el digest DEFINITIVO: el del build recién hecho o el ya existente en el
+    # registro; de aquí en adelante todas las tareas consumen ESTE result.
+    - name: resolve-digest
+      runAfter: [record-digest]
+      params:
+        - {name: existing-digest, value: $(tasks.resolve-image-tags.results.existing-digest)}
+      taskSpec:
+        params:
+          - {name: existing-digest, type: string}
+        workspaces:
+          - name: source
+        results:
+          - name: image-digest
+        steps:
+          - name: choose-digest
+            image: registry.redhat.io/ubi9/ubi-minimal:9.6
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              if [ -f "$(workspaces.source.path)/.image-digest" ]; then
+                DIGEST=$(cat "$(workspaces.source.path)/.image-digest")
+                echo "Digest del build de este run: ${DIGEST}"
+              elif [ "$(params.existing-digest)" != "none" ]; then
+                DIGEST="$(params.existing-digest)"
+                echo "Build saltado por idempotencia: se reutiliza el digest ${DIGEST}"
+              else
+                echo "ERROR: no hay digest ni del build ni del registro." >&2
+                exit 1
+              fi
+              printf '%s' "$DIGEST" | tee $(results.image-digest.path)
+      workspaces:
+        - {name: source, workspace: source}
+
+    # --- SECCIÓN FIRMA: cosign firma el digest resuelto (formato .sig que ACS verifica).
+    - name: sign-image
+      runAfter: [resolve-digest]
       taskRef: {name: image-sign}
       params:
         - {name: image-repository, value: $(params.image-repository)}
-        # El digest viaja como RESULT de la construcción: nunca se re-resuelve desde un tag.
-        - {name: image-digest, value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)}
+        # El digest viaja como RESULT resuelto (build o registro): nunca se re-resuelve desde un tag mutable.
+        - {name: image-digest, value: $(tasks.resolve-digest.results.image-digest)}
       workspaces:
         - {name: signing-key, workspace: signing-key}
         - {name: registry-credentials, workspace: registry-credentials}
@@ -162,7 +234,7 @@ spec:
       runAfter: [sign-image]
       taskRef: {name: image-scan}
       params:
-        - {name: image-ref, value: "$(params.image-repository)@$(tasks.build-and-publish-image.results.IMAGE_DIGEST)"}
+        - {name: image-ref, value: "$(params.image-repository)@$(tasks.resolve-digest.results.image-digest)"}
         - {name: severity-threshold, value: $(params.scan-severity-threshold)}
         - {name: fail-on-violation, value: $(params.scan-fail-on-violation)}
         - {name: rox-central-endpoint, value: $(params.rox-central-endpoint)}
@@ -189,7 +261,7 @@ spec:
       params:
         - {name: overlay-path, value: $(params.overlay-path)}
         - {name: image-name, value: $(params.image-name)}
-        - {name: image-digest, value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)}
+        - {name: image-digest, value: $(tasks.resolve-digest.results.image-digest)}
       taskSpec:
         params:
           - {name: overlay-path, type: string}
@@ -233,7 +305,7 @@ spec:
               echo "El overlay ya apunta a este digest; no se promociona nada."
               exit 0
             fi
-            git commit -m "ci: promote $(params.image-name) to digest $(tasks.build-and-publish-image.results.IMAGE_DIGEST)"
+            git commit -m "ci: promote $(params.image-name) to digest $(tasks.resolve-digest.results.image-digest)"
             # Reintento con rebase: si otro PipelineRun empujó antes, el push sería non-fast-forward.
             # git-clone deja el repo en detached HEAD: hay que calificar la rama destino.
             for intento in 1 2 3; do

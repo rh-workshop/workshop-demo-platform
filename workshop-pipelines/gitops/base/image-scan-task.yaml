@@ -49,14 +49,17 @@ spec:
         ROXCTL="roxctl --token-file $(workspaces.acs-credentials.path)/rox-api-token --ca $(workspaces.acs-credentials.path)/ca.pem -e $(params.rox-central-endpoint)"
         # --force pide a Central re-escanear en vez de servir un resultado cacheado.
         $ROXCTL image scan --image "$(params.image-ref)" --force --output json > /var/scan/scan.json
-        # El JSON de roxctl 4.11 trae un bloque result.summary con los conteos oficiales: se parsea como JSON (un grep posicional leería otro campo si el orden cambia).
-        eval "$(python3 -c '
-        import json
-        with open("/var/scan/scan.json") as f:
-            resumen = json.load(f)["result"]["summary"]
-        for clave in ("CRITICAL", "IMPORTANT", "MODERATE", "LOW"):
-            print(f"{clave}={int(resumen.get(clave, 0))}")
-        ')"
+        # El JSON de roxctl 4.11 trae un bloque result.summary con los conteos oficiales.
+        # La imagen roxctl no trae python3 ni jq: se acota PRIMERO el bloque "summary"
+        # con sed y se cuenta dentro de él — así el conteo no depende del orden global
+        # del fichero (un grep posicional leería otro campo si roxctl reordena el JSON).
+        RESUMEN=$(sed -n '/"summary"/,/}/p' /var/scan/scan.json)
+        if [ -z "$RESUMEN" ]; then
+          echo "ERROR: el JSON del escaneo no trae bloque summary (¿cambió el formato de roxctl?)." >&2
+          exit 1
+        fi
+        contar() { printf '%s\n' "$RESUMEN" | grep -m1 -oE "\"$1\": *[0-9]+" | grep -oE '[0-9]+' || echo 0; }
+        CRITICAL=$(contar CRITICAL); IMPORTANT=$(contar IMPORTANT); MODERATE=$(contar MODERATE); LOW=$(contar LOW)
         # Reporte DETALLADO en los logs: sin el listado, un recuento agregado no
         # deja decidir si las vulnerabilidades son asumibles ni cómo corregirlas.
         # Segunda pasada en formato tabla; lee del cache de Central, no re-escanea.

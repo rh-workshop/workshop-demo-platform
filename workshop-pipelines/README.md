@@ -6,10 +6,12 @@ Dos pipelines de Tekton en el namespace `workshop-demo-dev`:
   buildah, la publica con su ÚNICO tag, el inmutable `git-<sha-corto>`, la
   **firma** con cosign, la **escanea** con ACS (puerta de calidad) y promociona
   el digest al repo de configuración (git push). **Idempotencia:** si el tag
-  `git-<sha>` ya existe en el registro, el pipeline NO reconstruye y corta con
-  un error explicativo — reconstruir el mismo commit daría otro digest, movería
-  el tag y dejaría huérfano el anterior (Quay lo purga y el rollback por Git
-  muere en `ImagePullBackOff`). Para re-promocionar se usa el digest existente.
+  `git-<sha>` ya existe en el registro, el pipeline NO reconstruye — reconstruir
+  el mismo commit daría otro digest, movería el tag y dejaría huérfano el
+  anterior (Quay lo purga y el rollback por Git muere en `ImagePullBackOff`).
+  En su lugar salta el build, reutiliza el digest existente y CONTINÚA con
+  firma, escaneo y promoción: relanzar el pipeline sobre el mismo commit es
+  seguro y sirve para re-promocionar o para completar un run que falló a medias.
   No hay tags móviles: nadie los consumía y todo despliegue va por digest.
 - `cd-deploy-application` — clona el repo de configuración, valida que el
   overlay renderiza (`oc kustomize`) y pide a Argo CD un sync explícito de la
