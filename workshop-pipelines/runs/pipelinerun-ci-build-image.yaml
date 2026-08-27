@@ -27,7 +27,7 @@ spec:
   timeouts:
     pipeline: 1h0m0s
   params:
-    # Repositorio SIN tag en el registro corporativo (Quay): los tags (git-<sha> y el móvil) los pone el pipeline.
+    # Repositorio SIN tag en el registro corporativo (Quay): el tag git-<sha> lo pone el pipeline.
     - name: image-repository
       value: CHANGE_ME_QUAY_HOST/company/demo-service
     # Umbral del escaneo como PARÁMETRO: CRITICAL corta solo lo crítico; súbelo a IMPORTANT para endurecer la puerta.
@@ -42,9 +42,7 @@ spec:
         spec:
           accessModes:
             - ReadWriteOnce
-          # Sustituir por una StorageClass RWO del cluster (o borrar la línea para usar la default).
-          # Sustituir por la del cluster: oc get storageclass -o name | head -1
-          storageClassName: CHANGE_ME_STORAGECLASS
+          # Sin storageClassName se usa la StorageClass por defecto del cluster (debe ser RWO).
           resources:
             requests:
               storage: 1Gi
@@ -53,9 +51,7 @@ spec:
         spec:
           accessModes:
             - ReadWriteOnce
-          # Sustituir por una StorageClass RWO del cluster (o borrar la línea para usar la default).
-          # Sustituir por la del cluster: oc get storageclass -o name | head -1
-          storageClassName: CHANGE_ME_STORAGECLASS
+          # Sin storageClassName se usa la StorageClass por defecto del cluster (debe ser RWO).
           resources:
             requests:
               storage: 1Gi

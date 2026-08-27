@@ -1,0 +1,50 @@
+# Task de SINCRONIZACIÓN: pide a Argo CD el sync de la Application y espera su salud.
+#
+# Sustituye a la ClusterTask argocd-task-sync-and-wait de openshift-pipelines, que
+# arrastraba tres problemas: imagen community de 2021 (quay.io/argoproj/argocd:v2.2.2,
+# EOL), "app wait --health" sin timeout propio (la única cota era el timeout global
+# del PipelineRun) y ningún volcado de diagnóstico cuando el wait falla.
+#
+# Conexión y credencial: misma convención de nombres que la ClusterTask (el ConfigMap
+# argocd-env-configmap y el Secret argocd-env-secret del namespace del run), pero la
+# credencial preferida es ARGOCD_AUTH_TOKEN de una CUENTA TÉCNICA local de Argo CD con
+# RBAC mínimo (get/sync sobre el proyecto), nunca el admin. Si no hay token, cae a
+# ARGOCD_USERNAME/ARGOCD_PASSWORD para no romper entornos aún no migrados.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: argocd-sync
+spec:
+  params:
+    # Nombre REAL de la Application en Argo CD (con el prefijo que le ponga el ApplicationSet).
+    - {name: application-name, type: string}
+    # Revisión a sincronizar; con auto-sync activo debe ser la MISMA que sigue la Application.
+    - {name: revision, type: string, default: main}
+    # Cota PROPIA de sync y wait en segundos: un Degraded permanente falla aquí, no agotando el timeout global del run.
+    - {name: sync-timeout-seconds, type: string, default: "300"}
+  steps:
+    - name: sync-and-wait
+      # La misma imagen soportada de Argo CD que instala el operador OpenShift GitOps: trae la CLI argocd.
+      image: registry.redhat.io/openshift-gitops-1/argocd-rhel9:1.21
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      envFrom:
+        # ARGOCD_SERVER y ARGOCD_OPTS (p. ej. --grpc-web); creado fuera de Git.
+        - configMapRef: {name: argocd-env-configmap}
+        # ARGOCD_AUTH_TOKEN (cuenta técnica) o, como transición, ARGOCD_USERNAME/ARGOCD_PASSWORD; creado fuera de Git.
+        - secretRef: {name: argocd-env-secret}
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        APP="$(params.application-name)"
+        # Si el sync o el wait fallan, se vuelca el estado de la Application: sin esto el run muere sin diagnóstico.
+        trap 'RC=$?; if [ "$RC" -ne 0 ]; then echo "----- Diagnóstico de ${APP} -----"; argocd app get "$APP" || true; fi; exit $RC' EXIT
+        if [ -n "${ARGOCD_AUTH_TOKEN:-}" ]; then
+          echo "Autenticación con token de cuenta técnica (ARGOCD_AUTH_TOKEN)."
+        else
+          echo "AVISO: sin ARGOCD_AUTH_TOKEN; login con usuario/contraseña (migra a una cuenta técnica con token)."
+          argocd login "$ARGOCD_SERVER" --username "$ARGOCD_USERNAME" --password "$ARGOCD_PASSWORD" ${ARGOCD_OPTS:-}
+        fi
+        argocd app sync "$APP" --revision "$(params.revision)" --timeout "$(params.sync-timeout-seconds)"
+        argocd app wait "$APP" --health --timeout "$(params.sync-timeout-seconds)"

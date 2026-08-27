@@ -3,12 +3,17 @@
 Dos pipelines de Tekton en el namespace `workshop-demo-dev`:
 
 - `ci-build-image` — clona el monorepo de aplicación, construye la imagen con
-  buildah, la publica con su tag inmutable `git-<sha-corto>`, la **firma** con
-  cosign, la **escanea** con ACS (puerta de calidad), avanza el tag **móvil**
-  (`dev`) y promociona el digest al repo de configuración (git push).
+  buildah, la publica con su ÚNICO tag, el inmutable `git-<sha-corto>`, la
+  **firma** con cosign, la **escanea** con ACS (puerta de calidad) y promociona
+  el digest al repo de configuración (git push). **Idempotencia:** si el tag
+  `git-<sha>` ya existe en el registro, el pipeline NO reconstruye y corta con
+  un error explicativo — reconstruir el mismo commit daría otro digest, movería
+  el tag y dejaría huérfano el anterior (Quay lo purga y el rollback por Git
+  muere en `ImagePullBackOff`). Para re-promocionar se usa el digest existente.
+  No hay tags móviles: nadie los consumía y todo despliegue va por digest.
 - `cd-deploy-application` — clona el repo de configuración, valida que el
-  overlay renderiza (`oc kustomize`) y pide a Argo CD la sincronización de la
-  Application (`app-demo-service-dev`).
+  overlay renderiza (`oc kustomize`) y pide a Argo CD un sync explícito de la
+  Application (`app-demo-service-dev`) esperando a que quede Healthy.
 
 La definición declarativa vive en `gitops/` (base + overlay `dev`); las
 ejecuciones (`PipelineRun`) viven en `runs/` y se lanzan con `oc create`.
@@ -20,17 +25,29 @@ oc apply -k workshop-pipelines/gitops/overlays/dev
 # Lanzar el CI del demo-service (editar antes los CHANGE_ME del fichero)
 oc create -f workshop-pipelines/runs/pipelinerun-ci-build-image.yaml -n workshop-demo-dev
 
-# Lanzar el CD a mano (normalmente lo dispara el push del CI)
+# Lanzar el CD a mano (no hay Triggers: SIEMPRE se lanza a mano; ver "Rol del CD")
 oc create -f workshop-pipelines/runs/pipelinerun-cd-deploy-application.yaml -n workshop-demo-dev
 ```
+
+## Rol del CD (léase antes de buscarle un webhook)
+
+No hay `EventListener` ni `Trigger` configurados y las Applications tienen
+auto-sync (`Automated` + `Prune` + `SelfHeal`): tras el push del CI, **Argo CD
+despliega solo**, sin que nadie lance nada. El pipeline de CD **no es la puerta
+del despliegue ni pretende serlo**: es una herramienta de validación bajo
+demanda — renderiza el overlay antes de que Argo lo intente, fuerza un sync a
+una revisión concreta y espera a que la Application quede Healthy con
+diagnóstico si no converge. Úsalo antes de una demo o al depurar un overlay;
+si algún día se quiere como puerta real, hay que desactivar el auto-sync y
+añadir un webhook (repo de config → EventListener), no solo el webhook.
 
 ## Secretos y config requeridos (NUNCA en Git)
 
 El CI monta cuatro workspaces de tipo Secret y el CD necesita la pareja
-ConfigMap/Secret que exige la ClusterTask `argocd-task-sync-and-wait`. Todos se
-crean a mano en el cluster; en Git solo queda su NOMBRE.
+ConfigMap/Secret que lee la Task `argocd-sync`. Todos se crean a mano en el
+cluster; en Git solo queda su NOMBRE.
 
-### 1. `quay-push-credentials` — robot/usuario del registro (push, firma y tag móvil)
+### 1. `quay-push-credentials` — robot/usuario del registro (push, firma y consulta de tags)
 
 ```bash
 # Docker config con la credencial del registro; lo usan buildah, cosign y skopeo
@@ -78,20 +95,25 @@ rm /tmp/gitconfig /tmp/git-credentials
 
 ### 5. CD: `argocd-env-configmap` + `argocd-env-secret`
 
-La ClusterTask `argocd-task-sync-and-wait` lee la conexión a Argo CD de esta
-pareja (nombres fijos, en el namespace donde corre el run):
+La Task propia `argocd-sync` (imagen Red Hat `openshift-gitops-1/argocd-rhel9`,
+timeout explícito y volcado de diagnóstico si el sync/wait falla) lee la
+conexión a Argo CD de esta pareja (nombres fijos, en el namespace del run):
 
 ```bash
 ARGO_HOST=$(oc get route -n openshift-gitops openshift-gitops-server -o jsonpath='{.spec.host}')
-ARGO_PASS=$(oc get secret openshift-gitops-cluster -n openshift-gitops -o jsonpath='{.data.admin\.password}' | base64 -d)
 oc create configmap argocd-env-configmap -n workshop-demo-dev \
   --from-literal=ARGOCD_SERVER="$ARGO_HOST" --from-literal=ARGOCD_OPTS="--grpc-web"
+# Token de la CUENTA TÉCNICA local "pipeline" (rol ci-pipeline: solo get/sync
+# sobre el proyecto workshop-platform), NUNCA el admin de Argo CD.
+# La cuenta se declara en el ArgoCD CR (extraConfig accounts.pipeline: apiKey)
+# y su RBAC en spec.rbac.policy; el token se genera vía API o CLI:
+#   argocd account generate-token --account pipeline
 oc create secret generic argocd-env-secret -n workshop-demo-dev \
-  --from-literal=ARGOCD_USERNAME=admin --from-literal=ARGOCD_PASSWORD="$ARGO_PASS"
+  --from-literal=ARGOCD_AUTH_TOKEN='<token de la cuenta pipeline>'
 ```
 
-> En un entorno real la cuenta sería un usuario técnico de Argo CD con RBAC
-> mínimo (solo `sync`/`get` sobre la Application), no el admin.
+> Como transición, la task también acepta `ARGOCD_USERNAME`/`ARGOCD_PASSWORD`
+> si no hay token, pero avisa en el log: migra a la cuenta técnica con token.
 
 ## La puerta de calidad del escaneo
 
@@ -101,7 +123,7 @@ Dos parámetros del pipeline la gobiernan:
   destacan en el informe y, en modo corte, cuáles tumban el run.
 - `scan-fail-on-violation` (default `"false"`): con `"false"` el escaneo
   INFORMA (tabla de CVEs + listado de los que cruzan el umbral) y el pipeline
-  CONTINÚA; con `"true"` el run queda en `Failed` sin avanzar el tag móvil ni
+  CONTINÚA; con `"true"` el run queda en `Failed` sin
   promocionar el digest.
 
 El default `"false"` es una decisión consciente para el workshop: la base UBI9
@@ -111,30 +133,17 @@ En producción se recomienda `"true"` con umbral `CRITICAL` (o IMPORTANT con
 excepciones gestionadas vía deferral en ACS).
 
 Ambos modos están validados en vivo: con `"true"` y umbral LOW el run terminó
-`Failed` en `scan-image` y NO corrieron `advance-moving-tag`, `set-image-digest`
-ni `push-config`; con `"false"` y 4 IMPORTANT presentes el run terminó
-`Succeeded` con el informe completo en los logs.
-
-## Estado del CD (validado en vivo)
-
-El pipeline `cd-deploy-application` funciona hasta la sincronización: login a
-Argo CD con la pareja `argocd-env-*`, validación del overlay y `argocd app sync`
-sobre `app-demo-service-dev` (con auto-sync activo hay que sincronizar a la
-revisión que sigue la Application; `HEAD` lo rechaza). El paso final
-`argocd app wait --health` solo converge si la imagen promocionada es
-descargable por el cluster: hoy el overlay de la app reescribe la imagen al
-registro interno (`app-workshop`) mientras el CI publica en Quay
-(`company/demo-service`), así que el digest promocionado no existe donde el
-kubelet lo busca y el rollout queda en ImagePullBackOff. Hay que alinear el
-`newName` del overlay con el repositorio de Quay (y dar al namespace un pull
-secret de Quay), o publicar el CI en el registro que consumen los overlays.
+`Failed` en `scan-image` y NO corrieron `set-image-digest` ni `push-config`;
+con `"false"` y 4 IMPORTANT presentes el run terminó `Succeeded` con el informe
+completo en los logs. La task además distingue la VIOLACIÓN de política (avisa
+y continúa en modo informe) del ERROR de infraestructura — token caducado, CA
+errónea o Central caído cortan el pipeline SIEMPRE, también en modo informe.
 
 ## Verificación tras un run del CI
 
 ```bash
-# Tags y digest: el inmutable git-<sha> y el móvil dev deben apuntar al MISMO digest
+# El único tag es el inmutable git-<sha>; el despliegue va por digest
 skopeo inspect --format '{{.Digest}}' docker://<QUAY_HOST>/company/demo-service:git-<sha>
-skopeo inspect --format '{{.Digest}}' docker://<QUAY_HOST>/company/demo-service:dev
 
 # Firma: verificación con la clave pública del llavero
 oc get secret cosign-signing-key -n workshop-demo-dev -o jsonpath='{.data.cosign\.pub}' | base64 -d > /tmp/cosign.pub

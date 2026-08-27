@@ -2,11 +2,15 @@
 #
 # Es la mitad "integración" del flujo: toma el CÓDIGO (repo de aplicación),
 # construye la imagen, la publica en el registro, y luego escribe el digest en
-# el repo de CONFIGURACIÓN. Ese git push es lo que dispara el CD.
+# el repo de CONFIGURACIÓN. Ese git push lo recoge el auto-sync de Argo CD.
 #
 # Cadena de suministro, en tres secciones separadas y con puertas:
-#   TAGGING: la construcción publica el tag INMUTABLE git-<sha-corto> (trazabilidad
-#     commit -> imagen) y, tras pasar las puertas, image-tag avanza el tag MÓVIL.
+#   TAGGING: la construcción publica el ÚNICO tag de la imagen, el INMUTABLE
+#     git-<sha-corto> (trazabilidad commit -> imagen). No hay tags móviles: nadie
+#     los consumía y un tag que se reapunta deja digests huérfanos que Quay purga.
+#     Si el tag ya existe en el registro, el pipeline NO reconstruye (idempotencia):
+#     reconstruir el mismo commit produce OTRO digest, el tag se movería y el digest
+#     anterior quedaría sin referencia — Quay lo recolecta y el rollback por Git muere.
 #     El despliegue va SIEMPRE por DIGEST: los tags pueden reapuntarse y no son
 #     reproducibles; el digest identifica criptográficamente el binario exacto.
 #   FIRMA: image-sign firma el digest con cosign (formato clásico .sig, el que
@@ -36,8 +40,6 @@ spec:
     - {name: image-name, default: app-workshop}
     # Argumentos de construcción (--build-arg) para el Containerfile del monorepo, p. ej. ["APP=api-service"].
     - {name: build-args, type: array, default: []}
-    # Tag móvil que avanza SOLO si la imagen pasa firma y escaneo; "latest" está prohibido por política de ACS.
-    - {name: moving-tag, default: dev}
     # Umbral de severidad del escaneo (LOW|MODERATE|IMPORTANT|CRITICAL): el corte es un parámetro, nunca cableado.
     - {name: scan-severity-threshold, default: CRITICAL}
     # "false" informa de los CVEs y sigue; "true" corta el pipeline. En producción va en "true".
@@ -48,7 +50,7 @@ spec:
     - name: source
     - name: config
     - name: git-credentials
-    # Secret con config.json del robot del registro (push de imagen, firma y tag móvil).
+    # Secret con config.json del robot del registro (push de imagen, firma y guarda de idempotencia).
     - name: registry-credentials
     # Secret cosign-signing-key (cosign.key/cosign.pub/password) generado con cosign generate-key-pair k8s://...
     - name: signing-key
@@ -70,27 +72,56 @@ spec:
         - {name: REVISION, value: $(params.revision)}
       workspaces: [{name: output, workspace: source}]
 
-    # --- SECCIÓN TAGGING (1/2): deriva el tag inmutable del commit REAL clonado.
+    # --- SECCIÓN TAGGING: deriva el tag inmutable del commit REAL clonado y
+    # aplica la GUARDA DE IDEMPOTENCIA: si git-<sha> ya existe en el registro, el
+    # commit ya tiene su imagen y el pipeline se corta con instrucciones claras.
+    # Reconstruir daría OTRO digest (los builds no son reproducibles bit a bit),
+    # el tag se re-apuntaría y el digest anterior quedaría huérfano: Quay lo
+    # purga y todo commit del repo de config que lo referencie pierde el rollback.
     - name: resolve-image-tags
       runAfter: [clone-source-code]
       params:
         - {name: commit, value: $(tasks.clone-source-code.results.COMMIT)}
+        - {name: image-repository, value: $(params.image-repository)}
+      workspaces:
+        - {name: registry-credentials, workspace: registry-credentials}
       taskSpec:
         params:
           - {name: commit, type: string}
+          - {name: image-repository, type: string}
+        workspaces:
+          - name: registry-credentials
         results:
           # Tag inmutable git-<sha-corto>: nunca se reutiliza ni se mueve.
           - name: immutable-tag
         steps:
-          - name: compute-tag
-            image: registry.redhat.io/ubi9/ubi-minimal:9.6
+          - name: compute-and-check-tag
+            image: registry.redhat.io/rhel9/skopeo:9.8
             securityContext:
               allowPrivilegeEscalation: false
               capabilities: {drop: [ALL]}
             script: |
               #!/usr/bin/env sh
               set -eu
+              AUTH="$(workspaces.registry-credentials.path)/config.json"
               SHORT=$(printf '%s' "$(params.commit)" | cut -c1-7)
+              TAG="git-${SHORT}"
+              # Se listan los tags del repositorio; un repo aún no creado (primer build) no es un error.
+              if SALIDA=$(skopeo list-tags --authfile "$AUTH" "docker://$(params.image-repository)" 2>&1); then
+                if printf '%s\n' "$SALIDA" | grep -q "\"${TAG}\""; then
+                  DIGEST=$(skopeo inspect --no-tags --format '{{.Digest}}' --authfile "$AUTH" "docker://$(params.image-repository):${TAG}")
+                  echo "ERROR: el tag ${TAG} ya existe en el registro (digest ${DIGEST})." >&2
+                  echo "Un commit se construye UNA sola vez: no se reconstruye para no dejar huérfano el digest anterior." >&2
+                  echo "Para re-promocionar, usa el digest existente en el overlay del repo de configuración." >&2
+                  exit 1
+                fi
+              else
+                # Repo inexistente = primer build; cualquier otro fallo (red, credencial) es de infraestructura y corta.
+                case "$SALIDA" in
+                  *"name unknown"*|*"NAME_UNKNOWN"*|*"unable to retrieve auth token"*"repository not found"*) echo "Primer build: el repositorio aún no existe en el registro." ;;
+                  *) echo "ERROR de infraestructura consultando el registro:" >&2; printf '%s\n' "$SALIDA" >&2; exit 1 ;;
+                esac
+              fi
               printf 'git-%s' "$SHORT" | tee $(results.immutable-tag.path)
 
     - name: build-and-publish-image
@@ -137,17 +168,6 @@ spec:
         - {name: rox-central-endpoint, value: $(params.rox-central-endpoint)}
       workspaces:
         - {name: acs-credentials, workspace: acs-credentials}
-
-    # --- SECCIÓN TAGGING (2/2): el tag móvil solo avanza si la imagen pasó firma y escaneo.
-    - name: advance-moving-tag
-      runAfter: [scan-image]
-      taskRef: {name: image-tag}
-      params:
-        - {name: image-repository, value: $(params.image-repository)}
-        - {name: image-digest, value: $(tasks.build-and-publish-image.results.IMAGE_DIGEST)}
-        - {name: moving-tag, value: $(params.moving-tag)}
-      workspaces:
-        - {name: registry-credentials, workspace: registry-credentials}
 
     - name: clone-config-repo
       # Corre en paralelo con firma y escaneo: solo prepara el clon; la promoción espera a las puertas.
@@ -237,14 +257,12 @@ spec:
         - {name: build-status, value: $(tasks.build-and-publish-image.status)}
         - {name: sign-status, value: $(tasks.sign-image.status)}
         - {name: scan-status, value: $(tasks.scan-image.status)}
-        - {name: tag-status, value: $(tasks.advance-moving-tag.status)}
         - {name: promote-status, value: $(tasks.push-config.status)}
       taskSpec:
         params:
           - {name: build-status, type: string}
           - {name: sign-status, type: string}
           - {name: scan-status, type: string}
-          - {name: tag-status, type: string}
           - {name: promote-status, type: string}
         steps:
           - name: report
@@ -258,5 +276,4 @@ spec:
               echo "Construcción : $(params.build-status)"
               echo "Firma        : $(params.sign-status)"
               echo "Escaneo      : $(params.scan-status)"
-              echo "Tag móvil    : $(params.tag-status)"
               echo "Promoción    : $(params.promote-status)"
