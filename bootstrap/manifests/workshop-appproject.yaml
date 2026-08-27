@@ -20,6 +20,9 @@ metadata:
     workshop.redhat.com/sesion: 05-gitops
 spec:
   description: Proyecto compartido por los participantes de este módulo
+  # Deriva visible sin prune: lo creado a mano fuera de Git en user* se marca huérfano.
+  orphanedResources:
+    warn: true
   # Solo el repositorio git interno del workshop.
   sourceRepos:
     - http://git-server-workshop-git.apps.CHANGE_ME_BASE_DOMAIN/workshop.git

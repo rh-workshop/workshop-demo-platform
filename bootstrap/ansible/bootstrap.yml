@@ -46,6 +46,7 @@
       - "{{ repo_root }}/bootstrap/manifests/workshop-platform-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/workshop-multicluster-appproject.yaml"
       - "{{ repo_root }}/bootstrap/manifests/workshop-appproject.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/default-appproject.yaml"
     # Inventario de clusters y sus etiquetas. Es lo ÚNICO que hay que tocar al
     # añadir un cluster: los Placement lo recogen solo, sin nombrarlo.
     # Sustituir los nombres por los del entorno: el hub es siempre 'local-cluster'.

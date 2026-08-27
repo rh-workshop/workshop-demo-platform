@@ -15,6 +15,10 @@ metadata:
 spec:
   description: Applications raíz del modelo GitOps (app of apps), acotadas al plano de control.
 
+  # Deriva visible sin prune: los objetos sin dueño en el namespace de Argo se marcan huérfanos.
+  orphanedResources:
+    warn: true
+
   # Solo el repositorio de PLATAFORMA puede ser raíz: el repo de aplicaciones
   # quedó fuera a propósito — quien commitea ahí no puede crear Applications ni
   # ApplicationSets, sus servicios los descubre el ApplicationSet de plataforma.
@@ -45,5 +49,10 @@ spec:
     - group: cluster.open-cluster-management.io
       kind: ManagedClusterSetBinding
     # ConfigMap acm-placement que exige el generador clusterDecisionResource.
+    # RIESGO ASUMIDO: un AppProject no filtra por nombre, así que un commit al
+    # repo de plataforma podría declarar argocd-cm/argocd-rbac-cm y reconfigurar
+    # Argo por la puerta de atrás. Se acepta porque el repo es de confianza y el
+    # único root que llega aquí es platform-root; ante la duda, vigilar con una
+    # Policy de ACM que fije el contenido de argocd-rbac-cm.
     - group: ""
       kind: ConfigMap

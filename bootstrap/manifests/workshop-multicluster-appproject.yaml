@@ -15,6 +15,9 @@ metadata:
   namespace: openshift-gitops
 spec:
   description: Productos de plataforma del workshop.
+  # Deriva visible sin prune: lo creado a mano en los namespaces de plataforma se marca huérfano.
+  orphanedResources:
+    warn: true
   sourceRepos:
   - https://github.com/rh-workshop/workshop-demo-platform-config.git
   # Destinos: el server queda en '*' porque los spokes los registra el

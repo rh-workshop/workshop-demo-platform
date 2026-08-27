@@ -23,20 +23,26 @@ metadata:
 spec:
   description: Componentes de plataforma del workshop de OpenShift.
 
+  # Con prune desactivado en las apps, lo creado a mano en estos namespaces no se
+  # detecta nunca: marcarlo huérfano hace la deriva VISIBLE en la UI sin borrar nada.
+  orphanedResources:
+    warn: true
+
   # Solo se admite el repositorio de configuración del workshop.
   sourceRepos:
     - https://github.com/rh-workshop/workshop-demo-app-config.git
 
-  # Destinos permitidos: los namespaces de plataforma.
+  # Destinos permitidos: SOLO los namespaces de aplicación de este repo.
+  # platform-gateway y kuadrant-system se retiraron a propósito: el destination
+  # del ApplicationSet solo gobierna recursos SIN metadata.namespace, así que un
+  # manifiesto del repo de apps con `namespace: platform-gateway` (un AuthPolicy
+  # contra el gateway compartido, un RoleBinding en kuadrant-system) pasaría la
+  # validación. Ningún servicio los necesita: el plano del gateway es de plataforma.
   destinations:
     - server: https://kubernetes.default.svc
       namespace: workshop-demo-dev
     - server: https://kubernetes.default.svc
       namespace: workshop-demo-test
-    - server: https://kubernetes.default.svc
-      namespace: platform-gateway
-    - server: https://kubernetes.default.svc
-      namespace: kuadrant-system
     - server: https://kubernetes.default.svc
       namespace: canary-demo-dev
     - server: https://kubernetes.default.svc

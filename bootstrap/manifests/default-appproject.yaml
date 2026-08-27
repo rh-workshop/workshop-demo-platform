@@ -1,0 +1,19 @@
+# AppProject `default` NEUTRALIZADO: nace del operador con */*/* (todo repo, todo
+# destino, todo recurso) y ninguna Application lo usa — las 27 de plataforma usan
+# los 4 proyectos con barandillas. Se vacía en el bootstrap para que declarar
+# `project: default` no sea una vía de escape: sin repos, sin destinos y sin
+# kinds permitidos, cualquier Application que lo use falla CERRADA.
+# No se borra: el operador lo recrearía con los comodines de fábrica.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  description: Proyecto por defecto vaciado a propósito — usar los AppProjects con barandillas.
+  sourceRepos: []
+  destinations: []
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist: []
