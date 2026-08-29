@@ -1,0 +1,90 @@
+# Task de SBOM: genera el inventario de dependencias de la imagen (SPDX JSON)
+# con syft y lo publica como ATESTACIÓN in-toto junto a la firma con cosign.
+#
+# Es la pieza que completa la cadena de suministro del CI: la firma acredita
+# procedencia, el escaneo corta CVEs, y el SBOM deja constancia VERIFICABLE de
+# qué contiene exactamente el binario (cosign attest lo ancla al digest, así que
+# viaja con la imagen incluso al promocionarla entre organizaciones).
+#
+# ELECCIÓN DE IMAGEN, documentada porque rompe la norma "solo Red Hat": no
+# existe imagen de syft en registry.redhat.io ni en el catálogo de RHTAS (Red Hat
+# genera los SBOM de sus productos con tooling interno de Product Security y no
+# lo distribuye como contenedor). Se usa la imagen OFICIAL upstream de Anchore,
+# fijada por versión para que el build sea reproducible; si Red Hat publica un
+# equivalente soportado, se sustituye aquí. La atestación, en cambio, SÍ va con
+# la imagen soportada de cosign (RHTAS).
+#
+# Verificación posterior del SBOM publicado:
+#   cosign verify-attestation --key cosign.pub --type spdxjson <imagen>@<digest>
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sbom-generate
+spec:
+  params:
+    # Repositorio de la imagen SIN tag, p. ej. quay.example.com/company-dev/app-workshop.
+    - {name: image-repository, type: string}
+    # Digest resuelto por el CI (sha256:...): el SBOM se genera y se atesta SIEMPRE contra el digest, nunca contra un tag.
+    - {name: image-digest, type: string}
+  workspaces:
+    # Secret con config.json del robot del registro: syft lee la imagen y cosign publica la atestación.
+    - name: registry-credentials
+    # Secret cosign-signing-key (cosign.key/cosign.pub/password): la MISMA llave que firma la imagen.
+    - name: signing-key
+  # El SBOM pasa de un step al otro por un volumen efímero del task: no toca ningún workspace persistente.
+  volumes:
+    - name: sbom-dir
+      emptyDir: {}
+  steps:
+    # La imagen upstream de syft es FROM scratch (sin shell): se invoca el binario directamente con args, no con script.
+    - name: syft-generate
+      image: docker.io/anchore/syft:v1.19.0
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        # syft (go-containerregistry) lee la credencial del registro del config.json de este directorio.
+        - name: DOCKER_CONFIG
+          value: $(workspaces.registry-credentials.path)
+      volumeMounts:
+        - {name: sbom-dir, mountPath: /var/sbom}
+      args:
+        # El esquema registry: obliga a leer del registro remoto (no hay daemon de contenedores en el pod).
+        - "registry:$(params.image-repository)@$(params.image-digest)"
+        - "-o"
+        - "spdx-json=/var/sbom/sbom.spdx.json"
+
+    - name: cosign-attest
+      # Imagen de cosign soportada por Red Hat (Trusted Artifact Signer): la misma que la task de firma.
+      image: registry.redhat.io/rhtas/cosign-rhel9:1.3.7
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        # cosign lee las credenciales del registro de este directorio (config.json).
+        - name: DOCKER_CONFIG
+          value: $(workspaces.registry-credentials.path)
+        # Cinturón y tirantes: si la versión de cosign honra esta variable, también fuerza el formato clásico.
+        - name: COSIGN_NEW_BUNDLE_FORMAT
+          value: "0"
+      volumeMounts:
+        - {name: sbom-dir, mountPath: /var/sbom}
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        # La contraseña de la llave sale del propio Secret montado, jamás de un parámetro.
+        # cosign v2 la guarda como "password" y cosign v3 como "cosign.password": se aceptan ambas.
+        KEYDIR="$(workspaces.signing-key.path)"
+        if [ -f "$KEYDIR/cosign.password" ]; then PASSFILE="$KEYDIR/cosign.password"; else PASSFILE="$KEYDIR/password"; fi
+        COSIGN_PASSWORD="$(cat "$PASSFILE")"; export COSIGN_PASSWORD
+        REF="$(params.image-repository)@$(params.image-digest)"
+        # Si el binario conoce --new-bundle-format (v2.5+/v3), se apaga EXPLÍCITAMENTE para publicar la atestación en el formato clásico que ACS descubre.
+        FORMAT_FLAG=""
+        if cosign attest --help 2>&1 | grep -q -- '--new-bundle-format'; then FORMAT_FLAG="--new-bundle-format=false"; fi
+        # Sin subida a Rekor: el verificador es local con la clave pública, no un log público de transparencia.
+        cosign attest --yes --tlog-upload=false $FORMAT_FLAG \
+          --key "$KEYDIR/cosign.key" \
+          --type spdxjson \
+          --predicate /var/sbom/sbom.spdx.json \
+          "$REF"
+        echo "SBOM atestado y publicado junto a: $REF"

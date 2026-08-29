@@ -229,6 +229,19 @@ spec:
         - {name: signing-key, workspace: signing-key}
         - {name: registry-credentials, workspace: registry-credentials}
 
+    # --- SECCIÓN SBOM: inventario de dependencias atestado con la misma llave de
+    # firma. Corre en PARALELO con firma y escaneo (las tres parten del digest
+    # resuelto y no dependen entre sí); la promoción del digest sí la espera.
+    - name: generate-sbom
+      runAfter: [resolve-digest]
+      taskRef: {name: sbom-generate}
+      params:
+        - {name: image-repository, value: $(params.image-repository)}
+        - {name: image-digest, value: $(tasks.resolve-digest.results.image-digest)}
+      workspaces:
+        - {name: registry-credentials, workspace: registry-credentials}
+        - {name: signing-key, workspace: signing-key}
+
     # --- SECCIÓN ESCANEO: corre tras la firma para que la política BUILD "firma exigida" pueda verificarla.
     - name: scan-image
       runAfter: [sign-image]
@@ -255,9 +268,9 @@ spec:
     # Promociona el digest con "kustomize edit set image": entiende la semántica del
     # kustomization (no corrompe overlays con varias imágenes, como haría un sed) y el
     # "*" conserva el newName existente a la vez que elimina el newTag.
-    # Espera al ESCANEO: al repo de configuración solo llegan digests firmados y limpios.
+    # Espera al ESCANEO y al SBOM: al repo de configuración solo llegan digests firmados, limpios y con inventario atestado.
     - name: set-image-digest
-      runAfter: [clone-config-repo, scan-image]
+      runAfter: [clone-config-repo, scan-image, generate-sbom]
       params:
         - {name: overlay-path, value: $(params.overlay-path)}
         - {name: image-name, value: $(params.image-name)}
@@ -328,12 +341,14 @@ spec:
       params:
         - {name: build-status, value: $(tasks.build-and-publish-image.status)}
         - {name: sign-status, value: $(tasks.sign-image.status)}
+        - {name: sbom-status, value: $(tasks.generate-sbom.status)}
         - {name: scan-status, value: $(tasks.scan-image.status)}
         - {name: promote-status, value: $(tasks.push-config.status)}
       taskSpec:
         params:
           - {name: build-status, type: string}
           - {name: sign-status, type: string}
+          - {name: sbom-status, type: string}
           - {name: scan-status, type: string}
           - {name: promote-status, type: string}
         steps:
@@ -347,5 +362,6 @@ spec:
               echo "===== Resumen del pipeline ====="
               echo "Construcción : $(params.build-status)"
               echo "Firma        : $(params.sign-status)"
+              echo "SBOM         : $(params.sbom-status)"
               echo "Escaneo      : $(params.scan-status)"
               echo "Promoción    : $(params.promote-status)"
