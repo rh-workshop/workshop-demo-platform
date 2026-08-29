@@ -1,11 +1,12 @@
 # Pipelines del workshop (CI/CD de imágenes)
 
-Dos pipelines de Tekton en el namespace `workshop-demo-dev`:
+Tres pipelines de Tekton en el namespace `workshop-demo-dev`:
 
 - `ci-build-image` — clona el monorepo de aplicación, construye la imagen con
   buildah, la publica con su ÚNICO tag, el inmutable `git-<sha-corto>`, la
-  **firma** con cosign, la **escanea** con ACS (puerta de calidad) y promociona
-  el digest al repo de configuración (git push). **Idempotencia:** si el tag
+  **firma** con cosign, genera y atesta su **SBOM** (syft + `cosign attest`,
+  en paralelo con firma y escaneo), la **escanea** con ACS (puerta de calidad)
+  y promociona el digest al repo de configuración (git push). **Idempotencia:** si el tag
   `git-<sha>` ya existe en el registro, el pipeline NO reconstruye — reconstruir
   el mismo commit daría otro digest, movería el tag y dejaría huérfano el
   anterior (Quay lo purga y el rollback por Git muere en `ImagePullBackOff`).
@@ -16,6 +17,13 @@ Dos pipelines de Tekton en el namespace `workshop-demo-dev`:
 - `cd-deploy-application` — clona el repo de configuración, valida que el
   overlay renderiza (`oc kustomize`) y pide a Argo CD un sync explícito de la
   Application (`app-demo-service-dev`) esperando a que quede Healthy.
+- `promote-image` — promociona una imagen YA validada entre organizaciones de
+  Quay (`skopeo copy --all`, que copia el manifiesto completo y CONSERVA el
+  digest: lo validado en test es byte a byte lo que corre en prod), verifica el
+  digest en destino y fija ese MISMO digest en el overlay del entorno destino
+  (`kustomize edit set image` + push). Un solo pipeline parametrizado sirve
+  para dev→test y test→prod: la barrera hacia prod la pone el **RBAC**, no el
+  pipeline (ver "Modelo de promoción" más abajo).
 
 La definición declarativa vive en `gitops/` (base + overlay `dev`); las
 ejecuciones (`PipelineRun`) viven en `runs/` y se lanzan con `oc create`.
@@ -29,7 +37,29 @@ oc create -f workshop-pipelines/runs/pipelinerun-ci-build-image.yaml -n workshop
 
 # Lanzar el CD a mano (no hay Triggers: SIEMPRE se lanza a mano; ver "Rol del CD")
 oc create -f workshop-pipelines/runs/pipelinerun-cd-deploy-application.yaml -n workshop-demo-dev
+
+# Promocionar una imagen entre organizaciones (editar antes los CHANGE_ME del fichero)
+oc create -f workshop-pipelines/runs/pipelinerun-promote-image.yaml -n workshop-demo-dev
 ```
+
+## Modelo de promoción entre organizaciones de Quay
+
+Las cuatro organizaciones (`company-dev`, `company-test`, `company-prod`,
+`company-contingencia`) separan entornos por SEGURIDAD: los robots `pusher` de
+prod y contingencia son de **solo lectura**, así que el CI no puede publicar
+ahí ni aunque se comprometa. A esos entornos se llega SOLO con `promote-image`
+y la credencial de promoción (`quay-promotion-credentials`), separada del CI.
+
+La barrera hacia prod es RBAC, en dos capas complementarias:
+
+1. **El Secret**: `quay-promotion-credentials` con escritura sobre
+   `company-prod` solo se crea en el namespace desde el que se autoriza a
+   promocionar; quien no puede montar ese Secret no puede promocionar, ponga lo
+   que ponga en `target-org`.
+2. **El PipelineRun**: crear PipelineRuns en ese namespace se limita por `Role`
+   (verbo `create` sobre `pipelineruns.tekton.dev`) al grupo de release. En el
+   workshop ambos conviven en `workshop-demo-dev` por simplicidad; en
+   producción la promoción a prod va en un namespace propio con su Role.
 
 ## Rol del CD (léase antes de buscarle un webhook)
 
@@ -45,9 +75,10 @@ añadir un webhook (repo de config → EventListener), no solo el webhook.
 
 ## Secretos y config requeridos (NUNCA en Git)
 
-El CI monta cuatro workspaces de tipo Secret y el CD necesita la pareja
-ConfigMap/Secret que lee la Task `argocd-sync`. Todos se crean a mano en el
-cluster; en Git solo queda su NOMBRE.
+El CI monta cuatro workspaces de tipo Secret (el SBOM reutiliza dos de ellos:
+`registry-credentials` y `signing-key`), la promoción añade uno propio y el CD
+necesita la pareja ConfigMap/Secret que lee la Task `argocd-sync`. Todos se
+crean a mano en el cluster; en Git solo queda su NOMBRE.
 
 ### 1. `quay-push-credentials` — robot/usuario del registro (push, firma y consulta de tags)
 
@@ -95,7 +126,21 @@ oc create secret generic git-credentials -n workshop-demo-dev \
 rm /tmp/gitconfig /tmp/git-credentials
 ```
 
-### 5. CD: `argocd-env-configmap` + `argocd-env-secret`
+### 5. `quay-promotion-credentials` — credencial de PROMOCIÓN (separada del CI)
+
+```bash
+# Robot con ESCRITURA sobre la organización DESTINO (p. ej. company-test+promoter);
+# nunca la misma cuenta que publica desde CI: ese es el aislamiento entre entornos.
+podman login <QUAY_HOST> --username 'company-test+promoter' --password '<token-del-robot>' --authfile /tmp/promo-auth.json
+oc create secret generic quay-promotion-credentials -n workshop-demo-dev \
+  --from-file=config.json=/tmp/promo-auth.json
+rm /tmp/promo-auth.json
+```
+
+Para promocionar a prod se crea el análogo con un robot de `company-prod`, y
+solo en el namespace autorizado (ver "Modelo de promoción").
+
+### 6. CD: `argocd-env-configmap` + `argocd-env-secret`
 
 La Task propia `argocd-sync` (imagen Red Hat `openshift-gitops-1/argocd-rhel9`,
 timeout explícito y volcado de diagnóstico si el sync/wait falla) lee la
@@ -153,4 +198,7 @@ cosign verify --key /tmp/cosign.pub --insecure-ignore-tlog <QUAY_HOST>/company-d
 
 # Escaneo y políticas: lo mismo que ejecuta la task image-scan
 roxctl --token-file <token> -e central.stackrox.svc:443 image check --image <QUAY_HOST>/company-dev/demo-service@<digest>
+
+# SBOM: la atestación SPDX publicada por la task sbom-generate
+cosign verify-attestation --key /tmp/cosign.pub --insecure-ignore-tlog --type spdxjson <QUAY_HOST>/company-dev/demo-service@<digest>
 ```

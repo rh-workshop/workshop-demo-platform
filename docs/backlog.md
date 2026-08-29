@@ -44,34 +44,51 @@ ramificación (`when`/`if`), que es lo que se quiere evitar:
 **Ventaja.** Una sola fuente de verdad: comentar una línea desactiva el componente
 entero — operador y configuración — sin tocar el playbook.
 
-## 1-bis. Promoción de imágenes entre organizaciones de Quay
+## 1-bis. Promoción de imágenes entre organizaciones de Quay — HECHO
 
-Ya hay **cuatro organizaciones** (`company-dev`, `company-test`, `company-prod`,
-`company-contingencia`) con los robots de `prod` y `contingencia` en solo lectura:
-a esos entornos no se publica desde CI, solo se promociona. Falta la pieza que
-mueve la imagen.
+**Implementado** en `workshop-pipelines/gitops/base/pipeline-promote-image.yaml`
+(con su run de ejemplo en `workshop-pipelines/runs/pipelinerun-promote-image.yaml`):
+`skopeo copy --all` entre organizaciones (verificando que el digest en destino
+coincide), `kustomize edit set image` sobre el overlay del entorno destino con el
+MISMO digest, push con reintento y sync opcional de Argo. La credencial de
+promoción (`quay-promotion-credentials`) es **distinta** de la del CI — ver el
+README de `workshop-pipelines/` para su creación y para el modelo RBAC que hace
+de barrera hacia `prod`/`contingencia`. **Sin validar en vivo** (clusters apagados).
 
-Pendiente: una Task de Tekton que copie el manifiesto entre organizaciones
-(`skopeo copy --all docker://…/company-test/app:… docker://…/company-prod/app:…`).
-Copiar el manifiesto —no reconstruir— es lo que garantiza que el digest se
-conserve: lo validado en test es byte a byte lo que corre en prod.
+## 1-ter. SBOM en el pipeline de CI — HECHO
 
-Necesita una credencial de promoción **distinta** de la del CI y con escritura
-sobre `prod`/`contingencia`; si se le diera al pusher de CI se perdería el
-aislamiento que justifica separar las organizaciones.
+**Implementado** en `workshop-pipelines/gitops/base/sbom-generate-task.yaml`,
+enganchado en el CI tras `resolve-digest` (en paralelo con firma y escaneo; la
+promoción del digest lo espera): `syft` genera el SPDX y `cosign attest` lo
+publica como atestación con la misma llave de firma. No existe imagen Red Hat de
+syft (elección documentada en la propia Task); la atestación sí va con la imagen
+RHTAS de cosign. **Sin validar en vivo** (clusters apagados).
 
-## 1-ter. SBOM en el pipeline de CI
+## 1-quater. Canary automático con Argo Rollouts — HECHO
 
-El CI ya firma (`image-sign-task`) y escanea (`image-scan-task`), pero no genera
-inventario de dependencias. Falta una Task con `syft` (o `cosign attest`) que
-publique el SBOM como atestación junto a la firma — es lo que completa SLSA.
+**Implementado**: `rollouts/gitops/` (CR `RolloutManager` + Application
+`config-rollouts` al hub) y, en `workshop-demo-app-config`, el `Rollout`
+`canary-service-auto` + `AnalysisTemplate` sobre Prometheus (tasa de éxito y
+p95). Convive con el canary manual por pesos de `HTTPRoute` (material del
+workshop, intacto) en el path `/canary-auto`. Sin `trafficRouting`: el peso se
+aproxima por réplicas — el control fino con Gateway API exige el plugin
+community `rollouts-plugin-trafficrouter-gatewayapi`, fuera de la norma "solo
+Red Hat". **Pendiente de validar en vivo**: el ámbito cluster del
+RolloutManager y la autenticación de la consulta al Thanos Querier
+(token de ServiceAccount) — hoy la AnalysisTemplate va con `insecure: true`.
 
-## 1-quater. Canary automático con Argo Rollouts
+## 1-quinquies. Previews efímeros por Pull Request — HECHO
 
-Hoy el canary del workshop se hace por peso de `HTTPRoute`, avanzando a mano. Un
-`Rollout` con `AnalysisTemplate` sobre métricas de Prometheus promociona o
-revierte solo, según tasa de error o latencia. El operador de OpenShift GitOps ya
-incluye Argo Rollouts (`RolloutManager`), así que no hace falta instalar nada.
+No estaba en el backlog original; se añadió al detectar que `overlays/dev` es
+único y dos features en paralelo se pisan. **Implementado** en
+`gitops/appsets/workshop-previews-pr-applicationset.yaml` (generador
+`pullRequest` de GitHub sobre `workshop-demo-app-config`): una Application por
+PR abierto en su namespace efímero `demo-service-pr-<n>` (path `/pr-<n>` del
+gateway), borrada EN CASCADA al cerrar el PR. Barandilla propia:
+`bootstrap/manifests/workshop-preview-appproject.yaml`. El token de GitHub va en
+el Secret `github-pr-token` de `openshift-gitops`, nunca en Git. Pendiente:
+cuotas/NetworkPolicy de `namespace-governance` para los namespaces `*-pr-*`, y
+validación en vivo (clusters apagados).
 
 ## 2. Dominio propio `labjp.xyz` (Cloudflare)
 

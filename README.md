@@ -125,9 +125,11 @@ la raíz sincroniza `gitops/`, que contiene:
 ```
 gitops/
 ├── clusters/      # la cadena ACM+Argo: binding, placements, GitOpsCluster
-├── appsets/       # los ApplicationSet: fan-out de productos a los spokes por rol
-│                  # y descubrimiento de los servicios del repo de aplicaciones
-│                  # (workshop-services-dev, workshop-gateway-routes-dev)
+├── appsets/       # los ApplicationSet: fan-out de productos a los spokes por rol,
+│                  # descubrimiento de los servicios del repo de aplicaciones
+│                  # (workshop-services-dev) y previews efímeros por Pull Request
+│                  # (workshop-previews-pr: una Application por PR abierto, en su
+│                  # namespace demo-service-pr-<n>, destruida al cerrarse el PR)
 └── apps/hub/      # las Applications de lo que solo vive en el hub: los productos
                    # (acm, quay, acs, monitoring...) y el pipeline del workshop
 ```
@@ -209,7 +211,8 @@ workshop-platform/
 ├── cert-manager/gitops/    # ClusterIssuer
 ├── connectivity-link/gitops/    # Kuadrant, Gateway
 ├── pipelines/gitops/       # TektonConfig (+ firma con Chains)
-├── workshop-pipelines/     # gitops/: CI y CD del workshop de aplicaciones · runs/: PipelineRun de ejemplo
+├── rollouts/gitops/        # RolloutManager (Argo Rollouts): canary automático del workshop
+├── workshop-pipelines/     # gitops/: CI, CD y promoción entre orgs de Quay · runs/: PipelineRun de ejemplo
 └── acs/{gitops,ansible}/        # Central/SecuredCluster → Argo · políticas → API
 ```
 
@@ -236,6 +239,7 @@ se fija en el overlay del ambiente, nunca en la base.
 | **cert-manager** | `ClusterIssuer` | — |
 | **Connectivity Link** | `Kuadrant`, `Gateway` | — |
 | **Pipelines** | `TektonConfig` (con Chains) | claves de firma cosign *(fuera de Git)* |
+| **Argo Rollouts** | `RolloutManager` (el operador GitOps ya lo gestiona; ningún operador nuevo) | — |
 | **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** |
 | **ACM** | `MultiClusterHub`, `Policy`/`Placement`/`PlacementBinding` | — |
 | **Developer Hub** | CR `Backstage` + ConfigMaps (app-config, plugins, RBAC csv), Software Templates | — *(todo declarativo)* |
