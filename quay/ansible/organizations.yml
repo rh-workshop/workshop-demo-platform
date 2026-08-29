@@ -27,11 +27,27 @@
     validate_certs: "{{ lookup('env', 'QUAY_VALIDATE_CERTS') | default(true, true) }}"
 
     # El "que" de este playbook: lo unico que se edita al anadir un dominio.
+    #
+    # UNA ORGANIZACION POR ENTORNO. La separación es de SEGURIDAD, no cosmética:
+    # el robot que publica en dev no tiene ninguna credencial sobre prod, así que
+    # un CI comprometido en desarrollo no puede alterar la imagen que corre en
+    # producción. Con una sola organización compartida, un único token con
+    # permiso de escritura alcanzaría todos los entornos.
+    #
+    # La promoción entre entornos NO se hace reconstruyendo: se copia el
+    # manifiesto entre organizaciones (skopeo copy), de modo que el digest se
+    # conserva y lo que se valida en test es exactamente lo que corre en prod.
+    #
+    # Los repositorios y robots son iguales en las cuatro; lo que cambia es quién
+    # tiene permiso de escritura:
+    #   dev / test   -> el CI publica (pusher con write)
+    #   prod / conti -> NADIE publica desde CI: la imagen llega SOLO por promoción
+    #                   con una credencial aparte, fuera del alcance del pipeline
+    #                   de build. Por eso su pusher es 'read'.
     organizations:
-      # Sustituir por el nombre de la organización de la empresa en Quay.
-      - name: company
-        email: plataforma@example.com
-        repositories:
+      - name: company-dev
+        email: plataforma+dev@example.com
+        repositories: &repos_workshop
           # Una sola imagen para todos los escenarios: los tres servicios (demo,
           # canary v1/v2 y circuit-breaker) ejecutan el mismo binario y solo se
           # distinguen por las variables de entorno que les inyecta su Deployment.
@@ -45,6 +61,38 @@
           - name: pusher
             description: Cuenta del pipeline de CI para publicar imágenes
             permission: write
+      - name: company-test
+        email: plataforma+test@example.com
+        repositories: *repos_workshop
+        robots:
+          - name: puller
+            description: Cuenta de solo lectura para descargar imágenes
+            permission: read
+          - name: pusher
+            description: Cuenta del pipeline de CI para publicar imágenes
+            permission: write
+      - name: company-prod
+        email: plataforma+prod@example.com
+        repositories: *repos_workshop
+        robots:
+          - name: puller
+            description: Cuenta de solo lectura para descargar imágenes
+            permission: read
+          # Solo lectura a propósito: a prod se llega promocionando, no publicando.
+          - name: pusher
+            description: Sin escritura desde CI; la imagen llega por promoción
+            permission: read
+      - name: company-contingencia
+        email: plataforma+contingencia@example.com
+        repositories: *repos_workshop
+        robots:
+          - name: puller
+            description: Cuenta de solo lectura para descargar imágenes
+            permission: read
+          # Igual que prod: el sitio de contingencia sirve lo ya promocionado.
+          - name: pusher
+            description: Sin escritura desde CI; la imagen llega por promoción
+            permission: read
 
   tasks:
     - name: Comprobar que hay credenciales

@@ -17,7 +17,7 @@ metadata:
   name: image-scan
 spec:
   params:
-    # Referencia completa por digest, p. ej. quay.example.com/company/api-service@sha256:...
+    # Referencia completa por digest, p. ej. quay.example.com/company-dev/api-service@sha256:...
     - {name: image-ref, type: string}
     # Umbral: LOW, MODERATE, IMPORTANT o CRITICAL. Marca qué CVEs se destacan en el informe y, si fail-on-violation es "true", cuáles cortan.
     - {name: severity-threshold, type: string, default: CRITICAL}

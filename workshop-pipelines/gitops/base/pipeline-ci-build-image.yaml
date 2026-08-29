@@ -32,7 +32,7 @@ spec:
     - {name: revision, default: main}
     # Rama del repo de configuración que se clona y a la que se promociona el digest.
     - {name: config-revision, default: main}
-    # Repositorio de la imagen SIN tag (p. ej. quay.example.com/company/demo-service): los tags los decide el pipeline.
+    # Repositorio de la imagen SIN tag (p. ej. quay.example.com/company-dev/demo-service): los tags los decide el pipeline.
     - name: image-repository
     - {name: containerfile, default: ./Containerfile}
     - {name: overlay-path, default: apps/demo-service/overlays/dev}

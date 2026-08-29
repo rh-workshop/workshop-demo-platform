@@ -17,7 +17,7 @@ metadata:
   name: image-sign
 spec:
   params:
-    # Repositorio de la imagen SIN tag, p. ej. quay.example.com/company/api-service.
+    # Repositorio de la imagen SIN tag, p. ej. quay.example.com/company-dev/api-service.
     - {name: image-repository, type: string}
     # Digest devuelto por la construcción (sha256:...); la firma se ancla a él.
     - {name: image-digest, type: string}

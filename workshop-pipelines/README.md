@@ -145,12 +145,12 @@ errónea o Central caído cortan el pipeline SIEMPRE, también en modo informe.
 
 ```bash
 # El único tag es el inmutable git-<sha>; el despliegue va por digest
-skopeo inspect --format '{{.Digest}}' docker://<QUAY_HOST>/company/demo-service:git-<sha>
+skopeo inspect --format '{{.Digest}}' docker://<QUAY_HOST>/company-dev/demo-service:git-<sha>
 
 # Firma: verificación con la clave pública del llavero
 oc get secret cosign-signing-key -n workshop-demo-dev -o jsonpath='{.data.cosign\.pub}' | base64 -d > /tmp/cosign.pub
-cosign verify --key /tmp/cosign.pub --insecure-ignore-tlog <QUAY_HOST>/company/demo-service@<digest>
+cosign verify --key /tmp/cosign.pub --insecure-ignore-tlog <QUAY_HOST>/company-dev/demo-service@<digest>
 
 # Escaneo y políticas: lo mismo que ejecuta la task image-scan
-roxctl --token-file <token> -e central.stackrox.svc:443 image check --image <QUAY_HOST>/company/demo-service@<digest>
+roxctl --token-file <token> -e central.stackrox.svc:443 image check --image <QUAY_HOST>/company-dev/demo-service@<digest>
 ```

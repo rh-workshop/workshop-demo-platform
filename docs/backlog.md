@@ -44,6 +44,35 @@ ramificación (`when`/`if`), que es lo que se quiere evitar:
 **Ventaja.** Una sola fuente de verdad: comentar una línea desactiva el componente
 entero — operador y configuración — sin tocar el playbook.
 
+## 1-bis. Promoción de imágenes entre organizaciones de Quay
+
+Ya hay **cuatro organizaciones** (`company-dev`, `company-test`, `company-prod`,
+`company-contingencia`) con los robots de `prod` y `contingencia` en solo lectura:
+a esos entornos no se publica desde CI, solo se promociona. Falta la pieza que
+mueve la imagen.
+
+Pendiente: una Task de Tekton que copie el manifiesto entre organizaciones
+(`skopeo copy --all docker://…/company-test/app:… docker://…/company-prod/app:…`).
+Copiar el manifiesto —no reconstruir— es lo que garantiza que el digest se
+conserve: lo validado en test es byte a byte lo que corre en prod.
+
+Necesita una credencial de promoción **distinta** de la del CI y con escritura
+sobre `prod`/`contingencia`; si se le diera al pusher de CI se perdería el
+aislamiento que justifica separar las organizaciones.
+
+## 1-ter. SBOM en el pipeline de CI
+
+El CI ya firma (`image-sign-task`) y escanea (`image-scan-task`), pero no genera
+inventario de dependencias. Falta una Task con `syft` (o `cosign attest`) que
+publique el SBOM como atestación junto a la firma — es lo que completa SLSA.
+
+## 1-quater. Canary automático con Argo Rollouts
+
+Hoy el canary del workshop se hace por peso de `HTTPRoute`, avanzando a mano. Un
+`Rollout` con `AnalysisTemplate` sobre métricas de Prometheus promociona o
+revierte solo, según tasa de error o latencia. El operador de OpenShift GitOps ya
+incluye Argo Rollouts (`RolloutManager`), así que no hace falta instalar nada.
+
 ## 2. Dominio propio `labjp.xyz` (Cloudflare)
 
 Hoy los hostnames usan el dominio del sandbox RHPDS, que cambia en cada

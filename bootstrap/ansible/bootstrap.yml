@@ -15,6 +15,10 @@
 #   8. IMPORTA los spokes en ACM (ManagedCluster + KlusterletAddonConfig +
 #      auto-import-secret) y espera a que cada uno quede Available.
 #   9. Homologa las etiquetas environment/role de TODOS los ManagedCluster.
+#  10. Genera los secretos de día-0 que falten (quay-config-bundle,
+#      rhdh-backend-secret): su contenido nunca se versiona, y sin ellos el
+#      operador se queda bloqueado sin que Argo pueda desatascarlo. Va al final
+#      porque sus namespaces los crea Argo. Si ya existen, NO se tocan.
 #
 # Uso:
 #   1. Copiar clusters.example.yml a clusters.yml (queda fuera de Git) y poner
@@ -73,6 +77,33 @@
       - name: local-cluster
         environment: hub
         role: hub
+    # Secretos que el bootstrap genera cuando faltan. El contenido nunca se
+    # versiona: las claves salen de un aleatorio distinto en cada instalación.
+    # La config de Quay es la del día-0 documentada en docs/bootstrap-and-gitops.md.
+    secretos_generados:
+      - name: quay-config-bundle
+        namespace: quay-enterprise
+        data:
+          config.yaml: |
+            SECRET_KEY: "{{ lookup('password', '/dev/null length=64 chars=hexdigits') | lower }}"
+            DATABASE_SECRET_KEY: "{{ lookup('password', '/dev/null length=64 chars=hexdigits') | lower }}"
+            AUTHENTICATION_TYPE: Database
+            FEATURE_USER_INITIALIZE: true
+            FEATURE_USER_CREATION: false
+            FEATURE_ANONYMOUS_ACCESS: false
+            FEATURE_GARBAGE_COLLECTION: true
+            FEATURE_AUTO_PRUNE: true
+            FEATURE_CHANGE_TAG_EXPIRATION: true
+            DEFAULT_TAG_EXPIRATION: 2w
+            TAG_EXPIRATION_OPTIONS: [2w, 4w, 8w]
+            FEATURE_GENERAL_OCI_SUPPORT: true
+            FEATURE_REFERRERS_API: true
+            FEATURE_QUOTA_MANAGEMENT: true
+            FEATURE_USER_LOG_ACCESS: true
+      - name: rhdh-backend-secret
+        namespace: developer-hub
+        data:
+          BACKEND_SECRET: "{{ lookup('password', '/dev/null length=32') }}"
     # Root Applications: la entrega a Argo; a partir de aquí gobierna GitOps.
     root_applications:
       - "{{ repo_root }}/gitops/apps/root-application.yaml"
@@ -297,3 +328,42 @@
       loop: "{{ managed_clusters }}"
       loop_control:
         label: "{{ item.name }} → environment={{ item.environment }} role={{ item.role }}"
+
+    # --- 10. Secretos de día-0 (al final: sus namespaces los crea Argo) ---
+    # Secretos de día-0 que ningún manifiesto puede traer: su contenido NUNCA se
+    # versiona. Se generan aquí, en el arranque en frío, porque sin ellos el
+    # operador se queda bloqueado y Argo no tiene forma de desatascarlo:
+    #   quay-config-bundle  -> sin él el operador no reconcilia el QuayRegistry
+    #   rhdh-backend-secret -> sin él el pod de Developer Hub entra en CrashLoop
+    #
+    # Las claves se generan aleatorias y ÚNICAS por instalación. La comprobación
+    # previa es lo que hace esto idempotente: si el Secret ya existe NO se toca,
+    # porque rotar SECRET_KEY/DATABASE_SECRET_KEY sobre una instancia con datos
+    # la deja inservible (no podría descifrar lo que ya guardó).
+    - name: Comprobar si los secretos de día-0 ya existen
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        name: "{{ item.name }}"
+        namespace: "{{ item.namespace }}"
+      register: secretos_dia0
+      loop: "{{ secretos_generados }}"
+      loop_control:
+        label: "{{ item.namespace }}/{{ item.name }}"
+
+    - name: Crear los secretos de día-0 que falten (claves aleatorias por instalación)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ item.item.name }}"
+            namespace: "{{ item.item.namespace }}"
+          stringData: "{{ item.item.data }}"
+      # Solo los que la consulta anterior no encontró: no se re-generan claves.
+      when: item.resources | length == 0
+      loop: "{{ secretos_dia0.results }}"
+      loop_control:
+        label: "{{ item.item.namespace }}/{{ item.item.name }}"
+      no_log: true
