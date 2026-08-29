@@ -1,0 +1,9 @@
+# Namespace del controlador de Argo Rollouts (progressive delivery).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argo-rollouts
+  labels:
+    # Cede el namespace a la instancia central de Argo CD (RBAC del operador GitOps).
+    argocd.argoproj.io/managed-by: openshift-gitops
+    app.kubernetes.io/part-of: workshop-gitops

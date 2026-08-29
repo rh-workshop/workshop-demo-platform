@@ -1,0 +1,24 @@
+# RolloutManager: el CR con el que el operador OpenShift GitOps (que YA está
+# instalado: gestiona Argo CD Y Argo Rollouts) despliega el controlador de
+# Argo Rollouts. No se instala ningún operador nuevo — esto es solo CONFIGURACIÓN
+# del operando, así que va por Argo CD como el resto de productos.
+#
+# OJO con las versiones de API: RolloutManager es argoproj.io/v1alpha1 mientras
+# que el CR ArgoCD del mismo operador es argoproj.io/v1beta1 — no confundirlas.
+#
+# ÁMBITO: sin campo namespaceScoped, la instancia es de ámbito CLUSTER (la única
+# permitida por defecto): un solo controlador en argo-rollouts reconcilia los
+# Rollout de todos los namespaces del cluster, incluido canary-demo-dev.
+#
+# El controlador instala además los CRDs (Rollout, AnalysisTemplate, AnalysisRun,
+# Experiment): por eso los Rollout del repo de aplicaciones llevan la anotación
+# SkipDryRunOnMissingResource, igual que los CRs de Kuadrant en el arranque en frío.
+apiVersion: argoproj.io/v1alpha1
+kind: RolloutManager
+metadata:
+  annotations:
+    # El CRD RolloutManager lo trae el operador GitOps: si el sync corre antes de que exista, el dry-run no debe invalidar la Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: rollout-manager
+  namespace: argo-rollouts
+spec: {}

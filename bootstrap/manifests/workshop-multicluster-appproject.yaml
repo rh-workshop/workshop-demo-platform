@@ -38,6 +38,9 @@ spec:
     namespace: openshift-pipelines
   - server: '*'
     namespace: developer-hub
+  # Argo Rollouts (progressive delivery): el RolloutManager del canary automático.
+  - server: '*'
+    namespace: argo-rollouts
   # CI del workshop: el Pipeline y su identidad se instalan en el namespace de desarrollo.
   - server: '*'
     namespace: workshop-demo-dev
@@ -160,6 +163,9 @@ spec:
   # Service Mesh: mTLS del mesh.
   - group: security.istio.io
     kind: PeerAuthentication
+  # Argo Rollouts: el CR RolloutManager del operador GitOps (rollouts/gitops/).
+  - group: argoproj.io
+    kind: RolloutManager
   # CI del workshop (workshop-pipelines/gitops/): el Pipeline, la cuenta que lo
   # ejecuta y sus RoleBinding — gobierno de plataforma, nunca del repo de apps.
   - group: tekton.dev
