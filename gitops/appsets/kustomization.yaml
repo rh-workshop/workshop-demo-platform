@@ -10,3 +10,5 @@ resources:
   - monitoring-applicationset.yaml
   # Descubrimiento de los servicios del workshop en el repo de aplicaciones.
   - workshop-services-dev-applicationset.yaml
+  # Previews efímeros: una Application por Pull Request abierto en el repo de aplicaciones.
+  - workshop-previews-pr-applicationset.yaml

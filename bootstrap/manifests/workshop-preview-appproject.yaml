@@ -1,0 +1,50 @@
+# AppProject de los previews EFÍMEROS por Pull Request.
+#
+# Proyecto propio y más estrecho que workshop-platform: los previews despliegan
+# código de PRs AÚN NO revisados, así que su barandilla debe ser la mínima — solo
+# los namespaces efímeros demo-service-pr-* y solo los kinds que renderiza el
+# overlay del demo-service. Un PR que intente colar un kind nuevo (un CronJob, un
+# Secret, un RoleBinding) se rechaza con "resource ... is not permitted".
+#
+# Lo crea el BOOTSTRAP, no una Application: la barandilla no se instala por el
+# mecanismo al que limita (misma regla que el resto de AppProjects).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: workshop-preview
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  description: Previews efímeros por Pull Request del workshop.
+
+  # Solo el repositorio de configuración de aplicaciones (el que abre los PR).
+  sourceRepos:
+    - https://github.com/rh-workshop/workshop-demo-app-config.git
+
+  # Destino: EXCLUSIVAMENTE los namespaces efímeros de preview. El comodín es
+  # seguro porque el prefijo no colisiona con ningún namespace estable del cluster.
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: 'demo-service-pr-*'
+
+  # De ámbito cluster, solo el Namespace efímero que el propio overlay declara.
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+
+  # Allow-list explícita (falla CERRADO): el inventario EXACTO de lo que
+  # renderiza apps/demo-service/overlays/dev — nada más entra en un preview.
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: apps
+      kind: Deployment
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: kuadrant.io
+      kind: AuthPolicy
+    - group: kuadrant.io
+      kind: RateLimitPolicy
