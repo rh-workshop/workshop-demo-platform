@@ -73,9 +73,27 @@ p95). Convive con el canary manual por pesos de `HTTPRoute` (material del
 workshop, intacto) en el path `/canary-auto`. Sin `trafficRouting`: el peso se
 aproxima por réplicas — el control fino con Gateway API exige el plugin
 community `rollouts-plugin-trafficrouter-gatewayapi`, fuera de la norma "solo
-Red Hat". **Pendiente de validar en vivo**: el ámbito cluster del
-RolloutManager y la autenticación de la consulta al Thanos Querier
-(token de ServiceAccount) — hoy la AnalysisTemplate va con `insecure: true`.
+Red Hat".
+
+**Autenticación al Thanos Querier: RESUELTA.** La consulta iba sin token y con
+`insecure: true`; ese endpoint exige Bearer token y comprueba el permiso con
+SubjectAccessReview, así que respondía 403 y —con `failureLimit: 1`— habría
+abortado *todo* despliegue canary aunque la aplicación estuviera sana. Ahora
+`serviceaccount-thanos-reader.yaml` (en el repo de aplicaciones) aporta las tres
+piezas: ServiceAccount `thanos-reader`, ClusterRoleBinding al rol de solo lectura
+`cluster-monitoring-view` y un Secret de tipo `service-account-token` que **el
+cluster rellena** (su contenido nunca viaja en Git). La `AnalysisTemplate` lo
+inyecta como arg `thanos-token` en la cabecera `Authorization`.
+
+Eso obligó a ampliar el AppProject `workshop-platform`, que falla cerrado:
+`ClusterRoleBinding` en `clusterResourceWhitelist`, y `ServiceAccount` + `Secret`
+en el de namespace. **Ojo**: permitir `Secret` amplía lo que Argo puede desplegar
+en esos namespaces; aquí es asumible porque el único que se versiona va vacío.
+
+**Pendiente de validar en vivo**: el ámbito cluster del `RolloutManager`, que el
+token se rellene y que las métricas `http_requests_total` /
+`http_request_duration_seconds_bucket` existan (requieren que la app las exponga
+y haya un ServiceMonitor).
 
 ## 1-quinquies. Previews efímeros por Pull Request — HECHO
 
