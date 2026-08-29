@@ -58,10 +58,12 @@ spec:
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
-    # Lo necesita el análisis del canary automático: da a su ServiceAccount el rol
-    # cluster-monitoring-view (SOLO LECTURA) para poder consultar el Thanos Querier.
-    - group: rbac.authorization.k8s.io
-      kind: ClusterRoleBinding
+    # ClusterRoleBinding NO entra, y no es un detalle: quien puede crear uno puede
+    # enlazar cluster-admin a una ServiceAccount que él mismo declare, así que
+    # permitirlo convierte cualquier commit del repo de aplicaciones en
+    # cluster-admin efectivo. La identidad del análisis del canary (ServiceAccount
+    # + ClusterRoleBinding + token) se movió por eso a este repo, en
+    # namespace-governance/gitops/base/namespaces/canary-demo-dev/.
 
   # Allow-list explícita (falla CERRADO): si un commit trae un kind no listado,
   # Argo lo rechaza con "resource ... is not permitted in project" en vez de
@@ -80,12 +82,12 @@ spec:
     # RoleBinding de los image-puller y de la pipeline (nunca ClusterRole*).
     - group: rbac.authorization.k8s.io
       kind: RoleBinding
-    # Identidad con la que el análisis del canary consulta las métricas.
-    - group: ""
-      kind: ServiceAccount
-    # Solo el Secret de tipo service-account-token del canary: su contenido NO viaja en Git, lo rellena el cluster.
-    - group: ""
-      kind: Secret
+    # ServiceAccount y Secret quedan FUERA a propósito: un AppProject no filtra por
+    # nombre, así que permitir Secret dejaba al repo de aplicaciones SOBRESCRIBIR
+    # (selfHeal incluido) los Secrets del CI que viven en workshop-demo-dev —
+    # cosign-signing-key, git-credentials, quay-push-credentials, argocd-env-secret.
+    # Un commit bastaba para plantar una llave de firma propia o robar el push.
+    # La identidad del análisis del canary vive ahora en namespace-governance.
     # Exposición: Route del gateway y HTTPRoute de Gateway API por servicio.
     - group: route.openshift.io
       kind: Route

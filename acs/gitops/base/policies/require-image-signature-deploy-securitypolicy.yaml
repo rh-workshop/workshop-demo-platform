@@ -1,0 +1,55 @@
+# Política de ADMISIÓN: ninguna imagen SIN FIRMA VERIFICADA llega a correr.
+#
+# Es la pieza que convierte la cadena de suministro en un control y no en una
+# declaración. La política hermana (require-image-signature) evalúa el ciclo
+# BUILD dentro del pipeline: solo alcanza a quien PASA por el pipeline, y el
+# pipeline se salta con un `oc apply` o con un commit al repo de configuración
+# apuntando a otro digest. Sin esta segunda política, firmar era documental.
+#
+# Ciclo DEPLOY + SCALE_TO_ZERO_ENFORCEMENT: el admission controller del
+# SecuredCluster escala a cero todo Deployment cuya imagen no traiga una firma
+# cosign verificable con la clave pública registrada en Central.
+#
+# SCOPE a los namespaces de negocio a propósito: los namespaces de plataforma
+# (openshift-*, stackrox, quay-enterprise, kuadrant-system...) corren imágenes de
+# Red Hat firmadas con SU cadena, no con la del pipeline; incluirlos bloquearía
+# la propia plataforma. Al añadir un namespace de negocio hay que añadirlo aquí.
+#
+# La SignatureIntegration NO tiene CRD: se crea por API con la clave pública de
+# cosign (ver acs/ansible/) y su ID es el que se referencia abajo. Un ID que no
+# existe en Central hace la política INERTE (no bloquea nada) — verificarlo es
+# parte del alta de un cluster.
+apiVersion: config.stackrox.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  annotations:
+    # El CRD lo instala ACM (OperatorPolicy), no este sync: sin esto el dry-run del arranque en frio invalida la Application entera.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-image-signature-deploy
+  namespace: stackrox
+spec:
+  policyName: Exigir firma cosign verificada en el despliegue
+  description: Ningun workload de negocio puede desplegarse con una imagen sin firma cosign verificable con la clave publica del pipeline.
+  severity: CRITICAL_SEVERITY
+  categories:
+    - Security Best Practices
+  lifecycleStages:
+    - DEPLOY
+  enforcementActions:
+    - SCALE_TO_ZERO_ENFORCEMENT
+  # Solo los namespaces de negocio: la plataforma corre imagenes firmadas por Red Hat.
+  scope:
+    - namespace: workshop-demo-dev
+    - namespace: workshop-demo-test
+    - namespace: canary-demo-dev
+    - namespace: bluegreen-demo-dev
+    - namespace: circuit-breaker-demo-dev
+    - namespace: api-demo-dev
+  policySections:
+    - sectionName: Firma exigida en admision
+      policyGroups:
+        - fieldName: Image Signature Verified By
+          booleanOperator: OR
+          values:
+            # ID de la SignatureIntegration "company-pipeline-cosign" en Central.
+            - value: io.stackrox.signatureintegration.46ab1fe7-d4d5-4a4e-9d03-6b2af2f316ce

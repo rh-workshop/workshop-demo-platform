@@ -18,8 +18,15 @@ Tres pipelines de Tekton en el namespace `workshop-demo-dev`:
   overlay renderiza (`oc kustomize`) y pide a Argo CD un sync explícito de la
   Application (`app-demo-service-dev`) esperando a que quede Healthy.
 - `promote-image` — promociona una imagen YA validada entre organizaciones de
-  Quay (`skopeo copy --all`, que copia el manifiesto completo y CONSERVA el
-  digest: lo validado en test es byte a byte lo que corre en prod), verifica el
+  Quay. Antes de copiar **verifica la firma cosign en el origen** (`verify-signature`,
+  `"true"` por defecto): sin esa puerta, quien tiene la credencial de promoción
+  podía subir a prod cualquier digest de la organización origen, incluido uno
+  colocado a mano. Copia con `skopeo copy --all` (manifiesto completo, CONSERVA el
+  digest: lo validado en test es byte a byte lo que corre en prod) **y arrastra la
+  firma y la atestación SBOM**, que cosign publica como tags aparte
+  (`sha256-<hex>.sig` / `.att`) y por tanto no viajan con el manifiesto — sin
+  copiarlas, la imagen llegaba desnuda a prod y la política de admisión que exige
+  firma la habría rechazado. Verifica el
   digest en destino y fija ese MISMO digest en el overlay del entorno destino
   (`kustomize edit set image` + push). Un solo pipeline parametrizado sirve
   para dev→test y test→prod: la barrera hacia prod la pone el **RBAC**, no el
@@ -57,9 +64,16 @@ La barrera hacia prod es RBAC, en dos capas complementarias:
    promocionar; quien no puede montar ese Secret no puede promocionar, ponga lo
    que ponga en `target-org`.
 2. **El PipelineRun**: crear PipelineRuns en ese namespace se limita por `Role`
-   (verbo `create` sobre `pipelineruns.tekton.dev`) al grupo de release. En el
-   workshop ambos conviven en `workshop-demo-dev` por simplicidad; en
-   producción la promoción a prod va en un namespace propio con su Role.
+   al grupo de release. Ojo con el matiz, que es una trampa clásica: **poder
+   crear un `PipelineRun` o un `TaskRun` equivale a poder LEER todos los Secrets
+   del namespace**, porque el run puede declarar su propio `taskSpec` y montar
+   cualquier Secret como workspace. Por eso `app-developers` pasó a tener Tekton
+   en SOLO LECTURA en `workshop-demo-dev` (ver
+   `namespace-governance/.../workshop-demo-dev/app-developers-role.yaml`): sin
+   ese cambio, retirar `secrets` del Role no protegía nada. En el workshop CI y
+   promoción conviven en `workshop-demo-dev` por simplicidad; en producción la
+   promoción a prod va en un namespace propio con su Role y sus credenciales, y
+   la clave PRIVADA de cosign no vive ahí (basta `cosign.pub` para verificar).
 
 ## Rol del CD (léase antes de buscarle un webhook)
 
@@ -127,6 +141,10 @@ rm /tmp/gitconfig /tmp/git-credentials
 ```
 
 ### 5. `quay-promotion-credentials` — credencial de PROMOCIÓN (separada del CI)
+
+> El run de promoción monta además el workspace `signing-key` para **verificar**
+> la firma antes de copiar. En un namespace de release, ese Secret debe contener
+> ÚNICAMENTE `cosign.pub`: verificar no necesita la clave privada.
 
 ```bash
 # Robot con ESCRITURA sobre la organización DESTINO (p. ej. company-test+promoter);

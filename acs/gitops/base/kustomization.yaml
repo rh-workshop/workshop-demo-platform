@@ -5,3 +5,6 @@ resources:
   - securedcluster.yaml
   - policies/disallow-latest-tag-securitypolicy.yaml
   - policies/require-image-signature-securitypolicy.yaml
+  # La misma exigencia en ADMISION: sin ella, la firma solo la comprueba quien
+  # pasa por el pipeline y un despliegue directo la esquiva por completo.
+  - policies/require-image-signature-deploy-securitypolicy.yaml

@@ -95,6 +95,14 @@ spec:
   # El overlay de prod ancla la revision estable del mesh con un IstioRevisionTag.
   - group: sailoperator.io
     kind: IstioRevisionTag
+  # ClusterRoleBinding del analisis del canary (SA -> cluster-monitoring-view, solo
+  # lectura). RIESGO ASUMIDO Y CONSCIENTE: quien commitea en ESTE repo puede
+  # enlazar cualquier ClusterRole, cluster-admin incluido. Se acepta porque el repo
+  # de plataforma ya es una herramienta de administrador (crea ClusterIssuer,
+  # TektonConfig, Istio y las Policies de ACM) y su rama main debe estar protegida
+  # con revision obligatoria. El repo de APLICACIONES no tiene este permiso.
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
   # Allow-list explícita de recursos namespaced: es el inventario REAL de lo
   # que renderizan los overlays de este repo (kubectl kustomize / helm
   # template). Si aparece un kind nuevo, Argo lo rechaza con "resource ... is
@@ -176,6 +184,10 @@ spec:
     kind: Task
   - group: ''
     kind: ServiceAccount
+  # Secret de tipo service-account-token del analisis del canary: se versiona VACIO
+  # (solo tipo y anotacion) y lo rellena el cluster; su contenido nunca viaja en Git.
+  - group: ''
+    kind: Secret
   # Role namespaced del gobierno de workshop-demo-dev (app-developer-no-secrets);
   # los ClusterRole siguen fuera: solo los aplica el bootstrap.
   - group: rbac.authorization.k8s.io

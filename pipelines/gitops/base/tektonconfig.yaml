@@ -48,6 +48,16 @@ spec:
     artifacts.pipelinerun.format: in-toto
     artifacts.pipelinerun.storage: oci
     # transparency: registra las firmas en un log Rekor (prueba de que se firmó y
-    # cuando). Sin log, la firma pierde la mitad de su valor probatorio.
-    transparency.enabled: "true"
+    # cuándo). Sin log, la firma pierde la mitad de su valor probatorio.
+    #
+    # DESACTIVADO A PROPÓSITO hasta que haya un Rekor INTERNO. Sin
+    # `transparency.url`, Chains publica en el log PÚBLICO rekor.sigstore.dev: cada
+    # entrada deja para siempre, y de forma inmutable, el nombre del registro
+    # interno, el repositorio y el digest de artefactos corporativos. En banca eso
+    # es una fuga de metadatos de infraestructura (ISO 27001:2022 5.14) y además
+    # ata el pipeline a un servicio externo — si no hay egress a internet, Chains
+    # falla al firmar. Se reactiva con las DOS líneas juntas, apuntando al Rekor
+    # que despliega Red Hat Trusted Artifact Signer dentro del cluster.
+    # transparency.url: https://rekor-server.trusted-artifact-signer.svc
+    transparency.enabled: "false"
     disabled: false

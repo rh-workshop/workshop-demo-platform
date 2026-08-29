@@ -50,10 +50,14 @@ rules:
   - apiGroups: ["image.openshift.io"]
     resources: ["imagestreams", "imagestreamtags", "imagestreamimages"]
     verbs: ["*"]
-  # CI: lanzar runs y leer las definiciones; las Task/Pipeline las gobierna Argo.
+  # CI en SOLO LECTURA. Retirar 'secrets' del Role no bastaba: quien puede crear
+  # un PipelineRun o un TaskRun en este namespace puede declarar un `taskSpec`
+  # propio que monte cualquier Secret del namespace como workspace y lo imprima
+  # en el log — es decir, la llave cosign de firma, el PAT de push a Git, la
+  # credencial del robot de Quay y el token de Argo CD. El permiso de crear runs
+  # equivale al de leer los Secrets, así que el control anterior era ilusorio.
+  # Lanzar el CI es tarea de plataforma (platform-admins) o de un disparador
+  # automático; el desarrollador ve los runs y sus logs, y nada más.
   - apiGroups: ["tekton.dev"]
-    resources: ["pipelineruns", "taskruns"]
-    verbs: ["*"]
-  - apiGroups: ["tekton.dev"]
-    resources: ["pipelines", "tasks"]
+    resources: ["pipelineruns", "taskruns", "pipelines", "tasks", "taskruns/log", "pipelineruns/log"]
     verbs: ["get", "list", "watch"]

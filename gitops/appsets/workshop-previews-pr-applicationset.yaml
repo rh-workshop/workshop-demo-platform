@@ -49,9 +49,15 @@ spec:
           tokenRef:
             secretName: github-pr-token
             key: token
-          # Descomentar para limitar los previews a los PR etiquetados en GitHub.
-          # labels:
-          #   - preview
+          # FILTRO OBLIGATORIO, no opcional: workshop-demo-app-config es un repo
+          # PÚBLICO, así que sin él cualquier persona de internet abre un PR (o un
+          # PR desde un fork) y este ApplicationSet despliega su contenido en el
+          # cluster HUB. El manifiesto del PR controla la imagen (`newName`), de
+          # modo que un PR no revisado equivale a ejecución de código arbitrario en
+          # la plataforma. La etiqueta `preview` solo la puede poner quien tiene
+          # permiso de escritura en el repo: ese es el punto de revisión humana.
+          labels:
+            - preview
         # Sondeo cada 2 minutos: el ciclo de vida del preview sigue al del PR sin webhook.
         requeueAfterSeconds: 120
   template:

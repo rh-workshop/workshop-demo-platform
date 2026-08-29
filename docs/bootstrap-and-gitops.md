@@ -233,3 +233,15 @@ DOS capas, para que ninguna dependa de la otra:
    (`namespace-governance/.../workshop-demo-dev/`): Role propio equivalente a
    `edit` pero sin `secrets` ni `serviceaccounts`; el resto de namespaces de
    aplicación conservan `edit` porque no albergan secretos de CI.
+
+3. **Y sin escribir en Tekton, que es lo que de verdad cerraba el agujero.**
+   La capa 2, por sí sola, era ilusoria: el Role concedía `["*"]` sobre
+   `pipelineruns` y `taskruns`, y **quien puede crear un run puede leer
+   cualquier Secret del namespace** — basta declarar un `taskSpec` propio que
+   monte `cosign-signing-key`, `git-credentials`, `quay-push-credentials` o
+   `argocd-env-secret` como workspace y volcarlo al log. El permiso de crear
+   runs equivale al de `get secrets`. Desde la auditoría, `app-developers`
+   tiene Tekton en **solo lectura** en ese namespace: lanzar el CI es tarea de
+   plataforma o de un disparador automático. En producción el corte correcto es
+   otro namespace: los Secrets del CI no deben convivir con un grupo que pueda
+   ejecutar cargas ahí (ver `docs/backlog.md`).

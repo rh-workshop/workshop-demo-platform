@@ -69,3 +69,9 @@ spec:
       # ESCRITURA sobre la organización destino: credencial SEPARADA del CI, creada FUERA de Git (ver README).
       secret:
         secretName: quay-promotion-credentials
+    - name: signing-key
+      # Llavero cosign: la promoción solo usa la clave PÚBLICA para verificar la
+      # firma antes de copiar. En un namespace de release donde no deba existir la
+      # clave privada, se monta un Secret que contenga únicamente cosign.pub.
+      secret:
+        secretName: cosign-signing-key

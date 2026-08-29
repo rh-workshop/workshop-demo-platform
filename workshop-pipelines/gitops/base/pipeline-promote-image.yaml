@@ -47,6 +47,10 @@ spec:
     - {name: config-revision, default: main}
     # Overlay del entorno destino donde se fija el digest, p. ej. apps/demo-service/overlays/test.
     - name: target-overlay-path
+    # "true" (por defecto) exige que el digest venga FIRMADO antes de promocionarlo.
+    # Nunca se pone en "false" en un entorno regulado: es la unica puerta que impide
+    # promocionar a prod una imagen que no salio del pipeline.
+    - {name: verify-signature, default: "true"}
     # Nombre LÓGICO de la imagen en el kustomization (campo images[].name), no la URL del registro.
     - {name: kustomize-image-name, default: app-workshop}
     # Application de Argo a sincronizar tras el push; VACÍO = no se pide sync (el auto-sync despliega igual).
@@ -59,13 +63,62 @@ spec:
     - name: source-registry-credentials
     # Authfile de ESCRITURA sobre la organización destino: la credencial de promoción, SEPARADA del pusher de CI.
     - name: promotion-credentials
+    # Secret cosign-signing-key: solo se usa la clave PÚBLICA, para verificar antes de promocionar.
+    - name: signing-key
   results:
     - name: promoted-image
       value: $(tasks.copy-image.results.promoted-image)
   tasks:
+    # PUERTA DE ENTRADA: el digest a promocionar DEBE venir firmado por el pipeline.
+    # Sin esto, quien tenga la credencial de promoción puede subir a prod cualquier
+    # digest que exista en la organización origen — incluida una imagen colocada a
+    # mano — porque skopeo copia lo que se le diga sin preguntar de dónde salió.
+    #
+    # El interruptor se evalúa DENTRO del step y no con un `when` de Tekton: una
+    # task saltada por `when` arrastra a sus dependientes por runAfter, así que la
+    # promoción entera se saltaría con ella.
+    - name: verify-signature
+      params:
+        - {name: image-ref, value: "$(params.registry-host)/$(params.source-org)/$(params.image-name)@$(params.image-digest)"}
+        - {name: verify-signature, value: $(params.verify-signature)}
+      workspaces:
+        - {name: signing-key, workspace: signing-key}
+        - {name: registry-credentials, workspace: source-registry-credentials}
+      taskSpec:
+        params:
+          - {name: image-ref, type: string}
+          - {name: verify-signature, type: string}
+        workspaces:
+          - name: signing-key
+          - name: registry-credentials
+        steps:
+          - name: cosign-verify
+            # Imagen de cosign soportada por Red Hat (Trusted Artifact Signer): la misma que firma.
+            image: registry.redhat.io/rhtas/cosign-rhel9:1.3.7
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            env:
+              - name: DOCKER_CONFIG
+                value: $(workspaces.registry-credentials.path)
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              if [ "$(params.verify-signature)" != "true" ]; then
+                echo "AVISO: verificacion de firma DESACTIVADA (verify-signature=$(params.verify-signature))."
+                echo "Se promocionara un digest cuya procedencia NO se ha comprobado."
+                exit 0
+              fi
+              # Solo se usa cosign.pub: la clave PRIVADA no hace falta para verificar.
+              # --insecure-ignore-tlog porque la firma se emite sin subir a Rekor (ver image-sign-task).
+              cosign verify --key "$(workspaces.signing-key.path)/cosign.pub" \
+                --insecure-ignore-tlog "$(params.image-ref)" > /dev/null
+              echo "Firma verificada en origen: $(params.image-ref)"
+
     # Copia el manifiesto completo (--all: todas las arquitecturas y la lista de
     # manifiestos) y VERIFICA que el digest en destino es el mismo que salió.
     - name: copy-image
+      runAfter: [verify-signature]
       # Un reintento absorbe los fallos transitorios de red contra el registro.
       retries: 1
       params:
@@ -117,6 +170,31 @@ spec:
                 exit 1
               fi
               echo "Digest verificado en destino: ${DIGEST_DESTINO}"
+              # La firma y la atestación SBOM de cosign NO viajan con el manifiesto:
+              # cosign las publica como TAGS aparte del mismo repositorio, con el
+              # patrón sha256-<hex>.sig y sha256-<hex>.att. Sin copiarlas, la imagen
+              # llega a test/prod DESNUDA: la política de admisión que exige firma la
+              # rechazaría y se perdería la evidencia de procedencia justo en el
+              # entorno donde más falta hace demostrarla.
+              ADJUNTO="$(printf '%s' "$(params.image-digest)" | tr ':' '-')"
+              for SUFIJO in sig att; do
+                SRC_ADJ="docker://$(params.registry-host)/$(params.source-org)/$(params.image-name):${ADJUNTO}.${SUFIJO}"
+                DST_ADJ="docker://$(params.registry-host)/$(params.target-org)/$(params.image-name):${ADJUNTO}.${SUFIJO}"
+                if skopeo inspect --no-tags --raw --authfile "$(workspaces.source-registry-credentials.path)/config.json" "$SRC_ADJ" >/dev/null 2>&1; then
+                  skopeo copy --all \
+                    --src-authfile "$(workspaces.source-registry-credentials.path)/config.json" \
+                    --dest-authfile "$(workspaces.promotion-credentials.path)/config.json" \
+                    "$SRC_ADJ" "$DST_ADJ"
+                  echo "Adjunto .${SUFIJO} promocionado."
+                else
+                  # La firma es OBLIGATORIA; la atestación SBOM puede no existir en imágenes anteriores al SBOM.
+                  if [ "$SUFIJO" = "sig" ]; then
+                    echo "ERROR: la imagen origen no tiene firma (.sig) publicada; no se promociona sin cadena de custodia." >&2
+                    exit 1
+                  fi
+                  echo "AVISO: la imagen origen no tiene atestación SBOM (.att); se promociona igualmente."
+                fi
+              done
               printf '%s/%s/%s@%s' "$(params.registry-host)" "$(params.target-org)" "$(params.image-name)" "$(params.image-digest)" \
                 | tee $(results.promoted-image.path)
 
@@ -214,11 +292,13 @@ spec:
   finally:
     - name: pipeline-summary
       params:
+        - {name: verify-status, value: $(tasks.verify-signature.status)}
         - {name: copy-status, value: $(tasks.copy-image.status)}
         - {name: promote-status, value: $(tasks.push-config.status)}
         - {name: sync-status, value: $(tasks.sync-application.status)}
       taskSpec:
         params:
+          - {name: verify-status, type: string}
           - {name: copy-status, type: string}
           - {name: promote-status, type: string}
           - {name: sync-status, type: string}
@@ -231,6 +311,7 @@ spec:
             script: |
               #!/usr/bin/env sh
               echo "===== Resumen de la promoción ====="
+              echo "Firma en origen : $(params.verify-status)"
               echo "Copia de imagen : $(params.copy-status)"
               echo "Push del overlay: $(params.promote-status)"
               echo "Sync de Argo    : $(params.sync-status)"

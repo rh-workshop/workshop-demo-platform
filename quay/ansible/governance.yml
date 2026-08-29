@@ -31,6 +31,14 @@
     # Cuota y retencion por organizacion. Las cuatro organizaciones son las de
     # organizations.yml; aqui solo cambia CUANTO guarda cada una.
     #
+    # RETENCION POR FECHA, NO POR NUMERO DE TAGS. cosign publica la firma y la
+    # atestacion SBOM como TAGS aparte del mismo repositorio (sha256-<hex>.sig y
+    # .att), asi que cada build deja TRES tags. Con method=number_of_tags, "las
+    # ultimas 10" se agotaban en tres commits y la poda borraba la .sig de una
+    # imagen todavia desplegada: la politica de admision la habria rechazado y se
+    # perdia la evidencia de procedencia. Podar por fecha borra imagen, firma y
+    # atestacion a la vez, que es lo coherente.
+    #
     # La retencion es inversa al flujo: en dev se acumulan muchas imágenes de
     # poca vida (cada commit publica una), mientras que en prod y contingencia
     # solo entra lo promocionado y hay que poder volver atrás varias versiones.
@@ -39,19 +47,20 @@
     organizations:
       - name: company-dev
         quota_bytes: 53687091200
-        # auto-prune: conservar las ultimas N tags por repo.
-        prune_keep_tags: 10
+        # auto-prune por ANTIGUEDAD: se conserva todo lo publicado en este plazo.
+        prune_keep_since: 4w
       - name: company-test
         quota_bytes: 53687091200
-        prune_keep_tags: 15
+        prune_keep_since: 12w
       - name: company-prod
         quota_bytes: 107374182400
-        # Mas historico: es de donde se revierte si un despliegue sale mal.
-        prune_keep_tags: 30
+        # Mas historico: es de donde se revierte si un despliegue sale mal, y es
+        # tambien la evidencia de que lo desplegado estaba firmado.
+        prune_keep_since: 52w
       - name: company-contingencia
         quota_bytes: 107374182400
         # Igual que prod: debe poder servir cualquier version que prod sirva.
-        prune_keep_tags: 30
+        prune_keep_since: 52w
 
   tasks:
     - name: Comprobar que hay credenciales
@@ -136,8 +145,8 @@
           Authorization: "Bearer {{ quay_token }}"
         body_format: json
         body:
-          method: number_of_tags
-          value: "{{ item.item.prune_keep_tags }}"
+          method: creation_date
+          value: "{{ item.item.prune_keep_since }}"
         status_code: [201]
         validate_certs: "{{ validate_certs }}"
       changed_when: true

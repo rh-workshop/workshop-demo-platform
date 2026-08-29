@@ -25,7 +25,11 @@
     keycloak_password: "{{ lookup('env', 'KEYCLOAK_PASSWORD') }}"
     keycloak_url: "https://{{ keycloak_host }}"
     realm: workshop
-    validar_certificados: false
+    # PRODUCCION: verificar SIEMPRE el certificado de Keycloak. Estaba cableado a
+    # false, y por esta llamada viaja la CONTRASENA DEL ADMIN del realm master: un
+    # MITM en la red del operador se llevaba el control del SSO entero. Ahora es
+    # true por defecto y solo se baja explicitamente con KEYCLOAK_VALIDATE_CERTS.
+    validar_certificados: "{{ lookup('env', 'KEYCLOAK_VALIDATE_CERTS') | default(true, true) }}"
 
     # El "qué" de este playbook: lo único que se edita al añadir una aplicación.
     # Cada servicio expuesto por el gateway (con su AuthPolicy que exige JWT) tiene
@@ -100,6 +104,8 @@
       loop: "{{ clients }}"
       loop_control:
         label: "{{ item.id }}"
+      # La cabecera lleva el token de administracion: sin esto un -vvv lo imprime.
+      no_log: true
 
     - name: Recordar cómo se obtiene el secreto del cliente
       ansible.builtin.debug:
