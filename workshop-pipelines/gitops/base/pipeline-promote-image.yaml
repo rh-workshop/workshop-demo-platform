@@ -1,0 +1,236 @@
+# Pipeline de PROMOCIÓN: copia una imagen entre organizaciones de Quay y
+# escribe el MISMO digest en el overlay del entorno destino.
+#
+# Es el tercer pipeline, complementario del CI y del CD: el CI publica en la
+# organización del entorno de desarrollo; a test/prod/contingencia NO se publica
+# nunca desde CI (sus robots pusher son de solo lectura) — se PROMOCIONA con
+# este pipeline. La copia va con `skopeo copy --all` (manifiesto completo,
+# todas las arquitecturas): copiar el manifiesto en vez de reconstruir es lo que
+# conserva el digest, así lo validado en test es byte a byte lo que corre en prod.
+#
+# CREDENCIALES — el corazón del aislamiento:
+#   · source-registry-credentials: LECTURA sobre la organización origen (vale el puller).
+#   · promotion-credentials: ESCRITURA sobre la organización destino. Es una
+#     credencial SEPARADA del pusher del CI a propósito: el pusher de CI no tiene
+#     write en prod/contingencia, y dársela rompería el aislamiento que justifica
+#     separar las organizaciones.
+#
+# UN SOLO PIPELINE PARAMETRIZADO sirve para dev->test y test->prod: la barrera
+# hacia prod NO la pone el pipeline sino el RBAC — quién puede crear un
+# PipelineRun en el namespace donde existe el Secret con escritura sobre
+# company-prod (ver el README de workshop-pipelines).
+#
+# La promoción del overlay es el mismo patrón que el CI: kustomize edit set
+# image + push con reintento; el auto-sync de Argo despliega. El sync explícito
+# final es OPCIONAL (param argocd-application vacío = no se pide).
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: promote-image
+spec:
+  params:
+    # Host del registro corporativo (Quay), sin protocolo, p. ej. quay.example.com.
+    - name: registry-host
+    # Organización ORIGEN de la copia (donde la imagen ya está validada), p. ej. company-dev.
+    - name: source-org
+    # Organización DESTINO de la promoción, p. ej. company-test o company-prod.
+    - name: target-org
+    # Nombre del repositorio de la imagen en Quay (igual en todas las organizaciones), p. ej. app-workshop.
+    - name: image-name
+    # Digest EXACTO a promocionar (sha256:...): la identidad criptográfica, nunca un tag.
+    - name: image-digest
+    # Tag con el que la imagen aparece en la organización destino; el inmutable git-<sha> del CI.
+    - name: image-tag
+    # Repo de configuración donde vive el overlay del entorno destino.
+    - {name: config-repo, default: "https://github.com/rh-workshop/workshop-demo-app-config.git"}
+    # Rama del repo de configuración: los entornos se separan por OVERLAY, no por rama.
+    - {name: config-revision, default: main}
+    # Overlay del entorno destino donde se fija el digest, p. ej. apps/demo-service/overlays/test.
+    - name: target-overlay-path
+    # Nombre LÓGICO de la imagen en el kustomization (campo images[].name), no la URL del registro.
+    - {name: kustomize-image-name, default: app-workshop}
+    # Application de Argo a sincronizar tras el push; VACÍO = no se pide sync (el auto-sync despliega igual).
+    - {name: argocd-application, default: ""}
+  workspaces:
+    - name: config
+    # Token con permiso de push al repo de configuración (mismo formato basic-auth que el CI).
+    - name: git-credentials
+    # Authfile de LECTURA sobre la organización origen (el robot puller basta).
+    - name: source-registry-credentials
+    # Authfile de ESCRITURA sobre la organización destino: la credencial de promoción, SEPARADA del pusher de CI.
+    - name: promotion-credentials
+  results:
+    - name: promoted-image
+      value: $(tasks.copy-image.results.promoted-image)
+  tasks:
+    # Copia el manifiesto completo (--all: todas las arquitecturas y la lista de
+    # manifiestos) y VERIFICA que el digest en destino es el mismo que salió.
+    - name: copy-image
+      # Un reintento absorbe los fallos transitorios de red contra el registro.
+      retries: 1
+      params:
+        - {name: registry-host, value: $(params.registry-host)}
+        - {name: source-org, value: $(params.source-org)}
+        - {name: target-org, value: $(params.target-org)}
+        - {name: image-name, value: $(params.image-name)}
+        - {name: image-digest, value: $(params.image-digest)}
+        - {name: image-tag, value: $(params.image-tag)}
+      workspaces:
+        - {name: source-registry-credentials, workspace: source-registry-credentials}
+        - {name: promotion-credentials, workspace: promotion-credentials}
+      taskSpec:
+        params:
+          - {name: registry-host, type: string}
+          - {name: source-org, type: string}
+          - {name: target-org, type: string}
+          - {name: image-name, type: string}
+          - {name: image-digest, type: string}
+          - {name: image-tag, type: string}
+        workspaces:
+          - name: source-registry-credentials
+          - name: promotion-credentials
+        results:
+          # Referencia completa por digest en la organización destino: lo que se escribe en el overlay.
+          - name: promoted-image
+        steps:
+          - name: skopeo-copy-and-verify
+            image: registry.redhat.io/rhel9/skopeo:9.8
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              SRC="docker://$(params.registry-host)/$(params.source-org)/$(params.image-name)@$(params.image-digest)"
+              DST="docker://$(params.registry-host)/$(params.target-org)/$(params.image-name):$(params.image-tag)"
+              echo "Promocionando ${SRC} -> ${DST}"
+              # --all copia el manifiesto COMPLETO: es lo que hace que el digest se conserve en destino.
+              skopeo copy --all \
+                --src-authfile "$(workspaces.source-registry-credentials.path)/config.json" \
+                --dest-authfile "$(workspaces.promotion-credentials.path)/config.json" \
+                "$SRC" "$DST"
+              # Verificación: el digest en destino DEBE ser el promocionado; si difiere, algo reescribió el manifiesto y se aborta.
+              DIGEST_DESTINO=$(skopeo inspect --no-tags --format '{{.Digest}}' \
+                --authfile "$(workspaces.promotion-credentials.path)/config.json" "$DST")
+              if [ "$DIGEST_DESTINO" != "$(params.image-digest)" ]; then
+                echo "ERROR: el digest en destino (${DIGEST_DESTINO}) no coincide con el promocionado ($(params.image-digest))." >&2
+                exit 1
+              fi
+              echo "Digest verificado en destino: ${DIGEST_DESTINO}"
+              printf '%s/%s/%s@%s' "$(params.registry-host)" "$(params.target-org)" "$(params.image-name)" "$(params.image-digest)" \
+                | tee $(results.promoted-image.path)
+
+    - name: clone-config-repo
+      runAfter: [copy-image]
+      # Un reintento absorbe los fallos transitorios de red contra el repositorio remoto.
+      retries: 1
+      taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: git-clone}, {name: namespace, value: openshift-pipelines}]}
+      params:
+        - {name: URL, value: $(params.config-repo)}
+        - {name: REVISION, value: $(params.config-revision)}
+      workspaces: [{name: output, workspace: config}]
+
+    # Fija en el overlay destino la imagen de la ORGANIZACIÓN DESTINO con el MISMO
+    # digest: el entorno promocionado descarga de su propia organización.
+    - name: set-image-digest
+      runAfter: [clone-config-repo]
+      params:
+        - {name: target-overlay-path, value: $(params.target-overlay-path)}
+        - {name: kustomize-image-name, value: $(params.kustomize-image-name)}
+        - {name: promoted-image, value: $(tasks.copy-image.results.promoted-image)}
+      taskSpec:
+        params:
+          - {name: target-overlay-path, type: string}
+          - {name: kustomize-image-name, type: string}
+          - {name: promoted-image, type: string}
+        workspaces:
+          - name: config
+        steps:
+          - name: kustomize-set-image
+            # La imagen de Argo CD del operador GitOps ya instalado trae kustomize y git: no hace falta traer nada nuevo al cluster.
+            image: registry.redhat.io/openshift-gitops-1/argocd-rhel9:1.21
+            workingDir: $(workspaces.config.path)/$(params.target-overlay-path)
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              # newName y digest completos: al promocionar cambia la ORGANIZACIÓN de la imagen, no solo el digest.
+              kustomize edit set image "$(params.kustomize-image-name)=$(params.promoted-image)"
+              echo "Overlay actualizado:" && cat kustomization.yaml
+
+    - name: push-config
+      runAfter: [set-image-digest]
+      taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: git-cli}, {name: namespace, value: openshift-pipelines}]}
+      params:
+        - {name: GIT_USER_NAME, value: "pipeline-promote"}
+        - {name: GIT_USER_EMAIL, value: "pipeline-promote@ejemplo.local"}
+        # La task git-cli borra el workspace entero antes de correr (DELETE_EXISTING vale "true" por defecto): hay que apagarlo o pierde el clon de la tarea anterior.
+        - {name: DELETE_EXISTING, value: "false"}
+        - name: GIT_SCRIPT
+          value: |
+            set -eu
+            # El workspace se monta en rutas distintas según la task (git-clone lo llama "output" y git-cli "source"): se parte de la ruta que declara ESTA task.
+            cd $(workspaces.source.path)
+            # Se añade SOLO el fichero tocado: un "commit -a" arrastraría cualquier otro cambio del workspace.
+            git add $(params.target-overlay-path)/kustomization.yaml
+            # Sin cambios (mismo digest ya promocionado) no hay nada que hacer: se sale con éxito.
+            if git diff --cached --quiet; then
+              echo "El overlay ya apunta a este digest en la organización destino; no se promociona nada."
+              exit 0
+            fi
+            git commit -m "ci: promote $(params.image-name) to $(params.target-org) at digest $(params.image-digest)"
+            # Reintento con rebase: si otro PipelineRun empujó antes, el push sería non-fast-forward.
+            # git-clone deja el repo en detached HEAD: hay que calificar la rama destino.
+            for intento in 1 2 3; do
+              if git push origin HEAD:$(params.config-revision); then
+                exit 0
+              fi
+              echo "Push rechazado (intento ${intento}): se rebasa sobre el remoto y se reintenta."
+              git fetch origin $(params.config-revision)
+              git rebase FETCH_HEAD
+            done
+            echo "No se pudo empujar tras 3 intentos." >&2
+            exit 1
+      workspaces:
+        - {name: source, workspace: config}
+        - {name: basic-auth, workspace: git-credentials}
+
+    # OPCIONAL: sync explícito + espera de salud de la Application del entorno
+    # destino. Con el param vacío la tarea se salta: el auto-sync despliega igual.
+    - name: sync-application
+      runAfter: [push-config]
+      when:
+        - input: $(params.argocd-application)
+          operator: notin
+          values: [""]
+      taskRef: {name: argocd-sync}
+      params:
+        - {name: application-name, value: $(params.argocd-application)}
+        - {name: revision, value: $(params.config-revision)}
+
+  # El resumen corre SIEMPRE (finally), incluso si una tarea cortó el pipeline.
+  finally:
+    - name: pipeline-summary
+      params:
+        - {name: copy-status, value: $(tasks.copy-image.status)}
+        - {name: promote-status, value: $(tasks.push-config.status)}
+        - {name: sync-status, value: $(tasks.sync-application.status)}
+      taskSpec:
+        params:
+          - {name: copy-status, type: string}
+          - {name: promote-status, type: string}
+          - {name: sync-status, type: string}
+        steps:
+          - name: report
+            image: registry.redhat.io/ubi9/ubi-minimal:9.6
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              echo "===== Resumen de la promoción ====="
+              echo "Copia de imagen : $(params.copy-status)"
+              echo "Push del overlay: $(params.promote-status)"
+              echo "Sync de Argo    : $(params.sync-status)"
