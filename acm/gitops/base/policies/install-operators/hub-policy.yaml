@@ -91,3 +91,42 @@ spec:
             channel: latest
             source: redhat-operators
             sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: rhcl-operator
+        spec:
+          # El hub TAMBIEN expone APIs (config-connectivity-link-hub despliega el
+          # Gateway compartido y el CR Kuadrant para los servicios del workshop y
+          # los previews por PR): sin este operador esa Application nunca sincroniza.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - rhcl-operator.v1.4.2   # pin: solo esta CSV; el upgrade se decide por PR en Git
+          subscription:
+            name: rhcl-operator
+            namespace: kuadrant-system
+            channel: stable
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: servicemesh-operator
+        spec:
+          # Dependencia de Connectivity Link en el hub: el Gateway compartido usa el
+          # gatewayClass 'istio' (Sail/OSSM 3), igual que en los spokes workload.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - servicemeshoperator3.v3.4.1   # pin: solo esta CSV; el upgrade se decide por PR en Git
+          subscription:
+            name: servicemeshoperator3
+            namespace: openshift-operators
+            channel: stable
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace

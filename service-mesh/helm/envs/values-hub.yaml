@@ -1,0 +1,8 @@
+# Overrides del ambiente HUB.
+#
+# El hub necesita el plano de control de Istio por la misma razon que necesita
+# Kuadrant: el Gateway compartido (gatewayClass 'istio') sirve los servicios del
+# workshop y los previews por PR, que corren en el propio hub. Se usan los
+# defaults de values.yaml (recursos minimos, InPlace, PERMISSIVE, 1 replica).
+updateStrategy: InPlace
+mtlsMode: PERMISSIVE

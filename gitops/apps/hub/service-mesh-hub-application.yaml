@@ -1,0 +1,46 @@
+# Application de service-mesh en el HUB: el plano de control de Istio (Sail).
+#
+# Es dependencia de config-connectivity-link-hub: el Gateway compartido del hub
+# usa el gatewayClass 'istio', que no existe hasta que este chart crea el CR
+# Istio (y su IstioCNI). En los spokes lo mismo lo hacen los ApplicationSets
+# service-mesh-dev/prod; el hub es un destino unico y fijo, asi que va como
+# Application suelta (misma regla que el resto de apps/hub/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: config-service-mesh-hub
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: service-mesh
+    workshop.redhat.com/environment: hub
+  annotations:
+    # Wave 2: junto al resto de productos del hub; connectivity-link reintenta con backoff hasta que el gatewayClass exista.
+    argocd.argoproj.io/sync-wave: "2"
+  namespace: openshift-gitops
+spec:
+  project: workshop-multicluster
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: service-mesh/helm
+    helm:
+      valueFiles:
+        - envs/values-hub.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    retry:
+      # Arranque en frio: el CRD del producto lo instala ACM por su cuenta y puede
+      # tardar minutos. Sin backoff, Argo agota los 5 intentos rapidos y se rinde.
+      limit: 20
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
