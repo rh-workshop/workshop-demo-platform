@@ -28,6 +28,8 @@ rules:
       - quay.redhat.com
       # NooBaa (MCG standalone): el object storage de Quay en un entorno sin ODF.
       - noobaa.io
+      # cert-manager en el HUB: los ClusterIssuer/Certificate del gateway compartido (en los spokes aplica el token del cluster secret).
+      - cert-manager.io
       - rhdh.redhat.com
       - operator.tekton.dev
       # Keycloak, MetalLB y Service Mesh (para el hub; en los spokes aplica el token del cluster secret).
