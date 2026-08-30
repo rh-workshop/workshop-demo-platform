@@ -16,12 +16,7 @@ metadata:
   namespace: openshift-storage
 spec:
   # Base de datos del MCG sobre la StorageClass por defecto del cluster (EBS gp3).
+  # El backing store por defecto lo crea SOLO el operador (defaultBackingStoreSpec
+  # está deprecado y hace que el CR quede Rejected): en AWS provisiona un bucket
+  # S3 con las credenciales del cluster; sin cloud provider cae a pv-pool.
   dbType: postgres
-  # Backing store por defecto en pv-pool: volumenes EBS, sin credenciales cloud.
-  defaultBackingStoreSpec:
-    type: pv-pool
-    pvPool:
-      numVolumes: 1
-      resources:
-        requests:
-          storage: 50Gi
