@@ -1,0 +1,79 @@
+# Task de SAST: analiza el CODIGO FUENTE antes de construir la imagen.
+#
+# POR QUE HACE FALTA, TENIENDO YA image-scan: son controles DISTINTOS. El escaneo
+# de imagen (roxctl/ACS) encuentra CVEs en las DEPENDENCIAS ya empaquetadas; el
+# analisis estatico encuentra defectos en el CODIGO PROPIO — inyeccion SQL,
+# secretos incrustados, deserializacion insegura, criptografia debil. Una imagen
+# puede pasar el escaneo con cero CVEs y aun asi llevar dentro una vulnerabilidad
+# escrita por el equipo. ISO 27001:2022 8.28 (codificacion segura) pide justo esto.
+#
+# Corre ANTES del build a proposito: si el codigo no pasa, no se gasta tiempo
+# construyendo ni se publica un artefacto que habria que retirar despues.
+#
+# ELECCION DE IMAGEN, documentada porque rompe la norma "solo Red Hat": no existe
+# analizador SAST en registry.redhat.io. Se usa Semgrep (LGPL, reglas abiertas)
+# ESPEJADO en el Quay corporativo y fijado por DIGEST, nunca tirando de Docker Hub
+# en tiempo de build: asi la herramienta entra en el mismo inventario, escaneo y
+# control de cambios que cualquier otra imagen. Mismo criterio que syft en
+# sbom-generate-task. Espejado (una vez, por quien gobierna el registro):
+#   skopeo copy docker://docker.io/semgrep/semgrep:1.79.0 \
+#     docker://<QUAY_HOST>/company-tooling/semgrep:1.79.0
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: code-scan
+spec:
+  params:
+    # Imagen de Semgrep espejada en el registro corporativo, por digest.
+    - {name: scanner-image, type: string}
+    # Conjuntos de reglas: los dos por defecto cubren OWASP Top 10 y auditoria de seguridad.
+    - {name: rulesets, type: string, default: "p/security-audit p/owasp-top-ten"}
+    # "false" (por defecto) INFORMA y continua; "true" corta el pipeline si hay hallazgos.
+    # Igual criterio que image-scan: se arranca informando para no bloquear con ruido
+    # inicial, pero en produccion esto DEBE ir en "true" o el control es decorativo.
+    - {name: fail-on-violation, type: string, default: "false"}
+    # Severidad minima que se reporta: INFO, WARNING o ERROR.
+    - {name: severity, type: string, default: "ERROR"}
+  workspaces:
+    # Codigo fuente ya clonado por la tarea anterior del pipeline.
+    - name: source
+  results:
+    # Numero de hallazgos, para que el pipeline lo publique en su resumen.
+    - {name: findings, description: Hallazgos encontrados por el analisis estatico}
+  steps:
+    - name: semgrep-scan
+      image: $(params.scanner-image)
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        echo "Analisis estatico sobre $(workspaces.source.path)"
+
+        # --error hace que semgrep salga 1 si encuentra algo; se captura para
+        # decidir segun fail-on-violation en vez de cortar siempre.
+        SALIDA=0
+        semgrep scan \
+          --config=$(echo "$(params.rulesets)" | sed 's/ / --config=/g') \
+          --severity=$(params.severity) \
+          --json --output=/tmp/semgrep.json \
+          --error --quiet || SALIDA=$?
+
+        # El recuento sale del JSON: es el dato que se publica como result.
+        HALLAZGOS=$(grep -o '"check_id"' /tmp/semgrep.json 2>/dev/null | wc -l | tr -d ' ')
+        printf '%s' "${HALLAZGOS}" > $(results.findings.path)
+        echo "Hallazgos (severidad $(params.severity)): ${HALLAZGOS}"
+
+        if [ "${HALLAZGOS}" -gt 0 ]; then
+          echo "--- detalle ---"
+          semgrep scan --config=p/security-audit --severity=$(params.severity) --quiet || true
+          if [ "$(params.fail-on-violation)" = "true" ]; then
+            echo "FALLA: hay hallazgos y fail-on-violation=true."
+            exit 1
+          fi
+          echo "AVISO: hay hallazgos pero fail-on-violation=false; el pipeline continua."
+        else
+          echo "Sin hallazgos por encima del umbral."
+        fi

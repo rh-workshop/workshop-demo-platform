@@ -1,0 +1,65 @@
+# Pipelines as Code (PAC): dispara el CI desde los eventos de Git.
+#
+# QUE RESUELVE. Hasta ahora todo se lanzaba a mano (`oc create -f runs/...`), asi
+# que el pipeline solo corria si alguien se acordaba: un commit podia llegar a
+# `main` sin construirse, sin firmarse y sin escanearse. PAC invierte eso — el
+# evento de Git es lo que arranca el pipeline, no una persona.
+#
+# POR QUE PAC Y NO Triggers a secas: PAC viene DENTRO de OpenShift Pipelines (no
+# se instala nada nuevo, no hay imagenes de terceros) y ademas devuelve el
+# resultado al pull request como commit status, que es lo que permite exigir
+# "el CI en verde" antes de mezclar. Un EventListener suelto no hace eso.
+#
+# COMO FUNCIONA. Cada repositorio de aplicacion declara aqui un CR Repository. A
+# partir de ese momento, PAC busca PipelineRuns en la carpeta `.tekton/` DE ESE
+# REPO y los ejecuta en ESTE namespace, donde viven el Pipeline y las Tasks. El
+# equipo de la aplicacion decide QUE se ejecuta; la plataforma sigue gobernando
+# CON QUE (las Tasks) y CON QUE PERMISOS (el ServiceAccount).
+#
+# SECRETOS, fuera de Git como siempre. Dos, creados una sola vez:
+#   # PAT con permiso de leer el repo y escribir commit statuses
+#   oc create secret generic pac-git-token -n <ns-pipelines> \
+#     --from-literal=token=<PAT>
+#   # Secreto HMAC compartido con el webhook de GitHub: sin el, cualquiera
+#   # podria falsificar un evento y lanzar el pipeline con lo que quisiera
+#   oc create secret generic pac-webhook-secret -n <ns-pipelines> \
+#     --from-literal=webhook.secret=$(openssl rand -hex 20)
+#
+# En GitHub, en cada repo: Settings > Webhooks > Add webhook, apuntando a la ruta
+# `pipelines-as-code-controller` del cluster, content-type JSON y ese mismo secreto.
+---
+# Repositorio de CONFIGURACION: sus PRs son los que despliegan (previews incluidos).
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  annotations:
+    # El CRD lo trae OpenShift Pipelines: si el sync corre antes de que el operador termine, el dry-run no debe invalidar la Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: workshop-demo-app-config
+spec:
+  url: https://github.com/rh-workshop/workshop-demo-app-config
+  git_provider:
+    secret:
+      name: pac-git-token
+      key: token
+    webhook_secret:
+      name: pac-webhook-secret
+      key: webhook.secret
+---
+# Repositorio de CODIGO: sus commits son los que disparan build, firma y escaneo.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  annotations:
+    # El CRD lo trae OpenShift Pipelines: si el sync corre antes de que el operador termine, el dry-run no debe invalidar la Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: workshop-demo-app
+spec:
+  url: https://github.com/rh-workshop/workshop-demo-app
+  git_provider:
+    secret:
+      name: pac-git-token
+      key: token
+    webhook_secret:
+      name: pac-webhook-secret
+      key: webhook.secret

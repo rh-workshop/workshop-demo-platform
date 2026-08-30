@@ -20,6 +20,11 @@ spec:
     - {name: overlay-path, default: apps/demo-service/overlays/dev}
     # Nombre REAL de la Application en Argo CD (el ApplicationSet la genera con prefijo "app-").
     - {name: argocd-application, default: app-demo-service-dev}
+    # URL del servicio ya expuesto, para la prueba de humo. Vacío = no se comprueba.
+    - {name: target-url, default: ""}
+    # Código HTTP esperado: 200 si la ruta es abierta, 401 si exige JWT y solo se
+    # quiere verificar que el gateway y la AuthPolicy están en su sitio.
+    - {name: expected-status, default: "200"}
   workspaces:
     - name: config
   tasks:
@@ -47,3 +52,18 @@ spec:
         - {name: application-name, value: $(params.argocd-application)}
         # Con auto-sync activo Argo solo acepta sincronizar a la MISMA revisión que sigue la Application (HEAD lo rechaza).
         - {name: revision, value: $(params.config-revision)}
+
+    # Última comprobación: que el servicio RESPONDA. Que Argo diga Healthy solo
+    # significa que los pods arrancaron; un HTTPRoute mal formado, un hostname
+    # equivocado o una AuthPolicy que rechaza todo dejan la Application en verde y
+    # el servicio inalcanzable. Se omite si no se pasa target-url.
+    - name: smoke-test
+      runAfter: [sync-with-argocd]
+      when:
+        - input: $(params.target-url)
+          operator: notin
+          values: [""]
+      taskRef: {name: smoke-test}
+      params:
+        - {name: target-url, value: $(params.target-url)}
+        - {name: expected-status, value: $(params.expected-status)}

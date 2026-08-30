@@ -1,0 +1,92 @@
+# Task de PRUEBA DE HUMO: comprueba que lo desplegado RESPONDE de verdad.
+#
+# POR QUE HACE FALTA, TENIENDO YA el sync de Argo: son cosas distintas. Que una
+# Application quede Healthy significa que los pods arrancaron y pasaron sus
+# probes; NO significa que el servicio conteste a traves del gateway, con su
+# AuthPolicy y su ruta. Un HTTPRoute mal formado, un hostname equivocado o una
+# AuthPolicy que rechaza todo dejan la Application en verde y el servicio
+# inalcanzable. Esta tarea es la que nota esa diferencia.
+#
+# Dos pasos, de menos a mas: primero se comprueba que el endpoint responde
+# (humo), y solo si hay carga configurada se ejecuta k6. Asi el caso comun no
+# arrastra una dependencia externa.
+#
+# ELECCION DE IMAGEN, documentada porque rompe la norma "solo Red Hat": el paso
+# de humo usa ubi9-minimal (Red Hat, con curl), asi que el caso por defecto no
+# tiene ninguna desviacion. Solo el paso OPCIONAL de carga usa k6, que no tiene
+# equivalente en registry.redhat.io; va ESPEJADO en el Quay corporativo y fijado
+# por digest, igual que semgrep y syft. Espejado (una vez):
+#   skopeo copy docker://docker.io/grafana/k6:0.54.0 \
+#     docker://<QUAY_HOST>/company-tooling/k6:0.54.0
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: smoke-test
+spec:
+  params:
+    # URL completa del servicio ya desplegado, p. ej. https://apis.<dominio>/demo
+    - {name: target-url, type: string}
+    # Codigo HTTP que se considera sano. 200 por defecto; 401 si la ruta exige JWT
+    # y se quiere comprobar solo que el gateway y la AuthPolicy estan en su sitio.
+    - {name: expected-status, type: string, default: "200"}
+    # Reintentos antes de darlo por fallido: un despliegue recien sincronizado
+    # tarda en tener endpoints listos, y fallar al primer intento seria un falso negativo.
+    - {name: retries, type: string, default: "12"}
+    - {name: retry-delay, type: string, default: "10"}
+    # Carga OPCIONAL: vacio = no se ejecuta k6 y no se usa ninguna imagen externa.
+    - {name: k6-image, type: string, default: ""}
+    # Usuarios virtuales y duracion de la prueba de carga; solo aplican si hay k6-image.
+    - {name: k6-vus, type: string, default: "5"}
+    - {name: k6-duration, type: string, default: "30s"}
+  results:
+    - {name: status, description: Codigo HTTP devuelto por el servicio}
+  steps:
+    - name: http-smoke
+      # UBI de Red Hat: el caso por defecto no depende de ningun registro externo.
+      image: registry.redhat.io/ubi9/ubi-minimal:9.6
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        microdnf install -y --nodocs curl >/dev/null 2>&1 || true
+
+        echo "Probando $(params.target-url) (se espera HTTP $(params.expected-status))"
+        INTENTO=1
+        while [ "${INTENTO}" -le "$(params.retries)" ]; do
+          # -k porque el certificado del gateway puede ser interno; la prueba valida
+          # alcanzabilidad y enrutado, no la cadena de confianza (eso lo cubre cert-manager).
+          CODIGO=$(curl -s -o /dev/null -w '%{http_code}' -k --max-time 10 "$(params.target-url)" || echo "000")
+          echo "  intento ${INTENTO}/$(params.retries): HTTP ${CODIGO}"
+          if [ "${CODIGO}" = "$(params.expected-status)" ]; then
+            printf '%s' "${CODIGO}" > $(results.status.path)
+            echo "El servicio responde correctamente."
+            exit 0
+          fi
+          INTENTO=$((INTENTO + 1))
+          sleep "$(params.retry-delay)"
+        done
+
+        printf '%s' "${CODIGO}" > $(results.status.path)
+        echo "FALLA: tras $(params.retries) intentos el servicio devuelve ${CODIGO}, no $(params.expected-status)."
+        exit 1
+
+    - name: k6-load
+      # Si k6-image esta vacio este paso no hace nada: la imagen se resuelve a
+      # ubi-minimal y el script sale de inmediato, sin dependencia externa.
+      image: registry.redhat.io/ubi9/ubi-minimal:9.6
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        if [ -z "$(params.k6-image)" ]; then
+          echo "Sin k6-image: se omite la prueba de carga (solo se hizo la de humo)."
+          exit 0
+        fi
+        # k6 corre como Task aparte cuando se configura: mantener aqui la imagen
+        # externa obligaria a descargarla SIEMPRE, incluso sin usarla.
+        echo "k6-image configurada ($(params.k6-image)): lanzar la Task k6-load-test."
+        echo "Ver workshop-pipelines/README.md, seccion de pruebas."

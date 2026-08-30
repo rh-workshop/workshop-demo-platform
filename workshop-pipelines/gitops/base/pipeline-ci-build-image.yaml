@@ -46,6 +46,11 @@ spec:
     - {name: scan-fail-on-violation, default: "false"}
     # Endpoint de ACS Central; por defecto el Service interno del cluster.
     - {name: rox-central-endpoint, default: "central.stackrox.svc:443"}
+    # Analizador SAST espejado en el registro corporativo (nunca desde Docker Hub en
+    # tiempo de build): ver la cabecera de code-scan-task.yaml para el skopeo copy.
+    - {name: sast-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/semgrep:1.79.0"}
+    # "false" informa de los hallazgos y sigue; "true" corta. En producción va en "true".
+    - {name: sast-fail-on-violation, default: "false"}
   workspaces:
     - name: source
     - name: config
@@ -71,6 +76,21 @@ spec:
         - {name: URL, value: $(params.app-repo)}
         - {name: REVISION, value: $(params.revision)}
       workspaces: [{name: output, workspace: source}]
+      # El SAST se encadena aquí (ver scan-source-code): el resto del pipeline
+      # cuelga de él, no del clone, para que nada se construya sin haberlo pasado.
+
+    # --- SECCIÓN SAST: el código ANTES que el binario ---
+    # Va aquí, no después del build, porque si el código no pasa no tiene sentido
+    # gastar minutos construyendo ni publicar un artefacto que habría que retirar.
+    # Encuentra lo que image-scan NO ve: defectos escritos por el equipo (inyección,
+    # secretos incrustados, cripto débil), no CVEs de dependencias empaquetadas.
+    - name: scan-source-code
+      runAfter: [clone-source-code]
+      taskRef: {name: code-scan}
+      params:
+        - {name: scanner-image, value: $(params.sast-scanner-image)}
+        - {name: fail-on-violation, value: $(params.sast-fail-on-violation)}
+      workspaces: [{name: source, workspace: source}]
 
     # --- SECCIÓN TAGGING: deriva el tag inmutable del commit REAL clonado y
     # aplica la IDEMPOTENCIA: si git-<sha> ya existe en el registro, el commit ya
@@ -80,7 +100,7 @@ spec:
     # el tag se re-apuntaría y el digest anterior quedaría huérfano: Quay lo
     # purga y todo commit del repo de config que lo referencie pierde el rollback.
     - name: resolve-image-tags
-      runAfter: [clone-source-code]
+      runAfter: [scan-source-code]
       params:
         - {name: commit, value: $(tasks.clone-source-code.results.COMMIT)}
         - {name: image-repository, value: $(params.image-repository)}
