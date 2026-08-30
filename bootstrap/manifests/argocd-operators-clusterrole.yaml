@@ -26,6 +26,8 @@ rules:
       - config.stackrox.io
       # Quay, Developer Hub y Pipelines.
       - quay.redhat.com
+      # NooBaa (MCG standalone): el object storage de Quay en un entorno sin ODF.
+      - noobaa.io
       - rhdh.redhat.com
       - operator.tekton.dev
       # Keycloak, MetalLB y Service Mesh (para el hub; en los spokes aplica el token del cluster secret).

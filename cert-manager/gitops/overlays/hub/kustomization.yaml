@@ -1,0 +1,7 @@
+# En el hub aplica el mismo criterio que en dev: la CA propia del taller basta
+# para el trafico interno (el TLSPolicy del gateway del hub usa el ClusterIssuer
+# selfsigned de la base).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base

@@ -13,6 +13,8 @@ resources:
   - hub/developer-hub-application.yaml
   # Istio (Sail) en el hub: provee el gatewayClass 'istio' del que depende connectivity-link.
   - hub/service-mesh-hub-application.yaml
+  # ClusterIssuers en el hub: el TLSPolicy del gateway compartido depende de ellos.
+  - hub/cert-manager-hub-application.yaml
   - hub/connectivity-link-application.yaml
   # Argo Rollouts (RolloutManager): lo consume el canary automático del workshop.
   - hub/rollouts-application.yaml

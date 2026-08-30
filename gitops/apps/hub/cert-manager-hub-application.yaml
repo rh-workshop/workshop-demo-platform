@@ -1,0 +1,43 @@
+# Application de cert-manager en el HUB: los ClusterIssuer de la plataforma.
+#
+# Es dependencia de config-connectivity-link-hub: el TLSPolicy del Gateway
+# compartido referencia el ClusterIssuer 'selfsigned', y sin él el gateway del
+# hub se queda sin certificado (listener invalid) y ninguna HTTPRoute se adjunta.
+# En los spokes lo mismo lo hace el ApplicationSet workload-*; el hub es un
+# destino único y fijo, así que va como Application suelta.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: config-cert-manager-hub
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: cert-manager
+    workshop.redhat.com/environment: hub
+  annotations:
+    # Wave 2: junto al resto de productos del hub; connectivity-link reintenta con backoff hasta que el issuer exista.
+    argocd.argoproj.io/sync-wave: "2"
+  namespace: openshift-gitops
+spec:
+  project: workshop-multicluster
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: cert-manager/gitops/overlays/hub
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    retry:
+      # Arranque en frio: el CRD del producto lo instala ACM por su cuenta y puede
+      # tardar minutos. Sin backoff, Argo agota los 5 intentos rapidos y se rinde.
+      limit: 20
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
