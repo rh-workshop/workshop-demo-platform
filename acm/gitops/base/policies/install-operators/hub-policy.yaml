@@ -95,6 +95,27 @@ spec:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
+          name: mcg-operator
+        spec:
+          # Multicloud Object Gateway (NooBaa standalone): provee el API
+          # ObjectBucketClaim que exige el objectstorage 'managed' del QuayRegistry.
+          # NO-PRODUCCION: en este entorno AWS no hay ODF; en produccion el storage
+          # de Quay es S3/Azure Blob unmanaged (ver docs/production-outside-the-lab.md).
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - mcg-operator.v4.22.2-rhodf   # pin: solo esta CSV; el upgrade se decide por PR en Git
+          subscription:
+            name: mcg-operator
+            namespace: openshift-storage
+            channel: stable-4.22
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
           name: rhcl-operator
         spec:
           # El hub TAMBIEN expone APIs (config-connectivity-link-hub despliega el

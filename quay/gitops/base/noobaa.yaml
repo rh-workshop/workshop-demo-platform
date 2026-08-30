@@ -1,0 +1,27 @@
+# NooBaa (Multicloud Object Gateway standalone): el proveedor de object storage
+# del QuayRegistry en este entorno. El componente objectstorage 'managed' de Quay
+# exige el API ObjectBucketClaim, y en un cluster sin ODF nadie lo sirve: este CR
+# levanta el MCG (operador mcg-operator, instalado por la OperatorPolicy del hub)
+# con un backing store pv-pool sobre EBS.
+# NO-PRODUCCION: en produccion el storage de Quay es S3/RADOS GW/Azure Blob
+# unmanaged (managed: false + DISTRIBUTED_STORAGE_CONFIG); ver
+# docs/production-outside-the-lab.md.
+apiVersion: noobaa.io/v1alpha1
+kind: NooBaa
+metadata:
+  annotations:
+    # El CRD lo instala ACM (OperatorPolicy mcg-operator): sin esto el dry-run del arranque en frio invalida la Application entera.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: noobaa
+  namespace: openshift-storage
+spec:
+  # Base de datos del MCG sobre la StorageClass por defecto del cluster (EBS gp3).
+  dbType: postgres
+  # Backing store por defecto en pv-pool: volumenes EBS, sin credenciales cloud.
+  defaultBackingStoreSpec:
+    type: pv-pool
+    pvPool:
+      numVolumes: 1
+      resources:
+        requests:
+          storage: 50Gi

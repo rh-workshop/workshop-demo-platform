@@ -30,6 +30,9 @@ spec:
     namespace: open-cluster-management
   - server: '*'
     namespace: quay-enterprise
+  # NooBaa (MCG standalone): el object storage del que depende el QuayRegistry en este entorno sin ODF.
+  - server: '*'
+    namespace: openshift-storage
   - server: '*'
     namespace: stackrox
   - server: '*'
@@ -138,6 +141,9 @@ spec:
   # Quay y Developer Hub.
   - group: quay.redhat.com
     kind: QuayRegistry
+  # NooBaa (MCG standalone): object storage de Quay en este entorno sin ODF.
+  - group: noobaa.io
+    kind: NooBaa
   - group: rhdh.redhat.com
     kind: Backstage
   # Connectivity Link: Gateway API + CRs de Kuadrant y sus componentes.

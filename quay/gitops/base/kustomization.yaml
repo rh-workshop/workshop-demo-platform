@@ -1,4 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # NooBaa antes que el QuayRegistry: el objectstorage 'managed' depende de su API.
+  - noobaa.yaml
   - quayregistry.yaml
