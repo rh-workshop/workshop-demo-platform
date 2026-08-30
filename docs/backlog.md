@@ -47,7 +47,10 @@ entero — operador y configuración — sin tocar el playbook.
 ## 1-bis. Promoción de imágenes entre organizaciones de Quay — HECHO
 
 **Implementado** en `workshop-pipelines/gitops/base/pipeline-promote-image.yaml`
-(con su run de ejemplo en `workshop-pipelines/runs/pipelinerun-promote-image.yaml`):
+(con un run por salto de la cadena **dev → test → prod → contingencia**:
+`pipelinerun-promote-dev-to-test.yaml`, `-test-to-prod.yaml` y
+`-prod-to-contingencia.yaml`; los tres invocan el mismo pipeline y solo cambian
+`source-org`, `target-org` y el overlay destino):
 `skopeo copy --all` entre organizaciones (verificando que el digest en destino
 coincide), `kustomize edit set image` sobre el overlay del entorno destino con el
 MISMO digest, push con reintento y sync opcional de Argo. La credencial de

@@ -1,0 +1,75 @@
+# Promoción PROD -> CONTINGENCIA (último salto de la cadena).
+#
+# El sitio de contingencia sirve EXACTAMENTE lo mismo que producción: por eso el
+# origen es `company-prod` y no `company-test`. Promocionar desde test dejaría a
+# contingencia sirviendo una versión distinta de la que corre en producción, que
+# es justo lo que un failover no puede permitirse.
+#
+# Igual que el salto a prod, la barrera es el RBAC: la credencial con escritura
+# sobre `company-contingencia` solo existe donde esté autorizado (ver el README).
+#
+#   oc create -f workshop-pipelines/runs/pipelinerun-promote-prod-to-contingencia.yaml -n workshop-demo-dev
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: promote-prod-to-contingencia-
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  pipelineRef:
+    name: promote-image
+  taskRunTemplate:
+    serviceAccountName: builder
+  # Cota explícita: si el run se cuelga (registro caído, push bloqueado) no queda corriendo para siempre.
+  timeouts:
+    pipeline: 30m0s
+  params:
+    # Host del registro corporativo (Quay), sin protocolo.
+    - name: registry-host
+      value: CHANGE_ME_QUAY_HOST
+    - name: source-org
+      value: company-prod
+    - name: target-org
+      value: company-contingencia
+    - name: image-name
+      value: app-workshop
+    # Digest EXACTO que corre en PRODUCCION: contingencia debe servir lo mismo.
+    - name: image-digest
+      value: sha256:CHANGE_ME_DIGEST
+    # Tag inmutable con el que la imagen aparece en la organización destino (el git-<sha> del CI).
+    - name: image-tag
+      value: git-CHANGE_ME
+    # Overlay del ENTORNO DESTINO: la promoción escribe el digest ahí, nunca en el de origen.
+    - name: target-overlay-path
+      value: apps/demo-service/overlays/contingencia
+    # Vacío = sin sync explícito (el auto-sync de Argo despliega igual); poner el nombre real para validar la salud.
+    - name: argocd-application
+      value: ""
+  workspaces:
+    - name: config
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          # Sin storageClassName se usa la StorageClass por defecto del cluster (debe ser RWO).
+          resources:
+            requests:
+              storage: 1Gi
+    - name: git-credentials
+      # Secret basic-auth con permiso de push al repo de configuración; el mismo que usa el CI.
+      secret:
+        secretName: git-credentials
+    - name: source-registry-credentials
+      # LECTURA sobre company-prod.
+      secret:
+        secretName: quay-push-credentials
+    - name: promotion-credentials
+      # ESCRITURA sobre company-contingencia: credencial SEPARADA del CI, creada FUERA de Git (ver README).
+      secret:
+        secretName: quay-promotion-credentials
+    - name: signing-key
+      # Llavero cosign: la promoción solo usa la clave PÚBLICA para verificar la
+      # firma antes de copiar. En un namespace de release donde no deba existir la
+      # clave privada, se monta un Secret que contenga únicamente cosign.pub.
+      secret:
+        secretName: cosign-signing-key

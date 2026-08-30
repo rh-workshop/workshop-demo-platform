@@ -45,8 +45,12 @@ oc create -f workshop-pipelines/runs/pipelinerun-ci-build-image.yaml -n workshop
 # Lanzar el CD a mano (no hay Triggers: SIEMPRE se lanza a mano; ver "Rol del CD")
 oc create -f workshop-pipelines/runs/pipelinerun-cd-deploy-application.yaml -n workshop-demo-dev
 
-# Promocionar una imagen entre organizaciones (editar antes los CHANGE_ME del fichero)
-oc create -f workshop-pipelines/runs/pipelinerun-promote-image.yaml -n workshop-demo-dev
+# Promocionar por la cadena dev -> test -> prod -> contingencia, un salto por
+# ejecución (editar antes los CHANGE_ME de cada fichero). Los tres runs invocan
+# el MISMO pipeline: solo cambian source-org, target-org y el overlay destino.
+oc create -f workshop-pipelines/runs/pipelinerun-promote-dev-to-test.yaml -n workshop-demo-dev
+oc create -f workshop-pipelines/runs/pipelinerun-promote-test-to-prod.yaml -n workshop-demo-dev
+oc create -f workshop-pipelines/runs/pipelinerun-promote-prod-to-contingencia.yaml -n workshop-demo-dev
 ```
 
 ## Modelo de promoción entre organizaciones de Quay

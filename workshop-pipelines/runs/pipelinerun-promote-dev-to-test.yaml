@@ -1,0 +1,80 @@
+# Ejecución del pipeline de PROMOCIÓN entre organizaciones de Quay.
+#
+# Un PipelineRun es una EJECUCIÓN concreta, no una definición: vive en "runs/" y
+# no lo gestiona Argo CD. Se crea con "oc create" (generateName).
+#
+# Primer salto de la cadena: DEV -> TEST -> PROD -> CONTINGENCIA. Los tres usan
+# el MISMO pipeline y solo cambian source-org, target-org y el overlay destino
+# (ver los otros dos runs `pipelinerun-promote-*`).
+#
+# La barrera hacia prod NO es el pipeline sino el RBAC — el Secret
+# quay-promotion-credentials (escritura sobre la organización destino) solo debe
+# existir al alcance de quien está autorizado a promocionar, y crear PipelineRuns
+# en ese namespace debe estar limitado por Role (ver README).
+#
+#   oc create -f workshop-pipelines/runs/pipelinerun-promote-dev-to-test.yaml -n workshop-demo-dev
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: promote-image-
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  pipelineRef:
+    name: promote-image
+  taskRunTemplate:
+    serviceAccountName: builder
+  # Cota explícita: si el run se cuelga (registro caído, push bloqueado) no queda corriendo para siempre.
+  timeouts:
+    pipeline: 30m0s
+  params:
+    # Host del registro corporativo (Quay), sin protocolo.
+    - name: registry-host
+      value: CHANGE_ME_QUAY_HOST
+    # dev->test aquí; para test->prod: source-org=company-test y target-org=company-prod.
+    - name: source-org
+      value: company-dev
+    - name: target-org
+      value: company-test
+    - name: image-name
+      value: app-workshop
+    # Digest EXACTO validado en el entorno origen (sale del result del CI o del overlay origen).
+    - name: image-digest
+      value: sha256:CHANGE_ME_DIGEST
+    # Tag inmutable con el que la imagen aparece en la organización destino (el git-<sha> del CI).
+    - name: image-tag
+      value: git-CHANGE_ME
+    # Overlay del ENTORNO DESTINO: la promoción escribe el digest ahí, nunca en el de origen.
+    - name: target-overlay-path
+      value: apps/demo-service/overlays/test
+    # Vacío = sin sync explícito (el auto-sync de Argo despliega igual); poner el nombre real para validar la salud.
+    - name: argocd-application
+      value: ""
+  workspaces:
+    - name: config
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          # Sin storageClassName se usa la StorageClass por defecto del cluster (debe ser RWO).
+          resources:
+            requests:
+              storage: 1Gi
+    - name: git-credentials
+      # Secret basic-auth con permiso de push al repo de configuración; el mismo que usa el CI.
+      secret:
+        secretName: git-credentials
+    - name: source-registry-credentials
+      # LECTURA sobre la organización origen: puede reutilizarse la credencial del CI (que lee dev/test).
+      secret:
+        secretName: quay-push-credentials
+    - name: promotion-credentials
+      # ESCRITURA sobre la organización destino: credencial SEPARADA del CI, creada FUERA de Git (ver README).
+      secret:
+        secretName: quay-promotion-credentials
+    - name: signing-key
+      # Llavero cosign: la promoción solo usa la clave PÚBLICA para verificar la
+      # firma antes de copiar. En un namespace de release donde no deba existir la
+      # clave privada, se monta un Secret que contenga únicamente cosign.pub.
+      secret:
+        secretName: cosign-signing-key

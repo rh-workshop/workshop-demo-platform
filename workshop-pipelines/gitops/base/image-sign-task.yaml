@@ -2,8 +2,34 @@
 #
 # La firma acredita PROCEDENCIA (esta imagen la produjo este pipeline), por eso
 # se firma el digest inmutable y nunca un tag, que puede moverse después.
-# Complementa a Tekton Chains (que atesta el PipelineRun): esta firma es la que
-# ACS sabe VERIFICAR vía su SignatureIntegration con la clave pública.
+#
+# ============================================================================
+# QUIÉN FIRMA QUÉ: reparto explícito con Tekton Chains (NO se firma dos veces)
+# ============================================================================
+# En el cluster hay DOS mecanismos que saben firmar, y sin un reparto escrito
+# acaban solapándose: cada uno firmaría el mismo artefacto con una llave
+# distinta, y cada verificador reconocería solo una — que es justo lo que un
+# auditor no puede explicar ("¿cuál de las dos firmas es la autoritativa?").
+#
+# El reparto es por TIPO DE EVIDENCIA, no por artefacto:
+#
+#   · Tekton Chains  -> ATESTACIÓN in-toto del PipelineRun/TaskRun: la
+#     PROCEDENCIA (qué pipeline, qué commit, qué parámetros). Responde a "cómo
+#     se construyó". Firma objetos de Tekton, NO la imagen.
+#   · Esta Task      -> FIRMA de la IMAGEN por digest. Responde a "este binario
+#     salió de aquí". Es la que ACS verifica en la admisión y la que el pipeline
+#     de promoción exige antes de copiar a otra organización.
+#
+# Para que el reparto sea real, Chains tiene `artifacts.oci.*` DESACTIVADO en
+# `pipelines/gitops/base/tektonconfig.yaml` (si estuviera activo firmaría también
+# la imagen y volvería la duplicación).
+#
+# UNA SOLA LLAVE. Ambos mecanismos usan el MISMO par de claves, montado en dos
+# Secrets por exigencia de dónde corre cada uno (`signing-secrets` en
+# openshift-pipelines para Chains; `cosign-signing-key` en el namespace del
+# pipeline para esta Task). Es la misma llave: así hay UNA clave pública que
+# registrar en la SignatureIntegration de ACS y UNA que rotar. Crear ambos desde
+# el mismo par — ver docs/bootstrap-and-gitops.md.
 #
 # GOTCHA: cosign v3 firma por defecto en bundle DSSE (referrers) y ACS 4.x NO lo
 # descubre; aquí se fuerza el formato clásico .sig cuando el flag existe.

@@ -41,8 +41,15 @@ spec:
     keep: 100
     schedule: "0 8 * * *"
   chain:
-    artifacts.oci.format: simplesigning
-    artifacts.oci.storage: oci
+    # REPARTO DE FIRMA (evita firmar el mismo artefacto dos veces con dos llaves):
+    #   · Chains  -> atestación in-toto del PipelineRun/TaskRun = PROCEDENCIA.
+    #   · La Task image-sign -> firma de la IMAGEN por digest = lo que ACS verifica
+    #     en la admisión y lo que la promoción exige antes de copiar.
+    # Por eso artifacts.oci queda DESACTIVADO aquí: con 'oci' activo Chains firmaba
+    # también la imagen, y cada verificador reconocía una llave distinta — algo
+    # imposible de defender en una auditoría ("¿cuál firma es la autoritativa?").
+    # Ambos mecanismos usan LA MISMA llave, en dos Secrets por dónde corre cada uno.
+    artifacts.oci.storage: ""
     artifacts.taskrun.format: in-toto
     artifacts.taskrun.storage: oci
     artifacts.pipelinerun.format: in-toto

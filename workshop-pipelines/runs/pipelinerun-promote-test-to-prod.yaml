@@ -1,19 +1,21 @@
-# Ejecución del pipeline de PROMOCIÓN entre organizaciones de Quay.
+# Promoción TEST -> PROD (segundo salto de la cadena).
 #
-# Un PipelineRun es una EJECUCIÓN concreta, no una definición: vive en "runs/" y
-# no lo gestiona Argo CD. Se crea con "oc create" (generateName).
+# Es el MISMO pipeline que el resto de saltos: solo cambian las organizaciones y
+# el overlay destino. Lo que hace distinto a este salto NO está en el fichero,
+# está en el RBAC: la credencial `quay-promotion-credentials` con escritura sobre
+# `company-prod` solo debe existir donde esté autorizado promocionar a producción,
+# y crear PipelineRuns en ese namespace debe limitarse por Role (ver el README).
+# Ese es el punto de control que un auditor pide: quién aprobó el paso a producción.
 #
-# El MISMO pipeline sirve para dev->test y test->prod cambiando source-org y
-# target-org: la barrera hacia prod NO es el pipeline sino el RBAC — el Secret
-# quay-promotion-credentials (escritura sobre la organización destino) solo debe
-# existir al alcance de quien está autorizado a promocionar, y crear PipelineRuns
-# en ese namespace debe estar limitado por Role (ver README).
+# El digest NO se elige: es el que ya está corriendo y validado en TEST, que se lee
+# del overlay de origen (apps/demo-service/overlays/test). Promocionar es copiar
+# ese manifiesto exacto, no reconstruir.
 #
-#   oc create -f workshop-pipelines/runs/pipelinerun-promote-image.yaml -n workshop-demo-dev
+#   oc create -f workshop-pipelines/runs/pipelinerun-promote-test-to-prod.yaml -n workshop-demo-dev
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: promote-image-
+  generateName: promote-test-to-prod-
   labels:
     app.kubernetes.io/part-of: workshop-gitops
 spec:
@@ -28,14 +30,13 @@ spec:
     # Host del registro corporativo (Quay), sin protocolo.
     - name: registry-host
       value: CHANGE_ME_QUAY_HOST
-    # dev->test aquí; para test->prod: source-org=company-test y target-org=company-prod.
     - name: source-org
-      value: company-dev
-    - name: target-org
       value: company-test
+    - name: target-org
+      value: company-prod
     - name: image-name
       value: app-workshop
-    # Digest EXACTO validado en el entorno origen (sale del result del CI o del overlay origen).
+    # Digest EXACTO que corre en TEST: se lee del overlay de origen, no se inventa.
     - name: image-digest
       value: sha256:CHANGE_ME_DIGEST
     # Tag inmutable con el que la imagen aparece en la organización destino (el git-<sha> del CI).
@@ -43,7 +44,7 @@ spec:
       value: git-CHANGE_ME
     # Overlay del ENTORNO DESTINO: la promoción escribe el digest ahí, nunca en el de origen.
     - name: target-overlay-path
-      value: apps/demo-service/overlays/test
+      value: apps/demo-service/overlays/prod
     # Vacío = sin sync explícito (el auto-sync de Argo despliega igual); poner el nombre real para validar la salud.
     - name: argocd-application
       value: ""
@@ -62,11 +63,11 @@ spec:
       secret:
         secretName: git-credentials
     - name: source-registry-credentials
-      # LECTURA sobre la organización origen: puede reutilizarse la credencial del CI (que lee dev/test).
+      # LECTURA sobre company-test.
       secret:
         secretName: quay-push-credentials
     - name: promotion-credentials
-      # ESCRITURA sobre la organización destino: credencial SEPARADA del CI, creada FUERA de Git (ver README).
+      # ESCRITURA sobre company-prod: credencial SEPARADA del CI, creada FUERA de Git (ver README).
       secret:
         secretName: quay-promotion-credentials
     - name: signing-key
