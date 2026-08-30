@@ -96,6 +96,56 @@
       changed_when: true
       no_log: true
 
+    # --- Integracion de FIRMA (cosign) ---
+    # El ID de una SignatureIntegration lo GENERA Central al crearla: no se puede
+    # inventar en Git. Flujo correcto: este playbook la crea (o la encuentra) con
+    # la llave publica de cosign y muestra el ID; ese ID se escribe en las dos
+    # SecurityPolicy de acs/gitops/base/policies/ (un commit por instalacion) y
+    # Argo las reconcilia. Sin este paso las politicas de firma nacen INERTES:
+    # referencian una integracion que no existe y no bloquean nada.
+    #   export COSIGN_PUBLIC_KEY="$(cat cosign.pub)"   # la MISMA llave del CI
+    - name: Comprobar si la integracion de firma ya existe
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/signatureintegrations"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: firmas_existentes
+      when: lookup('env', 'COSIGN_PUBLIC_KEY') | length > 0
+
+    - name: Crear la integracion de firma cosign-workshop si falta
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/signatureintegrations"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          name: cosign-workshop
+          cosign:
+            publicKeys:
+              - name: workshop-ci
+                publicKeyPemEnc: "{{ lookup('env', 'COSIGN_PUBLIC_KEY') }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      register: firma_creada
+      when: >-
+        lookup('env', 'COSIGN_PUBLIC_KEY') | length > 0 and
+        (firmas_existentes.json.integrations | default([]) | selectattr('name', 'equalto', 'cosign-workshop') | list | length == 0)
+
+    - name: Mostrar el ID de la integracion de firma (escribirlo en las SecurityPolicy)
+      ansible.builtin.debug:
+        msg: >-
+          SignatureIntegration cosign-workshop id =
+          {{ (firma_creada.json.id if (firma_creada is not skipped and firma_creada.json is defined)
+             else (firmas_existentes.json.integrations | default([]) | selectattr('name', 'equalto', 'cosign-workshop') | map(attribute='id') | first | default('SIN CREAR: exporta COSIGN_PUBLIC_KEY'))) }}
+          — actualizar acs/gitops/base/policies/require-image-signature*.yaml con este valor y commitear.
+      when: lookup('env', 'COSIGN_PUBLIC_KEY') | length > 0
+
     - name: Recordar el resto del ciclo
       ansible.builtin.debug:
         msg: >-
