@@ -16,13 +16,20 @@
 # equipo de la aplicacion decide QUE se ejecuta; la plataforma sigue gobernando
 # CON QUE (las Tasks) y CON QUE PERMISOS (el ServiceAccount).
 #
-# SECRETOS, fuera de Git como siempre. Dos, creados una sola vez:
+# DONDE VIVEN. El overlay fija `namespace: workshop-demo-dev` para todo lo de
+# esta carpeta, y para estos CR es lo correcto: PAC ejecuta el PipelineRun en el
+# MISMO namespace donde esta declarado el Repository, que tiene que ser donde
+# estan el Pipeline, las Tasks y el ServiceAccount `builder` con sus permisos.
+# Declararlos en el namespace del operador los dejaria sin nada que ejecutar.
+#
+# SECRETOS, fuera de Git como siempre. Dos, en el MISMO namespace que estos CR
+# (workshop-demo-dev), creados una sola vez:
 #   # PAT con permiso de leer el repo y escribir commit statuses
-#   oc create secret generic pac-git-token -n <ns-pipelines> \
+#   oc create secret generic pac-git-token -n workshop-demo-dev \
 #     --from-literal=token=<PAT>
 #   # Secreto HMAC compartido con el webhook de GitHub: sin el, cualquiera
 #   # podria falsificar un evento y lanzar el pipeline con lo que quisiera
-#   oc create secret generic pac-webhook-secret -n <ns-pipelines> \
+#   oc create secret generic pac-webhook-secret -n workshop-demo-dev \
 #     --from-literal=webhook.secret=$(openssl rand -hex 20)
 #
 # En GitHub, en cada repo: Settings > Webhooks > Add webhook, apuntando a la ruta

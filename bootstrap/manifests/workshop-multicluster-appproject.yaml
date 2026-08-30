@@ -182,6 +182,10 @@ spec:
   # con "resource tekton.dev:Task is not permitted" y Argo no llega a gobernarlas.
   - group: tekton.dev
     kind: Task
+  # Repository de Pipelines as Code: declara QUE repositorio de Git dispara el CI.
+  # El CRD lo trae OpenShift Pipelines, no se instala ningún producto aparte.
+  - group: pipelinesascode.tekton.dev
+    kind: Repository
   - group: ''
     kind: ServiceAccount
   # Secret de tipo service-account-token del analisis del canary: se versiona VACIO
