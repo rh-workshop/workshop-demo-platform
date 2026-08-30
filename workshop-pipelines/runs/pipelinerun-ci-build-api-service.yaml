@@ -28,7 +28,7 @@ spec:
   params:
     # Repositorio SIN tag en el registro corporativo (Quay, la variable quay_host del bootstrap): el tag git-<sha> lo pone el pipeline.
     - name: image-repository
-      value: company-quay-quay-enterprise.apps.ocp.4t8cv.sandbox3572.opentlc.com/company/api-service
+      value: CHANGE_ME_QUAY_HOST/company-dev/api-service
     # Umbral del escaneo como PARÁMETRO: CRITICAL corta solo lo crítico; súbelo a IMPORTANT para endurecer la puerta.
     - name: scan-severity-threshold
       value: CRITICAL

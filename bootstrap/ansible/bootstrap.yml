@@ -55,8 +55,8 @@
     repo_root: "{{ playbook_dir }}/../.."
     # Dominio de apps del cluster hub: se fija en clusters.yml o con -e.
     base_domain: CHANGE_ME_BASE_DOMAIN
-    # Hostname del registro Quay (ruta managed del QuayRegistry company-quay en quay-enterprise).
-    quay_host: "company-quay-quay-enterprise.{{ base_domain }}"
+    # Hostname del registro Quay: el operador publica la ruta <registro>-quay-<namespace>, y con el QuayRegistry company-quay en quay-enterprise queda company-quay-quay-quay-enterprise.
+    quay_host: "company-quay-quay-quay-enterprise.{{ base_domain }}"
     # Hostname del SSO (overlay de Keycloak del ambiente).
     keycloak_host: "sso.{{ base_domain }}"
     # StorageClass para los volúmenes persistentes; vacío = la default del cluster.

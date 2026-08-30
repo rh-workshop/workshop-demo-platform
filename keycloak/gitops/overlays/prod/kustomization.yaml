@@ -13,7 +13,7 @@ patches:
       - op: replace
         path: /spec/host
         # Sustituir por el dominio del cluster de PRODUCCIÓN: sso.apps.<cluster-prod>.<dominio-base>
-        value: sso.apps.ocp.k6ln6.sandbox1361.opentlc.com
+        value: sso.apps.ocp.2rndh.sandbox213.opentlc.com
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform

@@ -10,4 +10,4 @@ spec:
         token-valido:
           jwt:
             # Dominio del cluster de laboratorio: al cambiar de cluster hay que actualizarlo aqui.
-            issuerUrl: https://sso.apps.ocp.6zxpx.sandbox2570.opentlc.com/realms/workshop
+            issuerUrl: https://sso.apps.ocp.lplb4.sandbox3335.opentlc.com/realms/workshop

@@ -10,7 +10,7 @@ spec:
     port: 443
     protocol: HTTPS
     # Sustituir por el dominio del cluster de PRODUCCIÓN: *.apps.<cluster-prod>.<dominio-base>
-    hostname: '*.apps.ocp.k6ln6.sandbox1361.opentlc.com'
+    hostname: '*.apps.ocp.2rndh.sandbox213.opentlc.com'
     allowedRoutes:
       namespaces:
         from: Selector

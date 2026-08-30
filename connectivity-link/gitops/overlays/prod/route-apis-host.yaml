@@ -6,4 +6,4 @@ metadata:
   namespace: platform-gateway
 spec:
   # Sustituir por el dominio del cluster de PRODUCCION: apis.apps.<cluster-prod>.<dominio-base>
-  host: apis.apps.ocp.k6ln6.sandbox1361.opentlc.com
+  host: apis.apps.ocp.2rndh.sandbox213.opentlc.com

@@ -48,11 +48,15 @@
       - name: company-dev
         email: plataforma+dev@example.com
         repositories: &repos_workshop
-          # Una sola imagen para todos los escenarios: los tres servicios (demo,
-          # canary v1/v2 y circuit-breaker) ejecutan el mismo binario y solo se
-          # distinguen por las variables de entorno que les inyecta su Deployment.
-          - name: app-workshop
+          # demo-service sirve a los escenarios demo/canary/blue-green/circuit-breaker
+          # (mismo binario, distintas variables de entorno); api-service es el servicio
+          # REST del taller. Los nombres coinciden con los overlays de
+          # workshop-demo-app-config: la promoción copia org→org sin renombrar.
+          - name: demo-service
             description: Imagen del servicio de ejemplo del taller
+            visibility: private
+          - name: api-service
+            description: Imagen del servicio REST del taller
             visibility: private
         robots:
           - name: puller
@@ -92,6 +96,23 @@
           # Igual que prod: el sitio de contingencia sirve lo ya promocionado.
           - name: pusher
             description: Sin escritura desde CI; la imagen llega por promoción
+            permission: read
+      # Herramientas de CI espejadas desde upstream (excepción documentada a la
+      # norma "solo Red Hat": no existe imagen Red Hat de semgrep ni de syft).
+      # El espejado es un skopeo copy puntual — ver code-scan-task.yaml y
+      # sbom-generate-task.yaml; el pipeline las consume SIEMPRE desde aquí.
+      - name: company-tooling
+        email: plataforma+tooling@example.com
+        repositories:
+          - name: semgrep
+            description: SAST del CI, espejo de docker.io/semgrep/semgrep
+            visibility: private
+          - name: syft
+            description: Generador de SBOM del CI, espejo de docker.io/anchore/syft
+            visibility: private
+        robots:
+          - name: puller
+            description: Cuenta de solo lectura para que el CI descargue las herramientas
             permission: read
 
   tasks:

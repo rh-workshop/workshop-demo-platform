@@ -13,8 +13,8 @@ data:
       retentionSize: 40GiB
       volumeClaimTemplate:
         spec:
-          # StorageClass del cluster de PRODUCCIÓN (variable storage_class del bootstrap; ajustar al cambiar de entorno).
-          storageClassName: ocs-external-storagecluster-ceph-rbd
+          # StorageClass del cluster de PRODUCCIÓN (este overlay lo aplica Argo desde Git: el valor se fija AQUÍ al cambiar de entorno; en AWS sin ODF es EBS gp3 vía CSI).
+          storageClassName: gp3-csi
           resources:
             requests:
               storage: 50Gi

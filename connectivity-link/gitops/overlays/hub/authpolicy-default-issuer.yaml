@@ -9,5 +9,5 @@ spec:
       authentication:
         token-valido:
           jwt:
-            # Dominio del cluster HUB (un overlay por CLUSTER: el hostname es literal y dos clusters no pueden compartirlo).
-            issuerUrl: https://sso.apps.ocp.4t8cv.sandbox3572.opentlc.com/realms/workshop
+            # El hub NO despliega Keycloak (solo va a los spokes): el issuer del gateway del hub es el SSO del ambiente dev, que sirve a los servicios del workshop.
+            issuerUrl: https://sso.apps.ocp.lplb4.sandbox3335.opentlc.com/realms/workshop

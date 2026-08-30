@@ -1,4 +1,4 @@
-# En dev el comodin apunta al dominio de apps del cluster de desarrollo.
+# El comodin apunta al dominio de apps del cluster HUB.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -11,7 +11,7 @@ spec:
     protocol: HTTPS
     # Dominio del cluster HUB. Un overlay por CLUSTER, no por ambiente: el hostname
     # es literal y dos clusters no pueden compartirlo.
-    hostname: '*.apps.ocp.4t8cv.sandbox3572.opentlc.com'
+    hostname: '*.apps.ocp.hq2ss.sandbox3270.opentlc.com'
     allowedRoutes:
       namespaces:
         from: Selector

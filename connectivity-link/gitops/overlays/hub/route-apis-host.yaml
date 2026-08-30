@@ -1,9 +1,9 @@
-# En dev el host compartido de APIs apunta al dominio de apps del cluster de desarrollo.
+# Host compartido de APIs del cluster HUB.
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: shared-gateway-apis
   namespace: platform-gateway
 spec:
-  # Sustituir por el dominio del cluster de DESARROLLO: apis.apps.<cluster-dev>.<dominio-base>
-  host: apis.apps.ocp.4t8cv.sandbox3572.opentlc.com
+  # Dominio del cluster HUB (un overlay por CLUSTER: el hostname es literal).
+  host: apis.apps.ocp.hq2ss.sandbox3270.opentlc.com

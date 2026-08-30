@@ -61,6 +61,11 @@
         quota_bytes: 107374182400
         # Igual que prod: debe poder servir cualquier version que prod sirva.
         prune_keep_since: 52w
+      - name: company-tooling
+        # Espejos de herramientas del CI (semgrep, syft): pocos tags, poco volumen.
+        quota_bytes: 10737418240
+        # Las herramientas se referencian por tag fijado: conservar largo plazo.
+        prune_keep_since: 52w
 
   tasks:
     - name: Comprobar que hay credenciales
