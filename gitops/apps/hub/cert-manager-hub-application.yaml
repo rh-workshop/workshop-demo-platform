@@ -15,8 +15,8 @@ metadata:
     workshop.redhat.com/component: cert-manager
     workshop.redhat.com/environment: hub
   annotations:
-    # Wave 2: junto al resto de productos del hub; connectivity-link reintenta con backoff hasta que el issuer exista.
-    argocd.argoproj.io/sync-wave: "2"
+    # Wave 0: connectivity-link-hub corre en la wave 0 y DEPENDE de esto; una wave posterior deja el root bloqueado (no avanza mientras esa app siga Degraded).
+    argocd.argoproj.io/sync-wave: "0"
   namespace: openshift-gitops
 spec:
   project: workshop-multicluster
