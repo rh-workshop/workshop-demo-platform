@@ -331,6 +331,49 @@
       loop_control:
         label: "{{ item.name }} → environment={{ item.environment }} role={{ item.role }}"
 
+    # --- 9-bis. Sanar el operador Kuadrant si arrancó antes que sus dependencias ---
+    # Bug conocido de RHCL: si el pod del kuadrant-operator arranca antes de que
+    # OLM termine de instalar el operador de Authorino/Limitador, el CR Kuadrant
+    # queda en Ready=False con reason=MissingDependency y el propio producto pide
+    # "please restart Kuadrant Operator pod". Ningún objeto de Git puede expresar
+    # ese reinicio, así que lo hace el playbook, de forma idempotente: SOLO si el
+    # CR reporta MissingDependency se borra el pod (el ReplicaSet lo recrea ya
+    # con las dependencias presentes). Se revisa cada cluster del inventario.
+    - name: Consultar el estado del CR Kuadrant en cada cluster
+      kubernetes.core.k8s_info:
+        api_version: kuadrant.io/v1beta1
+        kind: Kuadrant
+        namespace: kuadrant-system
+        host: "{{ item.api_url | default(omit) }}"
+        api_key: "{{ lookup('env', item.token_env) if item.token_env is defined else omit }}"
+        validate_certs: false
+      register: kuadrant_estado
+      # El CRD puede no existir aún (ACM instala el operador a su ritmo): no es un error.
+      failed_when: false
+      loop: "{{ managed_clusters }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Reiniciar el kuadrant-operator donde reporte MissingDependency
+      kubernetes.core.k8s:
+        state: absent
+        api_version: v1
+        kind: Pod
+        namespace: kuadrant-system
+        label_selectors:
+          - control-plane = controller-manager
+          - app = kuadrant
+        host: "{{ item.item.api_url | default(omit) }}"
+        api_key: "{{ lookup('env', item.item.token_env) if item.item.token_env is defined else omit }}"
+        validate_certs: false
+      when: >-
+        item.resources | default([]) | map(attribute='status.conditions', default=[]) | flatten
+        | selectattr('reason', 'defined') | selectattr('reason', 'equalto', 'MissingDependency')
+        | list | length > 0
+      loop: "{{ kuadrant_estado.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
     # --- 10. Secretos de día-0 (al final: sus namespaces los crea Argo) ---
     # Secretos de día-0 que ningún manifiesto puede traer: su contenido NUNCA se
     # versiona. Se generan aquí, en el arranque en frío, porque sin ellos el
