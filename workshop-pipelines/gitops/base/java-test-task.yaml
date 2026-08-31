@@ -15,7 +15,7 @@
 # El resolve de dependencias lo gobierna el settings.xml/init.gradle VERSIONADO en
 # el repo de aplicación (espejo corporativo tipo Nexus/Artifactory), no esta task.
 #
-# La imagen es Red Hat (ubi9/openjdk-21, que incluye Maven): sin excepción a la norma.
+# La imagen es Red Hat (ubi9/openjdk-25, que incluye Maven): sin excepción a la norma.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
