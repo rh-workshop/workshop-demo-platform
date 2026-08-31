@@ -1,0 +1,85 @@
+# Descubrimiento de los SERVICIOS del pipeline de auditoría en su repo de configuración.
+#
+# Mismo patrón que workshop-services-test: el generador `git` de directorios recorre
+# `apps/*/overlays/test` del repo workshop-demo-kafka-audit-pipeline-config, de modo que
+# el equipo de la aplicación añade un servicio creando su carpeta, sin PR al repo de
+# plataforma. Es un ApplicationSet aparte —y no una entrada más en workshop-services—
+# porque el generador `git` apunta a UN repositorio: dos repos, dos ApplicationSets.
+#
+# POR QUE EL NAMESPACE ES `kafka` Y NO `<servicio>-demo-test`. Estos servicios no se
+# exponen por el gateway: hablan con el cluster de Kafka por mTLS y consumen los Secret
+# que el operador genera (KafkaUser, CA del cluster), que son locales a su namespace.
+# Separarlos obligaría a replicar esos secretos entre namespaces.
+#
+# QUE NO APARECE EN PROD NI EN CONTINGENCIA. El emisor de datos ficticios solo tiene
+# overlay en dev y test; al descubrirse por carpeta, su ausencia basta para que no exista
+# en los ambientes con datos reales.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  annotations:
+    # Wave 4: el generador clusterDecisionResource lee PlacementDecisions, que no existen hasta la wave 3.
+    argocd.argoproj.io/sync-wave: "4"
+  name: kafka-services-test
+  labels:
+    workshop.redhat.com/layer: application
+    workshop.redhat.com/component: kafka-services
+    workshop.redhat.com/environment: test
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    # matrix = (cluster que decide el Placement) x (servicios que hay en el repo).
+    - matrix:
+        generators:
+          - clusterDecisionResource:
+              configMapRef: acm-placement
+              labelSelector:
+                matchLabels:
+                  cluster.open-cluster-management.io/placement: clusters-test
+              requeueAfterSeconds: 180
+          - git:
+              repoURL: https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config.git
+              revision: main
+              directories:
+                - path: apps/*/overlays/test
+  template:
+    metadata:
+      name: 'app-{{index .path.segments 1}}-test'
+      labels:
+        workshop.redhat.com/layer: application
+        workshop.redhat.com/component: '{{index .path.segments 1}}'
+        workshop.redhat.com/environment: test
+      annotations:
+        # Onda 3 — después del cluster de Kafka (onda 2 del ApplicationSet de plataforma):
+        # un KafkaTopic no se puede crear si el operador de tópicos aún no existe.
+        argocd.argoproj.io/sync-wave: "3"
+    spec:
+      project: workshop-platform
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config.git
+        targetRevision: main
+        path: '{{.path.path}}'
+      destination:
+        server: '{{.server}}'
+        namespace: kafka
+      syncPolicy:
+        retry:
+          # Arranque en frío: los CRDs de Strimzi los instala ACM por su cuenta y pueden
+          # tardar minutos. Sin backoff Argo agota 5 intentos y se rinde.
+          limit: 20
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - RespectIgnoreDifferences=true
+          # El namespace kafka lo crea el ApplicationSet de plataforma, no este.
+          - CreateNamespace=false
+  syncPolicy:
+    preserveResourcesOnDeletion: true

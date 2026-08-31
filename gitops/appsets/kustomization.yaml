@@ -21,5 +21,12 @@ resources:
   - workshop-services-test-applicationset.yaml
   - workshop-services-prod-applicationset.yaml
   - workshop-services-contingencia-applicationset.yaml
+  # Los servicios del pipeline de auditoría viven en su propio repo de configuración, así
+  # que necesitan su propio juego de ApplicationSets: el generador 'git' apunta a UN
+  # repositorio y no admite una lista.
+  - kafka-services-dev-applicationset.yaml
+  - kafka-services-test-applicationset.yaml
+  - kafka-services-prod-applicationset.yaml
+  - kafka-services-contingencia-applicationset.yaml
   # Previews efímeros: una Application por Pull Request abierto en el repo de aplicaciones.
   - workshop-previews-pr-applicationset.yaml

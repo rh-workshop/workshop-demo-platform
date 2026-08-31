@@ -30,6 +30,18 @@ ambiente lo recibe solo, sin tocar estos manifiestos.
 | `demo-producer-kafkauser.yaml` | Identidad del productor: solo escribe |
 | `demo-consumer-kafkauser.yaml` | Identidad del consumidor: lee y aparta a la cola de descarte |
 
+> **Los cuatro recursos `demo.*` son un ejemplo de referencia, no una carga en uso.**
+> Muestran el patrón mínimo —un tópico, su cola de descarte y una identidad por
+> extremo con permisos de mínimo privilegio— para que un equipo lo copie al añadir su
+> primer tópico. Hoy ninguna aplicación los usa.
+>
+> La carga real es el **pipeline de auditoría**, cuya configuración vive en
+> [`workshop-demo-kafka-audit-pipeline-config`](https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config)
+> y usa la convención de nombres del dominio: `tp.observability.logs.*`. Ese prefijo
+> jerárquico (`tp` = tópico, luego dominio y flujo) es el que conviene adoptar como
+> gobierno de nombres cuando los tópicos se cuentan por decenas; `demo.events` solo
+> pretende ser legible en un ejemplo.
+
 ## Buenas prácticas aplicadas
 
 **Roles separados (KRaft).** Controladores y brokers en `KafkaNodePool` distintos.

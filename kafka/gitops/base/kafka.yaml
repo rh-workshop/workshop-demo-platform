@@ -53,6 +53,13 @@ spec:
       transaction.state.log.min.isr: 2
       # Los tópicos se declaran en Git: crear uno por accidente desde un cliente queda prohibido.
       auto.create.topics.enable: false
+      # Un registro cifrado y comprimido supera el millón de bytes que trae Kafka por defecto.
+      # Los clientes (Java y .NET) anuncian 2.5 MB: si el broker se queda en el default, rechaza
+      # con RecordTooLargeException lo que el productor cree poder enviar. Ambos lados deben
+      # declarar el MISMO límite, y replica.fetch.max.bytes ha de acompañarlo o el seguidor no
+      # puede replicar un mensaje que el líder sí aceptó.
+      message.max.bytes: 2500000
+      replica.fetch.max.bytes: 2500000
   entityOperator:
     topicOperator: {}
     userOperator: {}
