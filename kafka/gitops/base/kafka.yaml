@@ -6,12 +6,12 @@ metadata:
   name: demo-kafka
   namespace: kafka
 spec:
-  # Reparte las réplicas de cada partición entre zonas de disponibilidad usando la etiqueta
-  # estándar de los nodos: sin esto, las 3 réplicas pueden acabar en la misma zona y una caída
-  # de zona se las lleva todas. En un cluster de una sola zona la etiqueta existe igual y no estorba.
-  rack:
-    topologyKey: topology.kubernetes.io/zone
   kafka:
+    # Reparte las réplicas de cada partición entre zonas usando la etiqueta estándar de los nodos:
+    # sin esto las 3 réplicas pueden acabar en la misma zona y una caída de zona se las lleva todas.
+    # En un cluster de una sola zona la etiqueta existe igual y no estorba.
+    rack:
+      topologyKey: topology.kubernetes.io/zone
     # Versión fijada: un upgrade del operador NO debe arrastrar un upgrade de brokers por sorpresa.
     # Se sube por PR, igual que la CSV del operador. Consultar la vigente con:
     # oc get kafka demo-kafka -n kafka -o jsonpath='{.status.kafkaVersion}'
