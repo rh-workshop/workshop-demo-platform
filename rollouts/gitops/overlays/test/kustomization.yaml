@@ -1,0 +1,9 @@
+# Overlay de test: Argo Rollouts corre en el cluster donde se DESPLIEGA, porque el
+# despliegue progresivo (canary, blue-green) lo ejecuta su controlador junto a
+# los pods que va sustituyendo. Un Rollout en un cluster sin controlador se
+# queda sin reconciliar: los recursos existen y no avanza nada.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base

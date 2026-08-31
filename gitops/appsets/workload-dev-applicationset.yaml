@@ -42,6 +42,10 @@ spec:
             namespace: kuadrant-system
           - producto: cert-manager
             namespace: cert-manager
+          # Argo Rollouts va en el cluster de CARGA, no en el hub: el despliegue
+          # progresivo lo ejecuta su controlador junto a los pods que sustituye.
+          - producto: rollouts
+            namespace: argo-rollouts
           - producto: kafka
             namespace: kafka
           # MetalLB solo aplica en BARE-METAL. En un cloud (AWS/Azure/GCP) el proveedor

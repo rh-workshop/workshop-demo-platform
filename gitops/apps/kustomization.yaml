@@ -16,8 +16,11 @@ resources:
   # ClusterIssuers en el hub: el TLSPolicy del gateway compartido depende de ellos.
   - hub/cert-manager-hub-application.yaml
   - hub/connectivity-link-application.yaml
-  # Argo Rollouts (RolloutManager): lo consume el canary automático del workshop.
-  - hub/rollouts-application.yaml
+  # Argo Rollouts NO va aquí: es un componente de CARGA, no de gestión. Su
+  # controlador tiene que estar en el mismo cluster que los pods que sustituye,
+  # así que lo despliegan los ApplicationSets workload-<ambiente> (dev, test,
+  # prod y contingencia). El hub aloja el plano de control —ACM, Quay, ACS,
+  # Argo CD— y no ejecuta despliegues progresivos de negocio.
   # Gobierno del workshop de aplicaciones: la única Application que no genera
   # ningún ApplicationSet (los servicios sí — ver gitops/appsets/workshop-*).
   # Las políticas del demo-service viven en apps/demo-service/overlays/dev (las

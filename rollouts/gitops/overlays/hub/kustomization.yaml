@@ -1,6 +1,0 @@
-# Overlay del hub: Argo Rollouts corre donde corren los servicios del workshop.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - ../../base
