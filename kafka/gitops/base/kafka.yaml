@@ -29,7 +29,10 @@ spec:
       # sirve aquí: enruta por nombre de host sobre HTTP, y el protocolo de Kafka es binario sobre
       # TCP. Un balanceador entrega la conexión tal cual.
       # Consume una direccion del pool por CADA broker mas una de arranque: con un broker en
-      # desarrollo son 2. El rango se ajusta al segmento real en el IPAddressPool de la plataforma.
+      # desarrollo son 2 (verificado: Services demo-kafka-kafka-external-bootstrap y demo-kafka-broker-0).
+      # El puerto es el MISMO en todas las direcciones -- cada Service tiene su propia IP, asi que no
+      # hay que reservar un rango de puertos. El rango de IPs se ajusta al segmento real en el
+      # IPAddressPool de la plataforma.
       - name: external
         port: 9094
         type: loadbalancer
