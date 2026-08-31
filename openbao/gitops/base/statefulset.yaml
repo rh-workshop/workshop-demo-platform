@@ -52,6 +52,11 @@ spec:
         app.kubernetes.io/name: openbao
     spec:
       serviceAccountName: openbao
+      volumes:
+        # Efimero a proposito: en modo dev el estado del almacen vive en memoria,
+        # asi que nada de lo que se escriba aqui tiene por que sobrevivir.
+        - name: home
+          emptyDir: {}
       containers:
         - name: openbao
           # Imagen oficial del proyecto, fijada por version: un tag movil haria
@@ -72,6 +77,16 @@ spec:
                   key: token
             - name: BAO_ADDR
               value: http://127.0.0.1:8200
+            # El modo dev escribe un fichero de token en el HOME al arrancar. Con
+            # la SCC restringida de OpenShift el contenedor no puede escribir en
+            # `/` y muere con "open /.vault-token.tmp: permission denied", en
+            # bucle y DESPUES de decir "vault is unsealed" — lo que despista.
+            # Se le da un HOME sobre un volumen efimero escribible.
+            - name: HOME
+              value: /tmp/openbao
+          volumeMounts:
+            - name: home
+              mountPath: /tmp/openbao
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: [ALL]}
