@@ -90,9 +90,14 @@
       loop_control:
         label: "{{ item.name }}"
 
+    # OJO AL PREFIJO /superuser: la cuota se LEE en /organization/<org>/quota
+    # pero se ESCRIBE en /superuser/organization/<org>/quota. Sin el prefijo la
+    # API responde 403 insufficient_scope aunque el usuario sea superusuario y
+    # el token lleve el scope super:user — el endpoint normal no admite escritura
+    # de cuota en ninguna circunstancia.
     - name: Fijar la cuota de cada organizacion
       ansible.builtin.uri:
-        url: "{{ quay_api }}/organization/{{ item.item.name }}/quota"
+        url: "{{ quay_api }}/superuser/organization/{{ item.item.name }}/quota"
         method: POST
         headers:
           Authorization: "Bearer {{ quay_token }}"
@@ -111,7 +116,7 @@
     # también cuando se cambia el valor en este fichero, no solo en la creación.
     - name: Actualizar la cuota si cambio el valor
       ansible.builtin.uri:
-        url: "{{ quay_api }}/organization/{{ item.item.name }}/quota/{{ item.json[0].id }}"
+        url: "{{ quay_api }}/superuser/organization/{{ item.item.name }}/quota/{{ item.json[0].id }}"
         method: PUT
         headers:
           Authorization: "Bearer {{ quay_token }}"
