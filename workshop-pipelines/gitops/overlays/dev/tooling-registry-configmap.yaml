@@ -1,0 +1,20 @@
+# Host del registro corporativo de ESTE entorno, en un unico sitio.
+#
+# El valor no se copia en cada parametro del Pipeline: se declara aqui una sola
+# vez y Kustomize lo inyecta en los tres parametros de herramientas mediante
+# `replacements` (ver kustomization.yaml). Cambiar de registro es editar esta
+# linea, no tres defaults dispersos que se desincronizan entre si.
+#
+# Es un ConfigMap y no una variable de Kustomize porque `replacements` necesita
+# un recurso real del que leer, y ademas queda visible en el cluster como
+# documentacion del origen del dato.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tooling-registry
+data:
+  # Organizacion espejo donde viven semgrep, gitleaks y syft.
+  host: company-quay-quay-quay-enterprise.apps.ocp.hq2ss.sandbox3270.opentlc.com
+  semgrep: company-quay-quay-quay-enterprise.apps.ocp.hq2ss.sandbox3270.opentlc.com/company-tooling/semgrep:1.79.0
+  gitleaks: company-quay-quay-quay-enterprise.apps.ocp.hq2ss.sandbox3270.opentlc.com/company-tooling/gitleaks:v8.29.1
+  syft: company-quay-quay-quay-enterprise.apps.ocp.hq2ss.sandbox3270.opentlc.com/company-tooling/syft:v1.19.0

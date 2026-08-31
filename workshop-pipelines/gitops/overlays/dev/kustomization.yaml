@@ -7,12 +7,58 @@ namespace: workshop-demo-dev
 
 resources:
   - ../../base
+  - tooling-registry-configmap.yaml
 
-# El host del registro es un dato del ENTORNO: la base deja CHANGE_ME_QUAY_HOST
-# y el overlay lo resuelve. Argo no sustituye marcadores, asi que sin esto la
-# Task recibe el literal y falla con "couldn't parse image name".
-patches:
-  - path: pipeline-ci-tooling-images.yaml
-    target:
-      kind: Pipeline
-      name: ci-build-image
+# EL HOST DEL REGISTRO ES UN DATO DEL ENTORNO. La base deja CHANGE_ME_QUAY_HOST
+# porque el "que" (el pipeline) no debe saber en que cluster corre; el overlay
+# aporta el "donde". Argo CD no sustituye marcadores, asi que sin esto el
+# literal llega al cluster y la Task muere con "couldn't parse image name".
+#
+# POR QUE `replacements` Y NO UN PATCH. Un strategic merge patch sobre
+# `spec.params` REEMPLAZA la lista entera en lugar de fusionarla: Kustomize solo
+# hace merge por clave cuando conoce la patchMergeKey del tipo, y para un CRD
+# como Pipeline no la conoce. El resultado era un pipeline con 3 parametros en
+# vez de 23, y el webhook de Tekton lo rechazaba en bloque con "non-existent
+# variable in $(params...)" para todas las tasks.
+#
+# `replacements` localiza el parametro por NOMBRE, no por posicion, asi que
+# anadir parametros a la base no lo rompe en silencio.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: tooling-registry
+      fieldPath: data.semgrep
+    targets:
+      - select: {kind: Pipeline, name: ci-build-image}
+        fieldPaths:
+          - spec.params.[name=sast-scanner-image].default
+
+  - source:
+      kind: ConfigMap
+      name: tooling-registry
+      fieldPath: data.gitleaks
+    targets:
+      - select: {kind: Pipeline, name: ci-build-image}
+        fieldPaths:
+          - spec.params.[name=secret-scanner-image].default
+
+  - source:
+      kind: ConfigMap
+      name: tooling-registry
+      fieldPath: data.syft
+    targets:
+      - select: {kind: Pipeline, name: ci-build-image}
+        fieldPaths:
+          - spec.params.[name=sbom-scanner-image].default
+
+  # sbom-generate es la UNICA Task que ademas trae su propio default (las otras
+  # dos exigen que el valor venga del pipeline, sin default): se resuelve tambien
+  # aqui para no dejar ningun marcador literal en el cluster.
+  - source:
+      kind: ConfigMap
+      name: tooling-registry
+      fieldPath: data.syft
+    targets:
+      - select: {kind: Task, name: sbom-generate}
+        fieldPaths:
+          - spec.params.[name=scanner-image].default
