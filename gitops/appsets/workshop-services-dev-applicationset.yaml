@@ -15,6 +15,11 @@
 # apps/<servicio>/base con metadata.namespace fijo en workshop-demo-dev (el
 # dueño del ImageStream), por lo que el overlay dev no lleva namespace global.
 #
+# DEV VA A SU PROPIO CLUSTER, igual que test, prod y contingencia: el destino lo
+# decide el Placement `clusters-dev` de ACM. El hub es el plano de GESTIÓN (ACM,
+# Quay, ACS, Argo) y no debe alojar cargas de negocio; mezclarlas ahí acopla el
+# ciclo de vida de las aplicaciones al del plano de control.
+#
 # Convención de nombres que asume la plantilla: la carpeta se llama
 # `<componente>-service`; el namespace de destino es `<componente>-demo-dev`,
 # salvo el servicio original `demo-service`, que vive en `workshop-demo-dev`.
@@ -36,11 +41,24 @@ spec:
   goTemplateOptions:
     - missingkey=error
   generators:
-    - git:
-        repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
-        revision: main
-        directories:
-          - path: apps/*/overlays/dev
+    # matrix = (cluster que decide el Placement) x (servicios que hay en el repo).
+    # El clusterDecisionResource es lo que hace que dev vaya a SU cluster: sin él
+    # el destino quedaba cableado al hub y los servicios de dev se desplegaban en
+    # el cluster de gestion, junto a ACM y Quay. Los demas ambientes ya usaban
+    # este patron; dev era el unico desalineado.
+    - matrix:
+        generators:
+          - clusterDecisionResource:
+              configMapRef: acm-placement
+              labelSelector:
+                matchLabels:
+                  cluster.open-cluster-management.io/placement: clusters-dev
+              requeueAfterSeconds: 180
+          - git:
+              repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
+              revision: main
+              directories:
+                - path: apps/*/overlays/dev
   template:
     metadata:
       # Onda 2 — los servicios van después de las rutas del gateway (onda 1).
@@ -59,7 +77,8 @@ spec:
         targetRevision: main
         path: '{{.path.path}}'
       destination:
-        server: https://kubernetes.default.svc
+        # El cluster del ambiente, decidido por el Placement — nunca el hub.
+        server: '{{.server}}'
         namespace: '{{if eq (index .path.segments 1) "demo-service"}}workshop-demo-dev{{else}}{{trimSuffix "-service" (index .path.segments 1)}}-demo-dev{{end}}'
       # Sin ignoreDifferences para el hostname ni el issuer: los overlays llevan el
       # dominio real del cluster de laboratorio, así que Git y cluster coinciden y
