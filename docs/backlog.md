@@ -371,3 +371,36 @@ spoke como los demás: convertir `workshop-services-dev` al mismo `matrix`
 se quiere co-localizar, y revisar `namespace-governance` (hoy gobierna esos
 namespaces en el hub). No se hizo ahora porque toca la narrativa de varias
 sesiones y no se puede validar en vivo.
+
+## 9. Almacenamiento de Quay: S3 nativo vía CredentialsRequest (NooBaa solo sin object storage)
+
+**Hallazgo (verificado en vivo).** En el hub no hay ODF: solo `mcg-operator`
+(NooBaa suelto) con un backingstore `pv-pool` de 50Gi sobre `gp3-csi`. Es decir,
+Quay guarda blobs en un PVC de EBS que NooBaa *presenta* como S3… en un cluster
+AWS que tiene S3 de verdad (el registry interno ya lo usa:
+`config.imageregistry` → bucket S3 con credenciales que emite el Cloud
+Credential Operator). Es la causa probable del incidente del backingstore
+`Rejected`/`ALL_NODES_OFFLINE` con push fallando en `blob upload invalid`: un
+pod intermediario que se cae, sin durabilidad ni escalado de S3, limitado a
+50Gi, y una premisa falsa ("Quay necesita ODF") en cloud.
+
+**Recomendación.** Backend de almacenamiento de Quay **parametrizable**
+(`quay_storage_backend: s3 | noobaa`, default en `vars/platform-vars.yml`,
+sobreescribible por cluster en `clusters.yml`):
+
+- **`s3` (default en cloud):** un `CredentialsRequest` propio
+  (`quay-enterprise/quay-s3-credentials`, política mínima S3 sobre el bucket)
+  que el CCO resuelve; el bootstrap crea el bucket (nombre derivado del infra
+  name) y genera el `quay-config-bundle` con `DISTRIBUTED_STORAGE_CONFIG`
+  (S3Storage) desde el secreto acuñado; el `QuayRegistry` pasa a
+  `objectstorage: managed: false` y `noobaa.yaml`/`backingstore.yaml` salen del
+  kustomize de `quay/gitops`.
+- **`noobaa` (alternativa on-prem/bare-metal sin object storage):** el camino
+  actual, documentado como tal — caso muy real en banca.
+
+**Coordinación pendiente.** El cambio implica migrar los blobs existentes
+(re-push/re-espejado: `mirror-tooling.yml` y el CI lo repueblan, pero las
+imágenes firmadas viejas se pierden — asumible en el lab) y retirar el
+`ignoreDifferences` de NooBaa añadido en `gitops/apps/hub/quay-application.yaml`
+(commit 04e8ce6) cuando NooBaa deje de desplegarse. No se implementó en esta
+pasada para no romper el CI en curso ni tocar ficheros con dueño en paralelo.
