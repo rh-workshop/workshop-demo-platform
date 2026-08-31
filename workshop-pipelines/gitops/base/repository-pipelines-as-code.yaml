@@ -70,3 +70,58 @@ spec:
     webhook_secret:
       name: pac-webhook-secret
       key: webhook.secret
+---
+# Repositorio de CODIGO del pipeline de auditoria: de el salen DOS imagenes (produccion y datos
+# ficticios), cada una con su PipelineRun en .tekton/.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  annotations:
+    # El CRD lo trae OpenShift Pipelines: si el sync corre antes de que el operador termine, el dry-run no debe invalidar la Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: workshop-demo-kafka-audit-pipeline
+spec:
+  url: https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline
+  git_provider:
+    secret:
+      name: pac-git-token
+      key: token
+    webhook_secret:
+      name: pac-webhook-secret
+      key: webhook.secret
+---
+# Repositorio de CODIGO del productor .NET: publica el paquete y la imagen del host de ejemplo.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  annotations:
+    # El CRD lo trae OpenShift Pipelines: si el sync corre antes de que el operador termine, el dry-run no debe invalidar la Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: workshop-demo-kafka-audit-producer
+spec:
+  url: https://github.com/rh-workshop/workshop-demo-kafka-audit-producer
+  git_provider:
+    secret:
+      name: pac-git-token
+      key: token
+    webhook_secret:
+      name: pac-webhook-secret
+      key: webhook.secret
+---
+# Repositorio de CONFIGURACION del pipeline de auditoria: sus PRs son los que despliegan.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  annotations:
+    # El CRD lo trae OpenShift Pipelines: si el sync corre antes de que el operador termine, el dry-run no debe invalidar la Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: workshop-demo-kafka-audit-pipeline-config
+spec:
+  url: https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config
+  git_provider:
+    secret:
+      name: pac-git-token
+      key: token
+    webhook_secret:
+      name: pac-webhook-secret
+      key: webhook.secret
