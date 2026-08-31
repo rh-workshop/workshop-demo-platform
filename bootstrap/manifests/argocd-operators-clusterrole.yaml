@@ -41,6 +41,24 @@ rules:
       - "*"
     verbs:
       - "*"
+
+  # Cloud Credential Operator: SOLO el CredentialsRequest del bucket de Quay
+  # (backend s3). Va en una regla aparte y con los verbos ENUMERADOS, no con
+  # "*": pedir credenciales de nube es un permiso sensible y no debe heredar el
+  # comodin del bloque de operadores de producto. Sin esto Argo falla con
+  # "cannot create resource credentialsrequests".
+  - apiGroups:
+      - cloudcredential.openshift.io
+    resources:
+      - credentialsrequests
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
