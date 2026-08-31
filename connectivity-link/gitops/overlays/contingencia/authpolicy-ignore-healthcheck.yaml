@@ -1,0 +1,11 @@
+# En este spoke el Gateway compartido aun no tiene HTTPRoutes de negocio (las
+# cargas del taller corren en el hub); Kuadrant deja la AuthPolicy en
+# Enforced=Unknown ("not in the path to any existing routes") y Argo lo mapea a
+# Degraded. Se excluye del health hasta que se adjunte la primera ruta.
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: shared-gateway-default
+  namespace: platform-gateway
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: "true"

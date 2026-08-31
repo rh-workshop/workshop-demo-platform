@@ -1,0 +1,10 @@
+# El hostname es lo unico que cambia entre ambientes: se parchea aqui.
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  hostname:
+    # Sustituir por el dominio del cluster de PRUEBAS: sso.apps.<cluster-test>.<dominio-base>
+    hostname: sso.apps.ocp.zrnk2.sandbox1444.opentlc.com

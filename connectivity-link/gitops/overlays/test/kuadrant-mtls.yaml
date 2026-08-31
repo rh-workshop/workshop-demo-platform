@@ -1,0 +1,15 @@
+# DESACTIVADO en dev a propósito: activar mTLS reinicia Authorino y Limitador con
+# sidecars de Istio y reconfigura el gateway compartido EN CALIENTE; en un cluster
+# con tráfico real eso corta las decisiones de auth (todo el gateway respondería
+# 5xx) hasta que el mesh converge. La postura Zero Trust de la base queda para
+# prod, donde el cluster se levanta limpio y el mesh converge antes del tráfico.
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: kuadrant-system
+spec:
+  mtls:
+    enable: false
+    authorino: false
+    limitador: false

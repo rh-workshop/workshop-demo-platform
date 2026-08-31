@@ -1,0 +1,25 @@
+# En prod el comodin apunta al dominio de apps del cluster de produccion.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shared-gateway
+  namespace: platform-gateway
+spec:
+  listeners:
+  - name: https
+    port: 443
+    protocol: HTTPS
+    # Sustituir por el dominio del cluster de PRODUCCIÓN: *.apps.<cluster-prod>.<dominio-base>
+    hostname: '*.apps.ocp.krzn5.sandbox3491.opentlc.com'
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchLabels:
+            shared-gateway-access: 'true'
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - group: ''
+        kind: Secret
+        name: shared-gateway-https

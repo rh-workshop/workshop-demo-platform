@@ -1,0 +1,7 @@
+# Overrides del ambiente DEV.
+#
+# En dev se usan los defaults de values.yaml (recursos minimos, InPlace,
+# PERMISSIVE, 1 replica). Se deja explicito solo lo caracteristico de dev para
+# que el fichero no quede vacio y documente la intencion.
+updateStrategy: InPlace
+mtlsMode: PERMISSIVE

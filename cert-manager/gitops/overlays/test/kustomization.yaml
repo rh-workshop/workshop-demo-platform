@@ -1,0 +1,5 @@
+# En dev basta la CA propia del taller (workshop-ca) para el trafico interno.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base

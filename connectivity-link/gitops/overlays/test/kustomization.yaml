@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: gateway-hostname.yaml
+    target:
+      kind: Gateway
+      name: shared-gateway
+  - path: authpolicy-default-issuer.yaml
+    target:
+      kind: AuthPolicy
+      name: shared-gateway-default
+  # Sin rutas de negocio en el spoke, la AuthPolicy queda Enforced=Unknown; se
+  # excluye del health de Argo para no dejar la app Degraded en vacio.
+  - path: authpolicy-ignore-healthcheck.yaml
+    target:
+      kind: AuthPolicy
+      name: shared-gateway-default
+  - path: kuadrant-mtls.yaml
+    target:
+      kind: Kuadrant
+      name: kuadrant
+  - path: route-apis-host.yaml
+    target:
+      kind: Route
+      name: shared-gateway-apis

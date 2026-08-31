@@ -1,0 +1,13 @@
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: shared-gateway-default
+  namespace: platform-gateway
+spec:
+  defaults:
+    rules:
+      authentication:
+        token-valido:
+          jwt:
+            # Sustituir por el dominio del cluster de PRODUCCIÓN: https://sso.apps.<cluster-prod>.<dominio-base>/realms/workshop
+            issuerUrl: https://sso.apps.ocp.krzn5.sandbox3491.opentlc.com/realms/workshop

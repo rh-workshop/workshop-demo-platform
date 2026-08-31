@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - authorino-ha.yaml
+  - limitador-ha.yaml
+patches:
+  - path: gateway-hostname.yaml
+    target:
+      kind: Gateway
+      name: shared-gateway
+  - path: tlspolicy-issuer.yaml
+    target:
+      kind: TLSPolicy
+      name: shared-gateway-tls
+  - path: authpolicy-default-issuer.yaml
+    target:
+      kind: AuthPolicy
+      name: shared-gateway-default
+  # Sin rutas de negocio en el spoke, la AuthPolicy queda Enforced=Unknown; se
+  # excluye del health de Argo para no dejar la app Degraded en vacio.
+  - path: authpolicy-ignore-healthcheck.yaml
+    target:
+      kind: AuthPolicy
+      name: shared-gateway-default
+  - path: route-apis-host.yaml
+    target:
+      kind: Route
+      name: shared-gateway-apis

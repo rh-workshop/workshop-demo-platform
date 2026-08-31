@@ -1,0 +1,20 @@
+# En produccion la retencion la fija el requisito de auditoria, no el disco
+# disponible: por eso aqui se amplia Y se declara volumen persistente.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: true
+    prometheusK8s:
+      retention: 15d
+      retentionSize: 40GiB
+      volumeClaimTemplate:
+        spec:
+          # StorageClass del cluster de PRODUCCIÓN (este overlay lo aplica Argo desde Git: el valor se fija AQUÍ al cambiar de entorno; en AWS sin ODF es EBS gp3 vía CSI).
+          storageClassName: gp3-csi
+          resources:
+            requests:
+              storage: 50Gi

@@ -1,0 +1,15 @@
+# PodDisruptionBudget: el operador de Keycloak no lo crea. Sin el, un drain de
+# nodo puede tirar todas las replicas a la vez. minAvailable 1 garantiza que
+# siempre quede una sirviendo durante mantenimientos.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: keycloak
+      app.kubernetes.io/managed-by: keycloak-operator
+      app.kubernetes.io/instance: keycloak

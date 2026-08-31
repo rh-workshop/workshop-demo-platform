@@ -12,6 +12,12 @@
 #   kubeconfig_env — nombre de la variable de entorno con la RUTA a un
 #                    kubeconfig cluster-admin del spoke.
 # El hub (local-cluster) no lleva acceso: no se importa a sí mismo.
+#
+# El modelo completo son CUATRO ambientes de workload (dev, test, prod,
+# contingencia), un cluster por ambiente. No es obligatorio tenerlos todos:
+# un ambiente sin cluster simplemente no recibe despliegues (su Placement no
+# decide nada y los ApplicationSets no generan Applications para él). Añadir
+# el cluster más tarde y reejecutar el bootstrap lo activa sin tocar nada más.
 
 # Dominio de apps del cluster HUB (lo que sigue a "*.").
 base_domain: apps.cluster-CAMBIAME.example.com
@@ -19,8 +25,12 @@ base_domain: apps.cluster-CAMBIAME.example.com
 # StorageClass para volúmenes persistentes (retención de Prometheus en prod).
 storage_class: ""
 
+# MetalLB solo aplica en BARE-METAL: en cloud (AWS/Azure/GCP) el proveedor ya
+# da LoadBalancers y el modo L2 no funciona sobre una red virtual.
+use_metallb: true
+
 # Derivados del base_domain por defecto; descomentar solo para sobreescribir.
-# quay_host: company-quay-quay-enterprise.apps.cluster-CAMBIAME.example.com
+# quay_host: company-quay-quay-quay-enterprise.apps.cluster-CAMBIAME.example.com
 # keycloak_host: sso.apps.cluster-CAMBIAME.example.com
 
 managed_clusters:
@@ -33,8 +43,18 @@ managed_clusters:
     role: workload
     api_url: https://api.cluster-CAMBIAME-DEV.example.com:6443
     token_env: SPOKE_DEV_TOKEN
+  - name: cluster-CAMBIAME-TEST
+    environment: test
+    role: workload
+    api_url: https://api.cluster-CAMBIAME-TEST.example.com:6443
+    token_env: SPOKE_TEST_TOKEN
   - name: cluster-CAMBIAME-PROD
     environment: prod
     role: workload
     api_url: https://api.cluster-CAMBIAME-PROD.example.com:6443
     token_env: SPOKE_PROD_TOKEN
+  - name: cluster-CAMBIAME-CONTINGENCIA
+    environment: contingencia
+    role: workload
+    api_url: https://api.cluster-CAMBIAME-CONTINGENCIA.example.com:6443
+    token_env: SPOKE_CONTINGENCIA_TOKEN

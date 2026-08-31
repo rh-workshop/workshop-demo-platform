@@ -38,18 +38,25 @@ spec:
   # manifiesto del repo de apps con `namespace: platform-gateway` (un AuthPolicy
   # contra el gateway compartido, un RoleBinding en kuadrant-system) pasaría la
   # validación. Ningún servicio los necesita: el plano del gateway es de plataforma.
+  # server '*' porque test/prod/contingencia corren en su PROPIO cluster (los
+  # decide el Placement del ambiente); la barandilla real es la allow-list de
+  # NAMESPACES + el whitelist de kinds, que siguen fallando cerrado.
   destinations:
-    - server: https://kubernetes.default.svc
+    - server: '*'
       namespace: workshop-demo-dev
-    - server: https://kubernetes.default.svc
+    - server: '*'
       namespace: workshop-demo-test
-    - server: https://kubernetes.default.svc
+    - server: '*'
+      namespace: workshop-demo-prod
+    - server: '*'
+      namespace: workshop-demo-contingencia
+    - server: '*'
       namespace: canary-demo-dev
-    - server: https://kubernetes.default.svc
+    - server: '*'
       namespace: circuit-breaker-demo-dev
-    - server: https://kubernetes.default.svc
+    - server: '*'
       namespace: bluegreen-demo-dev
-    - server: https://kubernetes.default.svc
+    - server: '*'
       namespace: api-demo-dev
 
   # Recursos de ámbito de cluster: SOLO el Namespace que cada servicio declara.

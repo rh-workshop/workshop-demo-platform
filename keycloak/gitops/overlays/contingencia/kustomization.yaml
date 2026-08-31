@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: keycloak
+resources:
+  - ../../base
+  - keycloak-pdb.yaml
+patches:
+  - path: keycloak-contingencia.yaml
+  - target:
+      kind: Route
+      name: keycloak
+    patch: |-
+      - op: replace
+        path: /spec/host
+        # Sustituir por el dominio del cluster de CONTINGENCIA: sso.apps.<cluster-contingencia>.<dominio-base>
+        value: sso.apps.ocp.krzn5.sandbox3491.opentlc.com
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: workshop-platform
+      workshop.redhat.com/environment: contingencia

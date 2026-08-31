@@ -2,13 +2,24 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - acm-placement-configmap.yaml
+  # Un ApplicationSet de workload por ambiente: los CUATRO (dev/test/prod/contingencia).
   - workload-dev-applicationset.yaml
+  - workload-test-applicationset.yaml
   - workload-prod-applicationset.yaml
+  - workload-contingencia-applicationset.yaml
   - service-mesh-dev-applicationset.yaml
+  - service-mesh-test-applicationset.yaml
   - service-mesh-prod-applicationset.yaml
+  - service-mesh-contingencia-applicationset.yaml
   # A todos los clusters (hub incluido): deriva el overlay de 'environment'.
   - monitoring-applicationset.yaml
-  # Descubrimiento de los servicios del workshop en el repo de aplicaciones.
+  # Descubrimiento de los servicios del workshop en el repo de aplicaciones:
+  # dev en el hub (modelo original del taller) y test/prod/contingencia en el
+  # cluster de su ambiente (matrix con el Placement del ambiente). Un servicio
+  # entra en un ambiente creando apps/<servicio>/overlays/<ambiente>.
   - workshop-services-dev-applicationset.yaml
+  - workshop-services-test-applicationset.yaml
+  - workshop-services-prod-applicationset.yaml
+  - workshop-services-contingencia-applicationset.yaml
   # Previews efímeros: una Application por Pull Request abierto en el repo de aplicaciones.
   - workshop-previews-pr-applicationset.yaml

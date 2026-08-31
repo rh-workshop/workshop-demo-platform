@@ -1,0 +1,13 @@
+# HA de Authorino en prod: 2 replicas. Authorino esta en la ruta de datos (external
+# authz del gateway); con 1 replica un drain de nodo corta la auth de TODO el
+# trafico. Lo crea el operador Kuadrant, por eso puede requerir ignoreDifferences.
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino
+  namespace: kuadrant-system
+  annotations:
+    # El CR lo CREA el operador Kuadrant con sus campos requeridos (listener, oidcServer); aqui solo se aporta replicas: sin SSA el apply intenta reemplazar el CR entero y la API lo rechaza por campos requeridos ausentes.
+    argocd.argoproj.io/sync-options: ServerSideApply=true,SkipDryRunOnMissingResource=true
+spec:
+  replicas: 2

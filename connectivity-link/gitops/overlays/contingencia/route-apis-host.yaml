@@ -1,0 +1,9 @@
+# En prod el host compartido de APIs apunta al dominio de apps del cluster de produccion.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: shared-gateway-apis
+  namespace: platform-gateway
+spec:
+  # Sustituir por el dominio del cluster de PRODUCCION: apis.apps.<cluster-prod>.<dominio-base>
+  host: apis.apps.ocp.krzn5.sandbox3491.opentlc.com

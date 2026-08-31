@@ -1,4 +1,4 @@
-# Selecciona los clusters de carga (environment dev o prod), no el hub.
+# Selecciona los clusters de carga (cualquier environment de workload), no el hub.
 # OJO: los predicados de un Placement se combinan con O (union), no con Y.
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
@@ -19,4 +19,4 @@ spec:
           matchExpressions:
             - key: environment
               operator: In
-              values: [dev, prod]
+              values: [dev, test, prod, contingencia]

@@ -4,5 +4,7 @@ resources:
   - managedclustersetbinding.yaml
   - placements/clusters-all.yaml
   - placements/clusters-dev.yaml
+  - placements/clusters-test.yaml
   - placements/clusters-prod.yaml
+  - placements/clusters-contingencia.yaml
   - gitopscluster.yaml

@@ -1,0 +1,85 @@
+# Descubrimiento de los SERVICIOS del workshop para el ambiente TEST.
+#
+# Mismo modelo que workshop-services-dev, con dos diferencias deliberadas:
+#   1. El generador es un `matrix` (clusterDecisionResource × git): el destino
+#      NO es el hub sino el cluster que decide el Placement clusters-test —
+#      cada ambiente corre en su propio cluster, como en una adopción real.
+#   2. Solo se despliega el servicio que TIENE overlay del ambiente: el `git`
+#      escanea apps/*/overlays/test, así que un servicio entra en test creando
+#      esa carpeta y en ningún otro sitio. Hoy solo demo-service la tiene: los
+#      servicios didácticos (api, canary, bluegreen, circuit-breaker) se quedan
+#      en dev A PROPÓSITO — enseñan patrones de despliegue, no promoción.
+#
+# Si el ambiente no tiene cluster (Placement sin decisión), el matrix no genera
+# nada: añadir el cluster en clusters.yml y reejecutar el bootstrap lo activa.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  annotations:
+    # Wave 4: el generador clusterDecisionResource lee PlacementDecisions, que no existen hasta la wave 3.
+    argocd.argoproj.io/sync-wave: "4"
+  name: workshop-services-test
+  labels:
+    # Mismas etiquetas que las Applications que genera, para filtrarlo junto a ellas.
+    workshop.redhat.com/layer: application
+    workshop.redhat.com/component: workshop-services
+    workshop.redhat.com/environment: test
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - matrix:
+        generators:
+          - clusterDecisionResource:
+              configMapRef: acm-placement
+              labelSelector:
+                matchLabels:
+                  cluster.open-cluster-management.io/placement: clusters-test
+              requeueAfterSeconds: 180
+          - git:
+              repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
+              revision: main
+              directories:
+                - path: apps/*/overlays/test
+  template:
+    metadata:
+      # Onda 2 — los servicios van después de las rutas del gateway (onda 1).
+      name: 'app-{{index .path.segments 1}}-test'
+      labels:
+        # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+        workshop.redhat.com/layer: application
+        workshop.redhat.com/component: '{{trimSuffix "-service" (index .path.segments 1)}}'
+        workshop.redhat.com/environment: test
+        workshop.redhat.com/cluster: '{{.name}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "2"
+    spec:
+      project: workshop-platform
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
+        targetRevision: main
+        path: '{{.path.path}}'
+      destination:
+        # El cluster del ambiente, decidido por el Placement — nunca el hub.
+        server: '{{.server}}'
+        namespace: '{{if eq (index .path.segments 1) "demo-service"}}workshop-demo-test{{else}}{{trimSuffix "-service" (index .path.segments 1)}}-demo-test{{end}}'
+      syncPolicy:
+        retry:
+          # Arranque en frio: los CRDs (Kuadrant, producto) los instala ACM por su
+          # cuenta y pueden tardar minutos. Sin backoff Argo agota 5 intentos y se rinde.
+          limit: 20
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - RespectIgnoreDifferences=true
+          - CreateNamespace=true
+  # Si se borra el ApplicationSet, las Applications generadas sobreviven.
+  syncPolicy:
+    preserveResourcesOnDeletion: true

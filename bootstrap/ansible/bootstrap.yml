@@ -314,8 +314,8 @@
     # llevar el mismo juego. Cubre también el local-cluster (que no pasa por el
     # import) y re-homologa spokes importados a mano por fuera de este playbook.
     #
-    #   environment: dev|prod|hub  → QUÉ ambiente sirve (elige el overlay)
-    #   role:        hub|workload  → SI aloja el plano de control de GitOps/ACM
+    #   environment: dev|test|prod|contingencia|hub → QUÉ ambiente sirve (elige el overlay)
+    #   role:        hub|workload                   → SI aloja el plano de control de GitOps/ACM
     - name: Homologar etiquetas de ambiente y rol en los ManagedCluster
       kubernetes.core.k8s:
         state: patched

@@ -1,0 +1,68 @@
+# Fan-out de Service Mesh (HELM) a los clusters de ambiente contingencia.
+#
+# Service Mesh usa Helm (no Kustomize como los demás workload), por eso tiene su
+# propio ApplicationSet en vez de ir en el 'list' del workload-contingencia: el template
+# apunta a un chart con helm.valueFiles, no a un overlay de Kustomize. Igual que
+# los demás, selecciona el cluster por el Placement clusters-contingencia, sin nombrarlo.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  annotations:
+    # Wave 4: el generador clusterDecisionResource lee PlacementDecisions, que no existen hasta la wave 3.
+    argocd.argoproj.io/sync-wave: "4"
+  name: service-mesh-contingencia
+  labels:
+    # Mismas etiquetas que las Applications que genera, para filtrarlo junto a ellas.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: service-mesh
+    workshop.redhat.com/environment: contingencia
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+  - clusterDecisionResource:
+      configMapRef: acm-placement
+      labelSelector:
+        matchLabels:
+          cluster.open-cluster-management.io/placement: clusters-contingencia
+      requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: 'config-service-mesh-contingencia'
+      labels:
+        # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+        workshop.redhat.com/layer: infrastructure
+        # Permite agrupar en la consola las dos Applications de un mismo componente.
+        workshop.redhat.com/component: service-mesh
+        workshop.redhat.com/environment: contingencia
+        workshop.redhat.com/cluster: '{{.name}}'
+    spec:
+      project: workshop-multicluster
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+        targetRevision: main
+        path: service-mesh/helm
+        helm:
+          valueFiles:
+            - envs/values-contingencia.yaml
+      destination:
+        server: '{{.server}}'
+        namespace: istio-system
+      syncPolicy:
+        retry:
+          # Arranque en frio: los CRDs (Kuadrant, producto) los instala ACM por su
+          # cuenta y pueden tardar minutos. Sin backoff Argo agota 5 intentos y se rinde.
+          limit: 20
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  syncPolicy:
+    preserveResourcesOnDeletion: true
