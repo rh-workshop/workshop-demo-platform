@@ -72,7 +72,10 @@ spec:
                   name: quay-pull-credentials
                   namespace: {{ $ns }}
                 data:
-                  .dockerconfigjson: {{ $creds }}
+                  # Entrecomillado: el valor es base64 y puede empezar por un
+                  # caracter que YAML interpreta como sintaxis, rompiendo el
+                  # mapeo al resolverse la plantilla.
+                  .dockerconfigjson: "{{ $creds }}"
             {{- /* El Secret no basta: hay que ENLAZARLO al ServiceAccount que
                    descarga. `default` ejecuta los pods de la aplicacion y
                    `builder` las TaskRun del pipeline; ambos lo necesitan. */ -}}
