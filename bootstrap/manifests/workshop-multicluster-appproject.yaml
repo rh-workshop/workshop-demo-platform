@@ -74,6 +74,9 @@ spec:
     namespace: metallb-system
   - server: '*'
     namespace: istio-system
+  # Plataforma de mensajería: el cluster Kafka, sus tópicos y sus usuarios.
+  - server: '*'
+    namespace: kafka
   # Recursos de ámbito de cluster: allow-list del inventario real (falla
   # CERRADO: un kind cluster-scoped nuevo se rechaza hasta listarlo aquí).
   clusterResourceWhitelist:
@@ -149,6 +152,18 @@ spec:
     kind: BackingStore
   - group: noobaa.io
     kind: BucketClass
+  # Kafka: el cluster, sus pools de nodos, sus tópicos y sus identidades.
+  - group: kafka.strimzi.io
+    kind: Kafka
+  - group: kafka.strimzi.io
+    kind: KafkaNodePool
+  - group: kafka.strimzi.io
+    kind: KafkaTopic
+  - group: kafka.strimzi.io
+    kind: KafkaUser
+  # Recolección de métricas de los productos que las exponen (hoy, Kafka).
+  - group: monitoring.coreos.com
+    kind: PodMonitor
   - group: rhdh.redhat.com
     kind: Backstage
   # Connectivity Link: Gateway API + CRs de Kuadrant y sus componentes.
