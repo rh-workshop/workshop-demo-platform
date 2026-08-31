@@ -13,14 +13,17 @@ Este documento describe la implementación del pipeline de auditoría de logs so
 Streams for Apache Kafka en el ambiente de desarrollo, y detalla los valores exactos que
 exige su configuración declarativa (GitOps).
 
-> **La instalación y la configuración las ejecuta el equipo de implementación.** Lo que se
-> solicita al cliente son **accesos, definiciones de negocio y credenciales**; el resto de
-> este documento es descriptivo, para que el equipo de plataforma sepa qué se va a
-> desplegar en su ambiente.
+> **La instalación y la configuración las ejecuta el equipo de implementación**, que también
+> verifica las condiciones técnicas del cluster: almacenamiento, capacidad, conectividad a
+> los catálogos y versiones. Nada de eso se le pide al cliente.
 >
-> El detalle de lo que debe entregar el cliente —y qué valor de referencia se aplicará si
-> una decisión no se confirma— está en el fichero **`prerrequisitos-kafka-dev.xlsx`**, que
-> es el entregable de seguimiento.
+> Lo que sí se solicita son **accesos, definiciones de negocio y decisiones de gobierno**;
+> el resto de este documento es descriptivo, para que el equipo de plataforma sepa qué se
+> va a desplegar en su ambiente.
+>
+> El fichero **`prerrequisitos-kafka-dev.xlsx`** recoge esas 15 peticiones en una hoja, con
+> el valor de referencia que se aplicará si una decisión no se confirma. Es el documento
+> que se envía al cliente.
 
 **Decisiones que corresponden al cliente**, hoy cubiertas con valores de referencia:
 
