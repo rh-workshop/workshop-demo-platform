@@ -3,7 +3,10 @@
 #
 # QUE VA POR GITOPS Y QUE NO:
 #   - Las POLITICAS de seguridad SI tienen CRD (SecurityPolicy) desde ACS 4.11 y
-#     van por Argo (ver acs/gitops/base/policies/). NO se gestionan aqui.
+#     van por Argo (ver acs/gitops/base/policies/)... con UNA excepcion: las dos
+#     de firma referencian el ID de la SignatureIntegration, que lo genera
+#     Central en cada instalacion, asi que las aplica ESTE playbook con el ID
+#     real inyectado (acs/ansible/policies/).
 #   - Las INTEGRACIONES con registros/escaneres, las colecciones y los informes
 #     de vulnerabilidades solo existen tras la API de Central. Ese es el trabajo
 #     de este playbook, y es idempotente.
@@ -35,8 +38,18 @@
     - "{{ playbook_dir }}/../../vars/platform-vars.yml"
 
   vars:
+    # Raíz del repo, para las SecurityPolicy de firma que aplica este playbook (no Argo).
+    repo_root: "{{ playbook_dir }}/../.."
     # Nombre de la integración en Central, derivado del prefijo del registro.
     integracion_nombre: "quay-{{ org_prefix }}"
+    # Nombre de la integración de firma: parametrizable; el ID lo genera Central.
+    firma_nombre: "{{ org_prefix }}-pipeline-cosign"
+    # Las dos políticas que referencian esa integración y su nombre en Central (para verificarlas).
+    politicas_firma:
+      - file: "{{ repo_root }}/acs/ansible/policies/require-image-signature-securitypolicy.yaml"
+        nombre: Exigir firma cosign verificada
+      - file: "{{ repo_root }}/acs/ansible/policies/require-image-signature-deploy-securitypolicy.yaml"
+        nombre: Exigir firma cosign verificada en el despliegue
     acs_host: "{{ lookup('env', 'ACS_HOST') }}"
     acs_token: "{{ lookup('env', 'ACS_TOKEN') }}"
     acs_api: "https://{{ acs_host }}/v1"
@@ -48,17 +61,26 @@
     validate_certs: "{{ lookup('env', 'ACS_VALIDATE_CERTS') | default(true, true) }}"
 
   tasks:
-    - name: Comprobar que hay credenciales
+    # always: tambien con --tags firma hace falta la credencial de Central.
+    - name: Comprobar que hay credenciales de Central
       ansible.builtin.assert:
         that:
           - acs_host | length > 0
           - acs_token | length > 0
+        fail_msg: >-
+          Faltan ACS_HOST o ACS_TOKEN en el entorno. Exportalos antes de
+          ejecutar; nunca los escribas aqui.
+      tags: [always]
+
+    - name: Comprobar que hay credenciales del registro
+      ansible.builtin.assert:
+        that:
           - quay_host | length > 0
           - quay_robot_user | length > 0
           - quay_robot_token | length > 0
         fail_msg: >-
-          Faltan ACS_HOST/ACS_TOKEN/QUAY_HOST/QUAY_ROBOT_USER/QUAY_ROBOT_TOKEN en
-          el entorno. Exportalos antes de ejecutar; nunca los escribas aqui.
+          Faltan QUAY_HOST/QUAY_ROBOT_USER/QUAY_ROBOT_TOKEN en el entorno.
+          Exportalos antes de ejecutar; nunca los escribas aqui.
 
     # Se consulta antes de crear: un POST sobre una integración existente falla, y un
     # PUT sobre su id permite converger endpoint/credenciales si cambian (p. ej. al
@@ -103,14 +125,42 @@
       changed_when: true
       no_log: true
 
-    # --- Integracion de FIRMA (cosign) ---
-    # El ID de una SignatureIntegration lo GENERA Central al crearla: no se puede
-    # inventar en Git. Flujo correcto: este playbook la crea (o la encuentra) con
-    # la llave publica de cosign y muestra el ID; ese ID se escribe en las dos
-    # SecurityPolicy de acs/gitops/base/policies/ (un commit por instalacion) y
-    # Argo las reconcilia. Sin este paso las politicas de firma nacen INERTES:
-    # referencian una integracion que no existe y no bloquean nada.
-    #   export COSIGN_PUBLIC_KEY="$(cat cosign.pub)"   # la MISMA llave del CI
+    # --- Integracion de FIRMA (cosign) + politicas que la referencian ---
+    # El ID de una SignatureIntegration lo GENERA Central al crearla: un ID
+    # literal en Git no es reproducible (en cada instalacion sale otro) y deja
+    # la politica INERTE — existe en el papel y no bloquea nada. Por eso este
+    # bloque crea (o reutiliza por NOMBRE) la integracion, resuelve su ID en
+    # ejecucion y aplica las dos SecurityPolicy con el ID inyectado, con el
+    # mismo patron CHANGE_ME_* del bootstrap. Reaplicable solo: --tags firma.
+    - name: Leer la clave publica de cosign del secreto del CI
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        name: cosign-signing-key
+        namespace: "{{ (ci_namespaces | first).namespace }}"
+      register: cosign_secreto
+      tags: [firma]
+
+    # La MISMA llave cuyo par privado usa la task de firma: si difieren, todo lo
+    # firmado quedaria "no verificado". Fallback por entorno para poder sembrar
+    # Central antes de que exista el secreto del CI.
+    - name: Resolver la clave publica de cosign (secreto > entorno)
+      ansible.builtin.set_fact:
+        cosign_public_key: >-
+          {{ (cosign_secreto.resources[0].data['cosign.pub'] | b64decode)
+             if cosign_secreto.resources | default([]) | length > 0
+             else lookup('env', 'COSIGN_PUBLIC_KEY') }}
+      tags: [firma]
+
+    - name: Comprobar que hay clave publica de cosign
+      ansible.builtin.assert:
+        that: cosign_public_key | trim | length > 0
+        fail_msg: >-
+          Ni existe el secreto cosign-signing-key en
+          {{ (ci_namespaces | first).namespace }} ni hay COSIGN_PUBLIC_KEY en el
+          entorno: sin la clave publica no hay integracion de firma que crear.
+      tags: [firma]
+
     - name: Comprobar si la integracion de firma ya existe
       ansible.builtin.uri:
         url: "{{ acs_api }}/signatureintegrations"
@@ -121,42 +171,123 @@
         validate_certs: "{{ validate_certs }}"
       changed_when: false
       register: firmas_existentes
-      when: lookup('env', 'COSIGN_PUBLIC_KEY') | length > 0
+      tags: [firma]
 
-    - name: Crear la integracion de firma cosign-workshop si falta
+    - name: Localizar la integracion de firma por nombre
+      ansible.builtin.set_fact:
+        integracion_firma: "{{ firmas_existentes.json.integrations | default([]) | selectattr('name', 'equalto', firma_nombre) | list | first | default({}) }}"
+      tags: [firma]
+
+    # Con id existente se converge (PUT: permite rotar la llave), pero SOLO si la
+    # llave difiere: asi una reejecucion sin cambios reporta cero cambios de verdad.
+    - name: Registrar la integracion de firma cosign en Central
       ansible.builtin.uri:
-        url: "{{ acs_api }}/signatureintegrations"
-        method: POST
+        url: "{{ acs_api }}/signatureintegrations{{ '/' + integracion_firma.id if integracion_firma else '' }}"
+        method: "{{ 'PUT' if integracion_firma else 'POST' }}"
         headers:
           Authorization: "Bearer {{ acs_token }}"
         body_format: json
         body:
-          name: cosign-workshop
+          name: "{{ firma_nombre }}"
+          id: "{{ integracion_firma.id | default(omit) }}"
           cosign:
             publicKeys:
-              - name: workshop-ci
-                publicKeyPemEnc: "{{ lookup('env', 'COSIGN_PUBLIC_KEY') }}"
+              - name: "{{ org_prefix }}-ci"
+                publicKeyPemEnc: "{{ cosign_public_key }}"
         status_code: [200]
         validate_certs: "{{ validate_certs }}"
       changed_when: true
-      register: firma_creada
+      register: firma_registrada
       when: >-
-        lookup('env', 'COSIGN_PUBLIC_KEY') | length > 0 and
-        (firmas_existentes.json.integrations | default([]) | selectattr('name', 'equalto', 'cosign-workshop') | list | length == 0)
+        not integracion_firma or
+        (integracion_firma.cosign.publicKeys | map(attribute='publicKeyPemEnc') | list != [cosign_public_key])
+      tags: [firma]
 
-    - name: Mostrar el ID de la integracion de firma (escribirlo en las SecurityPolicy)
-      ansible.builtin.debug:
-        msg: >-
-          SignatureIntegration cosign-workshop id =
-          {{ (firma_creada.json.id if (firma_creada is not skipped and firma_creada.json is defined)
-             else (firmas_existentes.json.integrations | default([]) | selectattr('name', 'equalto', 'cosign-workshop') | map(attribute='id') | first | default('SIN CREAR: exporta COSIGN_PUBLIC_KEY'))) }}
-          — actualizar acs/gitops/base/policies/require-image-signature*.yaml con este valor y commitear.
-      when: lookup('env', 'COSIGN_PUBLIC_KEY') | length > 0
+    - name: Resolver el ID real de la integracion de firma
+      ansible.builtin.set_fact:
+        firma_id: "{{ integracion_firma.id | default(firma_registrada.json.id) }}"
+      tags: [firma]
+
+    # Las politicas de firma NO las gobierna Argo (ver acs/ansible/policies/):
+    # su unico dato no reproducible es este ID, que se inyecta aqui al aplicar.
+    # SSA con force_conflicts para ADOPTAR los CR si antes los aplicaba Argo.
+    - name: Aplicar las SecurityPolicy de firma con el ID real
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', item.file) | replace('CHANGE_ME_SIGNATURE_INTEGRATION_ID', firma_id) }}"
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+      loop: "{{ politicas_firma }}"
+      loop_control:
+        label: "{{ item.nombre }}"
+      tags: [firma]
+
+    # VERIFICACION, no cortesia: el defecto que motivo este bloque era una
+    # politica que "existia" apuntando a un ID de otra instalacion. Se espera a
+    # que Central refleje el CR y luego se comprueba el criterio de verdad.
+    - name: Esperar a que Central refleje cada politica de firma
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: politicas_central
+      until: politicas_central.json.policies | default([]) | selectattr('name', 'equalto', item.nombre) | list | length > 0
+      retries: 30
+      delay: 10
+      loop: "{{ politicas_firma }}"
+      loop_control:
+        label: "{{ item.nombre }}"
+      tags: [firma]
+
+    # El until reintenta hasta que el criterio apunte al ID esperado: cubre el
+    # retardo de reconciliacion CR->Central y DETECTA a quien lo pelee (p. ej.
+    # un Argo que aun tenga las politicas en Git y las revierta por self-heal).
+    - name: Consultar el detalle de cada politica de firma
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies/{{ item.json.policies | selectattr('name', 'equalto', item.item.nombre) | map(attribute='id') | first }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: politicas_detalle
+      until: >-
+        politicas_detalle.json.policySections | default([]) | map(attribute='policyGroups') | flatten
+        | selectattr('fieldName', 'equalto', 'Image Signature Verified By')
+        | map(attribute='values') | flatten | map(attribute='value') | list == [firma_id]
+      retries: 30
+      delay: 10
+      loop: "{{ politicas_central.results }}"
+      loop_control:
+        label: "{{ item.item.nombre }}"
+      tags: [firma]
+
+    - name: Verificar que cada politica apunta al ID vivo y con enforcement
+      ansible.builtin.assert:
+        that:
+          - item.json.policySections | map(attribute='policyGroups') | flatten | selectattr('fieldName', 'equalto', 'Image Signature Verified By') | map(attribute='values') | flatten | map(attribute='value') | list == [firma_id]
+          - not (item.json.disabled | default(false))
+          - item.json.enforcementActions | length > 0
+        fail_msg: >-
+          La politica {{ item.item.item.nombre }} no apunta al ID {{ firma_id }}
+          o no tiene enforcement: el control de firma quedaria en el papel.
+      loop: "{{ politicas_detalle.results }}"
+      loop_control:
+        label: "{{ item.item.item.nombre }}"
+      tags: [firma]
 
     - name: Recordar el resto del ciclo
       ansible.builtin.debug:
         msg: >-
-          Integracion ACS->Quay lista. Las politicas de seguridad se gestionan como
-          CR SecurityPolicy (acs/gitops/base/policies/), no aqui. Los informes de
-          vulnerabilidades se programan en la consola (Vulnerability Management ->
-          Reporting) sobre una coleccion; nada de eso se versiona en Git.
+          Integracion ACS->Quay lista y politicas de firma verificadas contra la
+          SignatureIntegration {{ firma_nombre }}. El resto de politicas se
+          gestiona como CR SecurityPolicy via Argo (acs/gitops/base/policies/).
+          Los informes de vulnerabilidades se programan en la consola
+          (Vulnerability Management -> Reporting); nada de eso se versiona en Git.

@@ -15,16 +15,14 @@
 # Red Hat firmadas con SU cadena, no con la del pipeline; incluirlos bloquearía
 # la propia plataforma. Al añadir un namespace de negocio hay que añadirlo aquí.
 #
-# La SignatureIntegration NO tiene CRD: se crea por API con la clave pública de
-# cosign (ver acs/ansible/) y su ID es el que se referencia abajo. Un ID que no
-# existe en Central hace la política INERTE (no bloquea nada) — verificarlo es
-# parte del alta de un cluster.
+# NO LA GOBIERNA ARGO: la SignatureIntegration no tiene CRD, se crea por API y
+# su ID lo GENERA Central — un ID literal en Git no es reproducible y deja la
+# política INERTE (no bloquea nada). La aplica acs/ansible/integrations.yml
+# (--tags firma) inyectando el ID real en el placeholder y VERIFICANDO después
+# contra Central que el criterio apunta a una integración viva.
 apiVersion: config.stackrox.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  annotations:
-    # El CRD lo instala ACM (OperatorPolicy), no este sync: sin esto el dry-run del arranque en frio invalida la Application entera.
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   name: require-image-signature-deploy
   namespace: stackrox
 spec:
@@ -51,5 +49,5 @@ spec:
         - fieldName: Image Signature Verified By
           booleanOperator: OR
           values:
-            # ID de la SignatureIntegration "company-pipeline-cosign" en Central.
-            - value: io.stackrox.signatureintegration.46ab1fe7-d4d5-4a4e-9d03-6b2af2f316ce
+            # ID real de la SignatureIntegration <org_prefix>-pipeline-cosign: lo inyecta integrations.yml en el apply.
+            - value: CHANGE_ME_SIGNATURE_INTEGRATION_ID
