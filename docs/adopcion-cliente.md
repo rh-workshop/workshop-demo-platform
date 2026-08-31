@@ -135,8 +135,8 @@ ansible-playbook quay/ansible/pull-secrets.yml       # pull secret del builder (
 export KEYCLOAK_HOST=... KEYCLOAK_ADMIN=... KEYCLOAK_PASSWORD=...
 ansible-playbook keycloak/ansible/clients.yml        # clients M2M
 
-export ACS_HOST=... ACS_TOKEN=... QUAY_ROBOT_USER=... QUAY_ROBOT_TOKEN=...
-ansible-playbook acs/ansible/integrations.yml        # registro + firma + políticas de firma con el ID real (verificadas)
+export ACS_HOST=... ACS_TOKEN=...
+ansible-playbook acs/ansible/integrations.yml        # registro (una integración por org, robot acs-scanner) + firma + políticas verificadas
 ```
 
 ## 9. Adapta el CI a tus aplicaciones

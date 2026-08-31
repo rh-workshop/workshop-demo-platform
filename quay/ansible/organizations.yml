@@ -49,6 +49,9 @@
     #   ci_push: true  -> el CI publica (pusher con write)
     #   ci_push: false -> NADIE publica desde CI: la imagen llega SOLO por
     #                     promoción con una credencial aparte. Su pusher es 'read'.
+    # acs-scanner existe en CADA organización porque los robots de Quay no
+    # cruzan organizaciones (no hay lectura org-wide salvo admin): ACS necesita
+    # leer imágenes de todas, y darle el admin violaría el menor privilegio.
     robots_ci:
       - name: puller
         description: Cuenta de solo lectura para descargar imágenes
@@ -56,6 +59,9 @@
       - name: pusher
         description: Cuenta del pipeline de CI para publicar imágenes
         permission: write
+      - name: acs-scanner
+        description: Cuenta de solo lectura para que ACS resuelva y escanee imágenes
+        permission: read
     robots_promotion_only:
       - name: puller
         description: Cuenta de solo lectura para descargar imágenes
@@ -63,6 +69,9 @@
       # Solo lectura a propósito: aquí se llega promocionando, no publicando.
       - name: pusher
         description: Sin escritura desde CI; la imagen llega por promoción
+        permission: read
+      - name: acs-scanner
+        description: Cuenta de solo lectura para que ACS resuelva y escanee imágenes
         permission: read
     # La lista final: una organización por ambiente más la de tooling (espejos
     # de herramientas del CI — ver la excepción documentada en platform-vars.yml).
@@ -85,6 +94,9 @@
       robots:
         - name: puller
           description: Cuenta de solo lectura para que el CI descargue las herramientas
+          permission: read
+        - name: acs-scanner
+          description: Cuenta de solo lectura para que ACS resuelva y escanee imágenes
           permission: read
 
   tasks:

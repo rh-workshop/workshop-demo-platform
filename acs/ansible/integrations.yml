@@ -11,20 +11,20 @@
 #     de vulnerabilidades solo existen tras la API de Central. Ese es el trabajo
 #     de este playbook, y es idempotente.
 #
-# ESTE PLAYBOOK configura la integracion ACS -> Quay (decision de arquitectura):
-# Clair escanea la imagen en el registro (gate al push) y ACS LEE esos resultados
-# de Quay en vez de re-escanear. Tipo "Scanner + Registry" con un robot account de
-# solo lectura. Asi hay defensa en profundidad y un solo panel, sin escanear dos
-# veces la misma imagen. Ver docs/backlog-produccion.md (decisiones de arquitectura).
+# ESTE PLAYBOOK configura la integracion ACS -> Quay: UNA image integration por
+# organizacion del registro (los robots de Quay no cruzan organizaciones), cada
+# una con su robot acs-scanner de SOLO LECTURA que crea organizations.yml. Solo
+# categoria REGISTRY: la categoria SCANNER (leer resultados de Clair) exigiria
+# un token OAuth de Quay que hoy solo existe como admin — contra el menor
+# privilegio; el escaneo lo hace el scanner propio de ACS con esta credencial.
 #
 # CREDENCIALES: del entorno, nunca versionadas. El token de API se genera en la
 # consola de ACS (Platform Configuration -> Integrations -> API Token, rol Admin).
+# El token admin de Quay sale del secreto de dia-0 quay-enterprise/quay-admin-token
+# (lo persiste bootstrap.yml) y SOLO se usa para consultar los tokens de los robots.
 #
 #   export ACS_HOST=<host-de-central>
 #   export ACS_TOKEN=<token-de-api>
-#   export QUAY_HOST=<host-de-quay>
-#   export QUAY_ROBOT_USER=<org+robot>       # robot de solo lectura
-#   export QUAY_ROBOT_TOKEN=<token-del-robot>
 #   ansible-playbook acs/ansible/integrations.yml
 
 - name: Configurar integraciones de ACS
@@ -32,16 +32,23 @@
   connection: local
   gather_facts: false
 
-  # El "qué" (el prefijo de organizaciones, que da nombre a la integración) vive
-  # en vars/platform-vars.yml: UN solo fichero de datos para todos los playbooks.
+  # El "qué" (prefijo, ambientes, namespaces de CI) vive en vars/platform-vars.yml;
+  # el inventario del entorno aporta base_domain (mismo patrón que bootstrap.yml).
   vars_files:
     - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+    - "{{ lookup('first_found', [playbook_dir ~ '/../../bootstrap/ansible/clusters.yml', playbook_dir ~ '/../../bootstrap/ansible/clusters.example.yml'], errors='ignore') }}"
 
   vars:
     # Raíz del repo, para las SecurityPolicy de firma que aplica este playbook (no Argo).
     repo_root: "{{ playbook_dir }}/../.."
-    # Nombre de la integración en Central, derivado del prefijo del registro.
-    integracion_nombre: "quay-{{ org_prefix }}"
+    # Fallback si no hay inventario: se sustituye en clusters.yml o con -e.
+    base_domain: CHANGE_ME_BASE_DOMAIN
+    # Hostname del registro derivado del inventario (misma regla que bootstrap.yml); QUAY_HOST lo pisa.
+    quay_host: "{{ lookup('env', 'QUAY_HOST') | default('company-quay-quay-quay-enterprise.' ~ base_domain, true) }}"
+    # Verificación TLS hacia Quay, separada de la de Central (certificados distintos).
+    quay_validate_certs: "{{ lookup('env', 'QUAY_VALIDATE_CERTS') | default(true, true) }}"
+    # Una integración POR organización del registro: ambientes + tooling.
+    orgs_registro: "{{ (environments | map(attribute='name') | list + ['tooling']) | map('regex_replace', '^', org_prefix ~ '-') | list }}"
     # Nombre de la integración de firma: parametrizable; el ID lo genera Central.
     firma_nombre: "{{ org_prefix }}-pipeline-cosign"
     # Las dos políticas que referencian esa integración y su nombre en Central (para verificarlas).
@@ -53,9 +60,6 @@
     acs_host: "{{ lookup('env', 'ACS_HOST') }}"
     acs_token: "{{ lookup('env', 'ACS_TOKEN') }}"
     acs_api: "https://{{ acs_host }}/v1"
-    quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
-    quay_robot_user: "{{ lookup('env', 'QUAY_ROBOT_USER') }}"
-    quay_robot_token: "{{ lookup('env', 'QUAY_ROBOT_TOKEN') }}"
     # PRODUCCION: verificar SIEMPRE el certificado de Central. false solo es un
     # atajo de lab (MITM sobre el token Admin). Sobreescribible solo explicitamente.
     validate_certs: "{{ lookup('env', 'ACS_VALIDATE_CERTS') | default(true, true) }}"
@@ -72,20 +76,53 @@
           ejecutar; nunca los escribas aqui.
       tags: [always]
 
-    - name: Comprobar que hay credenciales del registro
-      ansible.builtin.assert:
-        that:
-          - quay_host | length > 0
-          - quay_robot_user | length > 0
-          - quay_robot_token | length > 0
-        fail_msg: >-
-          Faltan QUAY_HOST/QUAY_ROBOT_USER/QUAY_ROBOT_TOKEN en el entorno.
-          Exportalos antes de ejecutar; nunca los escribas aqui.
+    # --- Integracion de REGISTRO (una por organizacion de Quay) ---
+    # Sin image integration, roxctl falla con "no matching image registries
+    # found": Central ni siquiera puede resolver los metadatos de la imagen.
+    # Reaplicable solo: --tags registro.
+    - name: Leer el token admin de Quay del secreto de dia-0
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        name: quay-admin-token
+        namespace: quay-enterprise
+      register: quay_admin_secreto
+      tags: [registro]
 
-    # Se consulta antes de crear: un POST sobre una integración existente falla, y un
-    # PUT sobre su id permite converger endpoint/credenciales si cambian (p. ej. al
-    # renombrar el registro). Mismo criterio de idempotencia que organizations.yml.
-    - name: Comprobar si la integracion ya existe
+    # Solo para CONSULTAR los tokens de los robots: la integracion no usa el admin.
+    - name: Resolver el token admin de Quay (secreto > entorno)
+      ansible.builtin.set_fact:
+        quay_admin_token: >-
+          {{ (quay_admin_secreto.resources[0].data.token | b64decode | trim)
+             if quay_admin_secreto.resources | default([]) | length > 0
+             else lookup('env', 'QUAY_TOKEN') }}
+      no_log: true
+      tags: [registro]
+
+    - name: Comprobar que hay token admin de Quay
+      ansible.builtin.assert:
+        that: quay_admin_token | trim | length > 0
+        fail_msg: >-
+          Ni existe el secreto quay-enterprise/quay-admin-token ni hay QUAY_TOKEN
+          en el entorno: sin el no se pueden consultar los robots del registro.
+      tags: [registro]
+
+    # Un 404 aqui significa que falta el robot: ejecutar antes quay/ansible/organizations.yml.
+    - name: Consultar el token del robot acs-scanner de cada organizacion
+      ansible.builtin.uri:
+        url: "https://{{ quay_host }}/api/v1/organization/{{ item }}/robots/acs-scanner"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_admin_token }}"
+        status_code: [200]
+        validate_certs: "{{ quay_validate_certs }}"
+      changed_when: false
+      register: robots_scanner
+      loop: "{{ orgs_registro }}"
+      no_log: true
+      tags: [registro]
+
+    - name: Comprobar que integraciones de registro existen en Central
       ansible.builtin.uri:
         url: "{{ acs_api }}/imageintegrations"
         method: GET
@@ -95,35 +132,84 @@
         validate_certs: "{{ validate_certs }}"
       changed_when: false
       register: integraciones_existentes
+      tags: [registro]
 
-    - name: Localizar la integracion del registro por nombre
-      ansible.builtin.set_fact:
-        integracion_quay: "{{ integraciones_existentes.json.integrations | selectattr('name', 'equalto', integracion_nombre) | list | first | default({}) }}"
-
-    - name: Registrar Quay como Scanner + Registry en ACS
+    # Se converge por nombre: sin id se crea (POST) y con endpoint o robot
+    # cambiados se actualiza (PUT); si todo coincide no se toca (idempotencia real).
+    - name: Registrar cada organizacion de Quay en ACS (categoria REGISTRY)
       ansible.builtin.uri:
-        # Con id existente se actualiza (PUT); sin él se crea (POST).
-        url: "{{ acs_api }}/imageintegrations{{ '/' + integracion_quay.id if integracion_quay else '' }}"
-        method: "{{ 'PUT' if integracion_quay else 'POST' }}"
+        url: "{{ acs_api }}/imageintegrations{{ '/' + integracion_actual.id if integracion_actual else '' }}"
+        method: "{{ 'PUT' if integracion_actual else 'POST' }}"
         headers:
           Authorization: "Bearer {{ acs_token }}"
         body_format: json
         body:
-          # El nombre sale del org_prefix de vars/platform-vars.yml (el mismo de quay/ansible/organizations.yml).
-          name: "{{ integracion_nombre }}"
-          id: "{{ integracion_quay.id | default(omit) }}"
+          name: "quay-{{ item.item }}"
+          id: "{{ integracion_actual.id | default(omit) }}"
           type: quay
-          categories:
-            - REGISTRY
-            - SCANNER
+          categories: [REGISTRY]
           quay:
             endpoint: "https://{{ quay_host }}"
-            # robot de SOLO LECTURA; ACS lee imagenes y resultados de Clair
-            oauthToken: "{{ quay_robot_token }}"
+            registryRobotCredentials:
+              username: "{{ item.item }}+acs-scanner"
+              password: "{{ item.json.token }}"
         status_code: [200]
         validate_certs: "{{ validate_certs }}"
       changed_when: true
+      vars:
+        integracion_actual: "{{ integraciones_existentes.json.integrations | default([]) | selectattr('name', 'equalto', 'quay-' ~ item.item) | list | first | default({}) }}"
+      when: >-
+        not integracion_actual or
+        integracion_actual.quay.endpoint != 'https://' ~ quay_host or
+        (integracion_actual.quay.registryRobotCredentials.username | default('')) != item.item ~ '+acs-scanner'
+      loop: "{{ robots_scanner.results }}"
+      loop_control:
+        label: "quay-{{ item.item }}"
       no_log: true
+      tags: [registro]
+
+    # Releer tras converger: el test de una integracion ya persistida debe llevar
+    # su id o Central lo rechaza por "nombre duplicado".
+    - name: Releer las integraciones de registro ya persistidas
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/imageintegrations"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: integraciones_persistidas
+      tags: [registro]
+
+    # VERIFICACION real contra el registro: Central prueba la credencial del
+    # robot sin persistir nada; si falla, la integracion existiria pero no
+    # resolveria imagenes — el mismo sintoma que motivo este bloque.
+    - name: Probar cada integracion de registro contra Quay
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/imageintegrations/test"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          name: "quay-{{ item.item }}"
+          id: "{{ integraciones_persistidas.json.integrations | selectattr('name', 'equalto', 'quay-' ~ item.item) | map(attribute='id') | first }}"
+          type: quay
+          categories: [REGISTRY]
+          quay:
+            endpoint: "https://{{ quay_host }}"
+            registryRobotCredentials:
+              username: "{{ item.item }}+acs-scanner"
+              password: "{{ item.json.token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      loop: "{{ robots_scanner.results }}"
+      loop_control:
+        label: "quay-{{ item.item }}"
+      no_log: true
+      tags: [registro]
 
     # --- Integracion de FIRMA (cosign) + politicas que la referencian ---
     # El ID de una SignatureIntegration lo GENERA Central al crearla: un ID
