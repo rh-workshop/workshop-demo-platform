@@ -84,6 +84,11 @@ spec:
     - {name: test-context, default: "."}
     # "false" (hoy no hay tests): la ausencia de tests informa y sigue; "true" la convierte en obligatoria.
     - {name: fail-on-no-tests, default: "false"}
+    # VERSIÓN del runtime que ejecuta las pruebas. Vacío = la imagen Red Hat que la plataforma
+    # soporta para ese lenguaje (ver la task resolve-test-image). Una app que necesite otra
+    # —JDK 21 en vez de 25, .NET 8 en vez de 10— la fija en SU PipelineRun: queda en Git y pasa
+    # por PR. Por eso hay UNA task por lenguaje y no una por versión.
+    - {name: test-image, default: ""}
     # Detector de secretos espejado en el registro corporativo (tercera excepción a
     # "solo Red Hat", junto a semgrep y syft): ver la cabecera de secret-scan-task.yaml.
     - {name: secret-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/gitleaks:v8.29.1"}
@@ -141,10 +146,50 @@ spec:
     # en el namespace del run): mismo pipeline para .NET, Java, Python y Go, sin
     # duplicarlo ni ramificar con `when` — las cuatro tasks comparten contrato
     # (test-image propio, context, fail-on-no-tests, result coverage).
+    # Resuelve la imagen EFECTIVA de las pruebas: el override de la aplicación si viene, o la
+    # imagen soportada para su lenguaje. El mapa es el catálogo de la plataforma: dar soporte a una
+    # versión nueva es editar SOLO este case, sin tocar las tasks ni los PipelineRun de las apps.
+    #
+    # Se resuelve aquí y no dentro de la task porque el campo `image` de un step admite parámetros
+    # pero NO resultados de otro step: la imagen se fija al crear el pod, antes de ejecutar nada.
+    # A nivel de pipeline sí puede pasarse el resultado de una task a otra, que es lo que se hace.
+    - name: resolve-test-image
+      params:
+        - {name: language, value: $(params.language)}
+        - {name: override, value: $(params.test-image)}
+      taskSpec:
+        params:
+          - {name: language, type: string}
+          - {name: override, type: string}
+        results:
+          - {name: image, type: string, description: Imagen de runtime que ejecutará las pruebas}
+        steps:
+          - name: resolve
+            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              if [ -n "$(params.override)" ]; then
+                IMG="$(params.override)"
+                echo "La aplicación fija su propia imagen de pruebas."
+              else
+                # Estas imágenes deben coincidir con el default de cada <lenguaje>-test-task.
+                case "$(params.language)" in
+                  java)   IMG="registry.access.redhat.com/ubi9/openjdk-25:1.24" ;;
+                  dotnet) IMG="registry.access.redhat.com/ubi9/dotnet-100:9.8" ;;
+                  python) IMG="registry.access.redhat.com/ubi9/python-312:1-1762230134" ;;
+                  go)     IMG="registry.redhat.io/ubi9/go-toolset:1.26.7" ;;
+                  *) echo "ERROR: no hay imagen soportada para el lenguaje '$(params.language)'." >&2; exit 1 ;;
+                esac
+              fi
+              printf '%s' "${IMG}" > $(results.image.path)
+              echo "Imagen de pruebas: ${IMG}"
+
     - name: run-unit-tests
       runAfter: [clone-source-code]
       taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: "$(params.language)-test"}, {name: namespace, value: "$(context.pipelineRun.namespace)"}]}
       params:
+        - {name: test-image, value: $(tasks.resolve-test-image.results.image)}
         - {name: context, value: $(params.test-context)}
         - {name: fail-on-no-tests, value: $(params.fail-on-no-tests)}
       workspaces: [{name: source, workspace: source}]

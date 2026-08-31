@@ -24,6 +24,9 @@ metadata:
 spec:
   params:
     # Toolchain de Go soportado por Red Hat, fijado por versión (nunca "latest").
+    # Este default solo aplica a un TaskRun directo: en el pipeline la imagen la resuelve
+    # resolve-test-image, que mantiene el catálogo de versiones soportadas. Al cambiarlo
+    # aquí hay que cambiarlo también allí, o el pipeline seguirá usando el suyo.
     - {name: test-image, type: string, default: "registry.redhat.io/ubi9/go-toolset:1.26.7"}
     # Subdirectorio del monorepo a probar; "." usa la raíz del repositorio.
     - {name: context, type: string, default: "."}
