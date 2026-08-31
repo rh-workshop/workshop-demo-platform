@@ -20,3 +20,12 @@ spec:
   name: openshift-gitops-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
+  config:
+    env:
+      # AUTORIZA el namespace donde vive el RolloutManager de ámbito CLUSTER.
+      # El operador rechaza una instancia cluster-scoped fuera del namespace por
+      # defecto si no aparece en esta lista, y deja el CR en Failure con
+      # "namespace is not specified in CLUSTER_SCOPED_ARGO_ROLLOUTS_NAMESPACES"
+      # — sin desplegar controlador y sin que nada mas lo delate.
+      - name: CLUSTER_SCOPED_ARGO_ROLLOUTS_NAMESPACES
+        value: argo-rollouts
