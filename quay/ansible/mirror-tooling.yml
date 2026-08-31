@@ -60,21 +60,59 @@
       loop_control:
         label: "{{ tooling_org }}/{{ item.name }}:{{ item.tag }}"
 
+    # QUE EL TAG EXISTA NO BASTA. El tag es un apunte en la base de datos de
+    # Quay; los BLOBS viven en el object storage. Si el almacenamiento cambia
+    # (p. ej. migrar de NooBaa a S3), la base conserva los tags pero el bucket
+    # nuevo esta vacio: el registro cree tener la imagen y todo pull muere con
+    # un 500. Por eso la comprobacion real es pedir el MANIFIESTO, que es lo
+    # unico que obliga a tocar el almacenamiento de verdad.
+    - name: Comprobar que el manifiesto se puede leer de verdad
+      ansible.builtin.command:
+        argv:
+          - skopeo
+          - inspect
+          # Misma plataforma que el espejado: comprobar la variante del host
+          # daria un falso negativo desde un portatil arm64.
+          - "--override-os=linux"
+          - "--override-arch=amd64"
+          - "--creds=$oauthtoken:{{ quay_token }}"
+          - "--tls-verify={{ validate_certs | bool | string | lower }}"
+          - "docker://{{ quay_host }}/{{ tooling_org }}/{{ item.item.name }}:{{ item.item.tag }}"
+      register: manifiestos
+      changed_when: false
+      # Un fallo aqui NO es un error: significa "hay que espejar".
+      failed_when: false
+      when: item.json.tags | length > 0
+      loop: "{{ tags_existentes.results }}"
+      loop_control:
+        label: "{{ tooling_org }}/{{ item.item.name }}:{{ item.item.tag }}"
+      no_log: true
+
     # $oauthtoken es el usuario reservado de Quay para autenticar con un token
     # OAuth; con argv no hay shell y el literal viaja intacto. no_log porque el
     # token va en la linea de comandos.
-    - name: Espejar la herramienta cuyo tag falte
+    #
+    # Se espeja si falta el tag O si el manifiesto no se puede leer (blobs
+    # huerfanos tras un cambio de almacenamiento): ambos casos significan que la
+    # imagen NO esta realmente servible.
+    - name: Espejar la herramienta que falte o no sea legible
       ansible.builtin.command:
         argv:
           - skopeo
           - copy
+          # Se fija la plataforma DESTINO, no la del host que ejecuta el
+          # playbook: desde un portatil arm64 (macOS) skopeo elegiria esa
+          # variante del manifest list y espejaria una imagen que los nodos del
+          # cluster —linux/amd64— no pueden ejecutar.
+          - "--override-os=linux"
+          - "--override-arch=amd64"
           - "--dest-creds=$oauthtoken:{{ quay_token }}"
           - "--dest-tls-verify={{ validate_certs | bool | string | lower }}"
-          - "docker://{{ item.item.source }}:{{ item.item.tag }}"
-          - "docker://{{ quay_host }}/{{ tooling_org }}/{{ item.item.name }}:{{ item.item.tag }}"
+          - "docker://{{ item.0.item.source }}:{{ item.0.item.tag }}"
+          - "docker://{{ quay_host }}/{{ tooling_org }}/{{ item.0.item.name }}:{{ item.0.item.tag }}"
       changed_when: true
-      when: item.json.tags | length == 0
-      loop: "{{ tags_existentes.results }}"
+      when: item.0.json.tags | length == 0 or item.1.rc | default(1) != 0
+      loop: "{{ tags_existentes.results | zip(manifiestos.results) | list }}"
       loop_control:
-        label: "{{ item.item.source }}:{{ item.item.tag }}"
+        label: "{{ item.0.item.source }}:{{ item.0.item.tag }}"
       no_log: true

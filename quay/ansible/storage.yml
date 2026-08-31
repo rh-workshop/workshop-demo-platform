@@ -32,6 +32,14 @@
     quay_namespace: quay-enterprise
     # Nombre del bundle que referencia el QuayRegistry (spec.configBundleSecret).
     quay_config_secret: quay-config-bundle
+    # NOMBRE DE LA UBICACION DE ALMACENAMIENTO. No es cosmetico: Quay guarda en
+    # la tabla imagestoragelocation la ubicacion de cada blob, y al servir una
+    # imagen busca ESE nombre entre las claves de DISTRIBUTED_STORAGE_CONFIG.
+    # Si no coincide, el registro muere con `KeyError: '<nombre>'` y todo push o
+    # pull devuelve 500. `local_us` es el nombre que usa el operador cuando el
+    # objectstorage es gestionado, asi que conservarlo permite cambiar el backend
+    # sin reescribir la ubicacion de los blobs ya registrados.
+    quay_storage_location: local_us
 
   tasks:
     # Con NooBaa el operador gestiona el bucket: no hay credenciales que sembrar.
@@ -139,15 +147,15 @@
         bundle_nuevo: >-
           {{ bundle_actual | combine({
                'DISTRIBUTED_STORAGE_CONFIG': {
-                 'default': ['S3Storage', {
+                 quay_storage_location: ['S3Storage', {
                    's3_bucket': s3_bucket,
                    's3_region': s3_region,
                    's3_access_key': s3_access_key,
                    's3_secret_key': s3_secret_key,
                    'host': 's3.' ~ s3_region ~ '.amazonaws.com',
                    'storage_path': '/datastorage/registry'}]},
-               'DISTRIBUTED_STORAGE_PREFERENCE': ['default'],
-               'DISTRIBUTED_STORAGE_DEFAULT_LOCATIONS': []})
+               'DISTRIBUTED_STORAGE_PREFERENCE': [quay_storage_location],
+               'DISTRIBUTED_STORAGE_DEFAULT_LOCATIONS': [quay_storage_location]})
           }}
       no_log: true
 
