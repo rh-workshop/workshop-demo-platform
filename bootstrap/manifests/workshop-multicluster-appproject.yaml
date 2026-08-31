@@ -30,9 +30,14 @@ spec:
     namespace: open-cluster-management
   - server: '*'
     namespace: quay-enterprise
-  # NooBaa (MCG standalone): el object storage del que depende el QuayRegistry en este entorno sin ODF.
+  # NooBaa (MCG standalone): solo cuando el backend de Quay es noobaa, es decir
+  # en clusters SIN object storage de nube. Con backend s3 aqui no se despliega nada.
   - server: '*'
     namespace: openshift-storage
+  # CredentialsRequest del bucket de Quay: el CCO acuña ahi la identidad de S3.
+  # Solo se usa con el backend s3 (quay/gitops/components/storage-s3).
+  - server: '*'
+    namespace: openshift-cloud-credential-operator
   - server: '*'
     namespace: stackrox
   - server: '*'
@@ -114,6 +119,11 @@ spec:
   # template). Si aparece un kind nuevo, Argo lo rechaza con "resource ... is
   # not permitted in project" y hay que añadirlo aquí de forma consciente.
   namespaceResourceWhitelist:
+  # Peticion de credenciales de nube al CCO (identidad de S3 para el bucket de
+  # Quay). NO otorga permisos por si misma: describe la politica minima que el
+  # CCO acuña, y el propio CCO decide si puede resolverla.
+  - group: cloudcredential.openshift.io
+    kind: CredentialsRequest
   # Configuración y servicios auxiliares de los productos.
   - group: ''
     kind: ConfigMap

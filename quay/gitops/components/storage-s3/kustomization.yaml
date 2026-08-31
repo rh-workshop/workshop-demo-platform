@@ -14,6 +14,11 @@
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
+resources:
+  # Pide al Cloud Credential Operator una identidad PROPIA para el bucket, en
+  # vez de reutilizar las credenciales de otro componente del cluster.
+  - quay-s3-credentialsrequest.yaml
+
 patches:
   - target:
       kind: QuayRegistry
