@@ -1,0 +1,96 @@
+# OpenBao: el almacen de secretos de la plataforma.
+#
+# QUE ES. El fork open source de HashiCorp Vault, bajo la Linux Foundation, tras
+# el cambio de Vault a licencia BUSL. Misma API y mismos conceptos, asi que todo
+# lo que se valide aqui vale para Vault y para el patron de ESO.
+#
+# QUE PAPEL CUMPLE. Guarda los secretos que hoy siembra Ansible. External
+# Secrets los lee de aqui y los materializa como Secret en el cluster que los
+# necesita, de modo que en Git solo vive el ExternalSecret — que dice DE DONDE
+# leer, nunca el valor. Es lo que permite que Argo gobierne tambien los secretos.
+#
+# UN SOLO ALMACEN, EN EL HUB. Los spokes NO llevan su propia instancia: leen de
+# esta por red, exactamente igual que leerian el Key Vault corporativo del
+# cliente. Una instancia por cluster serian cinco almacenes desconectados, cinco
+# inicializaciones y cinco desellados — y un secreto guardado en el hub no lo
+# veria dev.
+#
+# ################## NO-PRODUCCION ##################
+#
+# Esta instancia es para VALIDAR EL PATRON, no para custodiar secretos reales:
+#
+#   - Modo `dev`: arranca DESELLADO y con un token raiz conocido. Un OpenBao de
+#     verdad arranca sellado y exige claves de desello repartidas entre varias
+#     personas (Shamir) o un dispositivo de sello automatico — como el TPM.
+#   - El estado vive EN MEMORIA: al reiniciar el pod se pierde y hay que recargar
+#     los secretos. Por eso el cargador es idempotente y reejecutable.
+#   - Sin TLS propio ni alta disponibilidad.
+#
+# EN PRODUCCION el almacen es EXTERNO al cluster y corporativo (Azure Key Vault
+# en el caso de este cliente). Eso ademas elimina una dependencia circular que
+# aqui se acepta a proposito: si el almacen vive dentro del cluster, el cluster
+# necesita secretos para arrancar y el almacen necesita el cluster para existir.
+# Aqui no bloquea porque ningun secreto de este almacen hace falta para levantar
+# Argo ni ACM — entran despues.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  serviceName: openbao
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openbao
+    spec:
+      serviceAccountName: openbao
+      containers:
+        - name: openbao
+          # Imagen oficial del proyecto, fijada por version: un tag movil haria
+          # que el almacen cambie de version en un reinicio sin que nadie lo decida.
+          image: ghcr.io/openbao/openbao:2.6.1
+          args: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+          ports:
+            - name: http
+              containerPort: 8200
+          env:
+            # Token raiz del modo dev. NO es un secreto real: en modo dev el
+            # token es conocido por diseno y el almacen no custodia nada
+            # sensible. En produccion no existe este concepto.
+            - name: BAO_DEV_ROOT_TOKEN_ID
+              valueFrom:
+                secretKeyRef:
+                  name: openbao-dev-token
+                  key: token
+            - name: BAO_ADDR
+              value: http://127.0.0.1:8200
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          # Cotas explicitas: sin limite, el almacen puede competir por memoria
+          # con las cargas del cluster. Es un servicio ligero.
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            httpGet:
+              # 204 = inicializado, desellado y activo. En modo dev lo esta desde
+              # el arranque; con este probe el Service no enruta hasta que responde.
+              path: /v1/sys/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v1/sys/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30

@@ -16,6 +16,8 @@ resources:
   # ClusterIssuers en el hub: el TLSPolicy del gateway compartido depende de ellos.
   - hub/cert-manager-hub-application.yaml
   - hub/connectivity-link-application.yaml
+  # Almacen de secretos: va antes que los productos que leen de el.
+  - hub/openbao-application.yaml
   # Argo Rollouts NO va aquí: es un componente de CARGA, no de gestión. Su
   # controlador tiene que estar en el mismo cluster que los pods que sustituye,
   # así que lo despliegan los ApplicationSets workload-<ambiente> (dev, test,

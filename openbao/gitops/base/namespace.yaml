@@ -1,0 +1,7 @@
+# Namespace del almacen de secretos de la plataforma.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbao
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops

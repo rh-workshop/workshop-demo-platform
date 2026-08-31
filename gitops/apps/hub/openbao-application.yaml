@@ -1,0 +1,42 @@
+# Application de OpenBao (solo hub): el almacen de secretos de la plataforma.
+#
+# Va ANTES que los productos que leen secretos de el: sin el almacen y su
+# ClusterSecretStore, cualquier ExternalSecret queda en SecretSyncedError. De ahi
+# la onda 1 — despues de ACM (onda 0, que aporta el CRD de ESO via OperatorPolicy)
+# y antes de la configuracion de los productos.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: config-openbao
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: openbao
+    workshop.redhat.com/environment: hub
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: workshop-multicluster
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: openbao/gitops/overlays/hub
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openbao
+  syncPolicy:
+    retry:
+      # Arranque en frio: el CRD de ESO lo instala la OperatorPolicy de ACM y
+      # puede tardar minutos. Sin backoff, Argo agota los 5 intentos y se rinde.
+      limit: 20
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+    automated:
+      # Sin prune: el almacen no debe borrarse por un error de sincronizacion.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

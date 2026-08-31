@@ -1,0 +1,14 @@
+# OpenBao: almacen de secretos de la plataforma + su puente con External Secrets.
+#
+# El Secret `openbao-dev-token` NO esta aqui: aunque en modo dev no custodia nada
+# sensible, versionar un token sienta un precedente que no debe existir en este
+# repo. Lo genera el playbook openbao/ansible/bootstrap.yml junto con la carga
+# inicial de secretos.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - service.yaml
+  - statefulset.yaml
+  # El store va despues del almacen: apunta a su Service.
+  - clustersecretstore.yaml

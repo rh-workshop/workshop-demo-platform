@@ -61,6 +61,33 @@ spec:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
+          name: openshift-external-secrets-operator
+        spec:
+          # External Secrets: entrega secretos desde un almacen externo SIN que
+          # su contenido pase por Git. El manifiesto que se versiona es el
+          # ExternalSecret, que solo dice DE DONDE leer, nunca el valor.
+          #
+          # Es lo que permite que Argo gobierne tambien los secretos: hasta ahora
+          # habia que sembrarlos con Ansible porque no podian versionarse.
+          #
+          # En el modelo del cliente el almacen es corporativo (Azure Key Vault
+          # segun su lineamiento); aqui se usa OpenBao para validar el patron.
+          # Cambiar de proveedor es cambiar el ClusterSecretStore, nada mas.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - openshift-external-secrets-operator.v1.2.0   # pin: solo esta CSV; el upgrade se decide por PR en Git
+          subscription:
+            name: openshift-external-secrets-operator
+            namespace: openshift-operators
+            channel: stable-v1
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
           name: rhdh-operator
         spec:
           remediationAction: enforce

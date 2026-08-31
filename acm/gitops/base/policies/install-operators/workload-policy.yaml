@@ -140,6 +140,27 @@ spec:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
+          name: openshift-external-secrets-operator
+        spec:
+          # Tambien en los clusters de carga: el ExternalSecret se materializa EN
+          # EL CLUSTER donde hace falta el secreto, asi que cada uno necesita su
+          # operador. El ALMACEN, en cambio, es unico y vive en el hub — los
+          # spokes lo leen por red, igual que leerian un Key Vault corporativo.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - openshift-external-secrets-operator.v1.2.0   # pin: misma version que el hub
+          subscription:
+            name: openshift-external-secrets-operator
+            namespace: openshift-operators
+            channel: stable-v1
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
           name: servicemesh-operator
         spec:
           # Service Mesh (Istio) es dependencia de Connectivity Link: su gateway

@@ -1,0 +1,30 @@
+# Punto de acceso al almacen dentro del cluster.
+#
+# Lo consume el ClusterSecretStore de External Secrets. Es un Service interno a
+# proposito: el almacen NO se expone por Route — quien necesita leerlo es el
+# operador de ESO, que corre dentro del cluster.
+#
+# Los clusters de carga lo alcanzan por la red entre clusters, del mismo modo que
+# alcanzarian un Key Vault corporativo.
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  selector:
+    app.kubernetes.io/name: openbao
+  ports:
+    - name: http
+      port: 8200
+      targetPort: http
+---
+# Identidad del propio almacen. Sin permisos extra: no necesita leer nada del
+# cluster, solo servir su API.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao
+  namespace: openbao

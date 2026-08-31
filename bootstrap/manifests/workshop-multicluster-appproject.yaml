@@ -42,6 +42,9 @@ spec:
   # namespace exacto, asi que el nombre no es elegible.
   - server: '*'
     namespace: open-cluster-management-observability
+  # Almacen de secretos de la plataforma.
+  - server: '*'
+    namespace: openbao
   - server: '*'
     namespace: stackrox
   - server: '*'
@@ -99,6 +102,10 @@ spec:
   # siembra Ansible y sigue fuera del alcance de Argo.
   - group: observability.open-cluster-management.io
     kind: MultiClusterObservability
+  # Puente entre el almacen y los ExternalSecret. Es cluster-scoped porque debe
+  # servir a ExternalSecret de cualquier namespace.
+  - group: external-secrets.io
+    kind: ClusterSecretStore
   # ClusterIssuer del overlay de cert-manager.
   - group: cert-manager.io
     kind: ClusterIssuer
@@ -135,6 +142,11 @@ spec:
   # CCO acuña, y el propio CCO decide si puede resolverla.
   - group: cloudcredential.openshift.io
     kind: CredentialsRequest
+  # OpenBao: el almacen corre como StatefulSet con su Service e identidad.
+  - group: apps
+    kind: StatefulSet
+  - group: ''
+    kind: ServiceAccount
   # Configuración y servicios auxiliares de los productos.
   - group: ''
     kind: ConfigMap

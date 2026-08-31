@@ -1,0 +1,136 @@
+---
+# Arranque del almacen de secretos: token de acceso y carga inicial.
+#
+# POR QUE ES UN PLAYBOOK. Dos cosas que no pueden ir por Argo:
+#   1. El TOKEN con el que External Secrets se autentica. Aunque en modo dev no
+#      custodie nada sensible, versionar un token sienta un precedente que este
+#      repo no debe tener.
+#   2. Los VALORES de los secretos. Casi todos se obtienen consultando una API
+#      externa (tokens de robot de Quay, llaves de S3): no existen hasta que
+#      alguien los pide, asi que no hay nada que declarar en Git.
+#
+# ESTO NO CAMBIA CON EL PROVEEDOR. Con Azure Key Vault seguiria haciendo falta un
+# paso que genere el valor y lo deposite; ESO cambia DONDE se guarda y COMO se
+# entrega, no quien lo crea.
+#
+# RECARGA TRAS UN REINICIO. En modo dev el estado vive en memoria: si el pod se
+# reinicia, el almacen queda vacio. Este playbook es idempotente y reejecutable —
+# esa es la fricción que se acepta a cambio de no tener que desellar a mano.
+#
+#   ansible-playbook openbao/ansible/bootstrap.yml
+- name: Arrancar el almacen de secretos y cargar los valores iniciales
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [openbao, secrets]
+
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
+  vars:
+    openbao_namespace: openbao
+    # Nombre que referencian el StatefulSet y el ClusterSecretStore.
+    token_secret: openbao-dev-token
+
+  tasks:
+    # El token se genera UNA vez y se conserva: regenerarlo en cada ejecucion
+    # invalidaria el ClusterSecretStore y dejaria todos los ExternalSecret
+    # fallando hasta el siguiente sync.
+    - name: Comprobar si el token del almacen ya existe
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ openbao_namespace }}"
+        name: "{{ token_secret }}"
+      register: token_actual
+
+    - name: Generar el token del almacen si falta
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ token_secret }}"
+            namespace: "{{ openbao_namespace }}"
+          stringData:
+            token: "{{ lookup('password', '/dev/null length=32 chars=hexdigits') | lower }}"
+      when: token_actual.resources | length == 0
+      no_log: true
+
+    # El pod solo esta listo cuando responde su health: hasta entonces no admite
+    # escrituras. El namespace y el StatefulSet los crea Argo.
+    - name: Esperar a que el almacen responda
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ openbao_namespace }}"
+        label_selectors:
+          - app.kubernetes.io/name=openbao
+        field_selectors:
+          - status.phase=Running
+      register: bao_pod
+      until: >-
+        bao_pod.resources | length > 0 and
+        (bao_pod.resources[0].status.containerStatuses | default([{}]))[0].ready | default(false)
+      retries: 60
+      delay: 10
+
+    - name: Recuperar el token para hablar con el almacen
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ openbao_namespace }}"
+        name: "{{ token_secret }}"
+      register: token_info
+      no_log: true
+
+    - name: Fijar los datos de acceso
+      ansible.builtin.set_fact:
+        bao_token: "{{ token_info.resources[0].data.token | b64decode }}"
+        bao_pod_name: "{{ bao_pod.resources[0].metadata.name }}"
+      no_log: true
+
+    # LOS VALORES SE MIGRAN, NO SE INVENTAN. Se leen de los Secret que ya existen
+    # en el cluster —los que hoy siembran los playbooks de producto— y se
+    # depositan en el almacen. Asi la migracion no exige regenerar credenciales
+    # ni volver a pedirselas a la API de Quay o de AWS.
+    - name: Leer el secreto que se migra al almacen
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: open-cluster-management-observability
+        name: thanos-object-storage
+      register: origen_obs
+      no_log: true
+
+    # Se escribe DENTRO del pod: el Service no se expone fuera del cluster a
+    # proposito, asi que no hay endpoint al que llamar desde aqui.
+    # `bao kv put` es idempotente: reescribir el mismo valor crea una version
+    # nueva en el historial de KV v2, no un error.
+    - name: Depositar la conexion del object storage en el almacen
+      kubernetes.core.k8s_exec:
+        namespace: "{{ openbao_namespace }}"
+        pod: "{{ bao_pod_name }}"
+        command: >-
+          env BAO_TOKEN={{ bao_token }} BAO_ADDR=http://127.0.0.1:8200
+          bao kv put -mount=secret platform/observability
+          thanos.yaml={{ (origen_obs.resources[0].data['thanos.yaml'] | b64decode) | quote }}
+      when: origen_obs.resources | length > 0
+      no_log: true
+
+    - name: Avisar si no habia nada que migrar
+      ansible.builtin.debug:
+        msg: >-
+          No existe el secreto thanos-object-storage: ejecuta antes
+          acm/ansible/observability.yml, que lo compone a partir de las
+          credenciales del object storage.
+      when: origen_obs.resources | length == 0
+
+    - name: Informar del estado del almacen
+      ansible.builtin.debug:
+        msg: >-
+          Almacen listo en openbao/openbao.svc:8200. El ClusterSecretStore
+          `platform-vault` lo expone a los ExternalSecret de cualquier namespace,
+          y sus valores nunca pasan por Git. OJO: en modo dev el estado vive en
+          MEMORIA — si el pod se reinicia, reejecuta este playbook.

@@ -1,0 +1,11 @@
+# El almacen vive SOLO en el hub: es unico para toda la plataforma. Los clusters
+# de carga no llevan instancia propia — leen de esta por su ClusterSecretStore,
+# igual que leerian un Key Vault corporativo.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: workshop-platform
+      workshop.redhat.com/environment: hub
