@@ -46,6 +46,17 @@ spec:
     - {name: revision, default: main}
     # Rama del repo de configuración que se clona y a la que se promociona el digest.
     - {name: config-revision, default: main}
+    # Cómo llega el digest al repo de configuración: "direct" empuja a la rama;
+    # "pr" publica una rama para que alguien revise y mezcle.
+    #
+    # DEV va en "direct" a propósito: es el ambiente de trabajo, se despliega en
+    # cada commit y exigir una revisión ahí solo añade fricción sin proteger nada
+    # (el aislamiento de features ya lo dan los previews por PR).
+    # A TEST, PROD y CONTINGENCIA NO se llega por este pipeline sino por
+    # `promote-image`, que además exige firma y procedencia. Este "pr" existe
+    # para quien quiera revisión también en el camino a dev, o para un cliente
+    # cuya normativa exija que ningún cambio entre a Git sin revisar.
+    - {name: config-push-mode, default: "direct"}
     # Repositorio de la imagen SIN tag (p. ej. quay.example.com/company-dev/demo-service): los tags los decide el pipeline.
     - name: image-repository
     - {name: containerfile, default: ./Containerfile}
@@ -535,7 +546,30 @@ spec:
               echo "El overlay ya apunta a este digest; no se promociona nada."
               exit 0
             fi
-            git commit -m "ci: promote $(params.image-name) to digest $(tasks.resolve-digest.results.image-digest)"
+            DIGEST="$(tasks.resolve-digest.results.image-digest)"
+            git commit -m "ci: promote $(params.image-name) to digest ${DIGEST}"
+
+            # PUSH DIRECTO vs RAMA PARA PR. El push directo a la rama de config es
+            # cómodo pero se salta la revisión: cualquier fallo del CI llega al
+            # ambiente sin que nadie lo mire, y con auto-sync se despliega solo.
+            # Con "pr" el CI empuja una RAMA y deja que un humano (o una regla de
+            # protección) decida el merge — que es lo que recomienda Argo CD:
+            # promocionar por Pull Request, nunca editando el fichero compartido.
+            if [ "$(params.config-push-mode)" = "pr" ]; then
+              # La rama lleva el digest corto: dos ejecuciones distintas nunca
+              # colisionan, y el nombre dice qué promociona sin abrir el diff.
+              RAMA="ci/promote-$(params.image-name)-$(printf '%s' "${DIGEST}" | cut -c8-19)"
+              # --force sobre SU propia rama: reejecutar el mismo commit reescribe
+              # su rama, no la de otro (el nombre incluye el digest).
+              if git push --force origin "HEAD:refs/heads/${RAMA}"; then
+                echo "Rama publicada: ${RAMA}"
+                echo "Abre el Pull Request hacia $(params.config-revision) para promocionar."
+                exit 0
+              fi
+              echo "No se pudo publicar la rama ${RAMA}." >&2
+              exit 1
+            fi
+
             # Reintento con rebase: si otro PipelineRun empujó antes, el push sería non-fast-forward.
             # git-clone deja el repo en detached HEAD: hay que calificar la rama destino.
             for intento in 1 2 3; do

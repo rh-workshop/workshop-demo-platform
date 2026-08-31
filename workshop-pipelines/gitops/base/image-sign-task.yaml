@@ -52,6 +52,13 @@ spec:
     - name: signing-key
     # Secret con config.json (credencial del robot del registro) para publicar el artefacto .sig.
     - name: registry-credentials
+  # Cotas de recursos: la documentacion de Tekton las exige en cada step. Sin
+  # limite, un build puede agotar la memoria del nodo y tumbar otros workloads;
+  # y en un namespace con LimitRange el pod no arranca si no las declara.
+  stepTemplate:
+    computeResources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 1Gi}
   steps:
     - name: cosign-sign
       # Imagen de cosign soportada por Red Hat (Trusted Artifact Signer).

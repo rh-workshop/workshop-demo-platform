@@ -174,6 +174,29 @@ La barrera hacia prod es RBAC, en dos capas complementarias:
    promoción a prod va en un namespace propio con su Role y sus credenciales, y
    la clave PRIVADA de cosign no vive ahí (basta `cosign.pub` para verificar).
 
+## Cómo llega el digest a Git: push directo en dev, revisión hacia arriba
+
+El CI escribe el digest en el overlay del ambiente y lo empuja. El parámetro
+`config-push-mode` decide **cómo**:
+
+| Modo | Qué hace | Dónde se usa |
+|---|---|---|
+| `direct` *(por defecto)* | Commit y push a la rama de configuración | **dev** |
+| `pr` | Publica una rama `ci/promote-<app>-<digest>` para abrir un Pull Request | Cuando la normativa exija revisar todo cambio en Git |
+
+**Por qué dev va en directo.** Es el ambiente de trabajo: se despliega en cada
+commit y exigir una revisión ahí añade fricción sin proteger nada — el
+aislamiento entre features ya lo dan los previews por Pull Request.
+
+**Por qué eso no debilita prod.** A test, prod y contingencia **no se llega con
+este pipeline**, sino con `promote-image`, que exige firma verificada y
+procedencia de release (commit en `main` con tag semver). La revisión hacia
+producción está en la promoción y en el RBAC, no en el push del CI.
+
+Argo CD recomienda promocionar por Pull Request, y así se hace donde importa: el
+camino a los ambientes superiores. El modo `pr` existe para quien quiera esa
+misma barrera también en el camino a dev.
+
 ## Rol del CD (léase antes de buscarle un webhook)
 
 No hay `EventListener` ni `Trigger` configurados y las Applications tienen

@@ -39,6 +39,13 @@ spec:
   results:
     # Cobertura total de sentencias (p. ej. "73.4%"), o "sin-tests" si no hay ninguno.
     - {name: coverage, description: Cobertura total de las pruebas unitarias}
+  # Cotas de recursos: la documentacion de Tekton las exige en cada step. Sin
+  # limite, un build puede agotar la memoria del nodo y tumbar otros workloads;
+  # y en un namespace con LimitRange el pod no arranca si no las declara.
+  stepTemplate:
+    computeResources:
+      requests: {cpu: 500m, memory: 512Mi}
+      limits: {cpu: 2, memory: 2Gi}
   steps:
     - name: go-test-coverage
       image: $(params.test-image)

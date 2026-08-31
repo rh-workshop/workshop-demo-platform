@@ -40,6 +40,13 @@ spec:
   results:
     # Numero de hallazgos, para que el pipeline lo publique en su resumen.
     - {name: findings, description: Hallazgos encontrados por el analisis estatico}
+  # Cotas de recursos: la documentacion de Tekton las exige en cada step. Sin
+  # limite, un build puede agotar la memoria del nodo y tumbar otros workloads;
+  # y en un namespace con LimitRange el pod no arranca si no las declara.
+  stepTemplate:
+    computeResources:
+      requests: {cpu: 250m, memory: 512Mi}
+      limits: {cpu: 1, memory: 2Gi}
   steps:
     - name: semgrep-scan
       image: $(params.scanner-image)

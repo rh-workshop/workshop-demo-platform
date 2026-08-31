@@ -35,7 +35,13 @@ spec:
   # Volumen efímero entre pasos: el YAML renderizado no toca el workspace.
   volumes:
     - {name: rendered, emptyDir: {}}
+  # Cotas de recursos: la documentacion de Tekton las exige en cada step. Sin
+  # limite, un build puede agotar la memoria del nodo y tumbar otros workloads;
+  # y en un namespace con LimitRange el pod no arranca si no las declara.
   stepTemplate:
+    computeResources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 1Gi}
     securityContext:
       allowPrivilegeEscalation: false
       capabilities: {drop: [ALL]}
