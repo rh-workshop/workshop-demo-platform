@@ -200,17 +200,21 @@
 
     # El operador no relee el bundle por si solo: solo reacciona a cambios del
     # QuayRegistry. Tocar una anotacion es lo que dispara la reconciliacion.
+    # El QuayRegistry NO se toca desde aqui: lo gobierna Argo CD desde
+    # quay/gitops. Parchearlo con Ansible dejaba dos duenos sobre el mismo
+    # objeto y Argo revertia el cambio en el siguiente sync.
+    #
+    # Cuando el contenido del bundle cambia, el operador no siempre lo relee por
+    # su cuenta: la forma correcta de forzarlo es reiniciar sus pods, que es una
+    # accion sobre el DESPLIEGUE y no sobre el CR que gobierna Argo.
     - name: Forzar al operador a releer la configuracion
       kubernetes.core.k8s:
-        state: patched
-        api_version: quay.redhat.com/v1
-        kind: QuayRegistry
-        name: company-quay
+        state: absent
+        api_version: v1
+        kind: Pod
         namespace: "{{ quay_namespace }}"
-        definition:
-          metadata:
-            annotations:
-              workshop.redhat.com/storage-generation: "{{ s3_bucket }}"
+        label_selectors:
+          - quay-component=quay-app
       when: bundle_escrito.changed
 
     - name: Informar del backend configurado

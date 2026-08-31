@@ -245,3 +245,66 @@ DOS capas, para que ninguna dependa de la otra:
    plataforma o de un disparador automático. En producción el corte correcto es
    otro namespace: los Secrets del CI no deben convivir con un grupo que pueda
    ejecutar cargas ahí (ver `docs/backlog.md`).
+
+## 9. Qué gobierna cada mecanismo (criterio, no preferencia)
+
+La plataforma tiene tres mecanismos y el reparto **no es una cuestión de gusto**:
+cada uno puede hacer cosas que los otros no. El orden es de preferencia — se baja
+al siguiente solo cuando el anterior es incapaz.
+
+### 1. Argo CD (Git) — el DEFAULT
+
+Todo objeto de Kubernetes cuya definición pueda versionarse. Es el mecanismo por
+defecto: el estado deseado vive en Git, se revisa por Pull Request y Argo lo
+reconcilia de forma continua.
+
+Entra aquí: `QuayRegistry`, `MultiClusterObservability`, `Keycloak`, `Kuadrant`,
+`Gateway`, `RolloutManager`, `Deployment`, `Namespace`, `Pipeline`, `Task`,
+`AppProject` (vía bootstrap), `CredentialsRequest`…
+
+### 2. Policy de ACM — lo que Argo no alcanza o no debe versionar
+
+Dos casos concretos:
+
+- **Contenido que no puede estar en Git**, típicamente un secreto. La función
+  `fromSecret` de un *hub template* LEE el valor en el hub y lo materializa en el
+  cluster destino sin que pase por el repositorio. Ejemplo:
+  `require-registry-pull-secret`, que replica la credencial del registro.
+- **Gobierno continuo sobre N clusters y N namespaces**, donde una lista
+  enumerada envejecería. El `object-templates-raw` descubre los namespaces solos,
+  repone el objeto si alguien lo borra y alcanza cualquier spoke nuevo que entre
+  en su `Placement`. Ejemplos: `require-limitrange`, `require-resourcequota`,
+  `install-operators-workload`.
+
+Ventaja sobre sembrar con Ansible: no hay que reejecutar nada por cada cluster ni
+mantener a mano una lista de namespaces.
+
+### 3. Ansible — solo lo que NO puede ir por los otros dos
+
+Es la excepción, no la norma. Solo dos categorías:
+
+- **APIs que no son Kubernetes.** No tienen CRD, así que ni Argo ni una Policy
+  pueden reconciliarlas: la API de Quay (organizaciones, robots, cuotas,
+  auto-prune), la de ACS (integraciones, política de firma), la de Keycloak
+  (clientes), la de AWS (crear el bucket de S3) y `skopeo` para el espejado.
+- **Secretos de día-0 y el bootstrap.** Lo que Argo necesita para existir
+  (`Subscription` de los operadores, CR `ArgoCD`, AppProjects) y los secretos que
+  se componen consultando una API externa.
+
+### La prueba para decidir
+
+> ¿Es un objeto de Kubernetes y su contenido puede versionarse? → **Argo**.
+> ¿Es de Kubernetes pero su contenido es secreto, o hay que mantenerlo en varios
+> clusters/namespaces que cambian? → **Policy de ACM**.
+> ¿No es de Kubernetes, o es lo que arranca a Argo? → **Ansible**.
+
+### Errores que este criterio evita
+
+- **Dos dueños sobre el mismo objeto.** `quay/ansible/storage.yml` parcheaba una
+  anotación del `QuayRegistry` que gobierna Argo: el siguiente sync la revertía.
+  Se cambió por reiniciar los pods del operador — una acción sobre el DESPLIEGUE,
+  no sobre el CR.
+- **Listas que envejecen.** `pull-secrets.yml` sembraba el secreto namespace por
+  namespace desde una lista en `platform-vars.yml`: cada servicio nuevo obligaba a
+  editarla y a reejecutar el playbook por cada cluster. Hoy siembra UN origen en
+  el hub y la Policy lo replica.
