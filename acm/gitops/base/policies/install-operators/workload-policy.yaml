@@ -105,6 +105,33 @@ spec:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
         metadata:
+          name: openshift-gitops-operator
+        spec:
+          # Se instala aqui SOLO por Argo Rollouts: el mismo operador entrega
+          # Argo CD y Argo Rollouts, y el controlador de Rollouts tiene que
+          # correr donde estan los pods que sustituye. Sin el, el CR
+          # RolloutManager no tiene CRD y la Application falla con
+          # "no matches for kind RolloutManager".
+          #
+          # NO implica un Argo CD por cluster: el modelo sigue siendo GitOps
+          # CENTRAL, con una unica instancia en el hub que despliega a los
+          # spokes. Aqui no se crea ningun CR ArgoCD — solo RolloutManager.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - openshift-gitops-operator.v1.21.3   # pin: misma version que el hub
+          subscription:
+            name: openshift-gitops-operator
+            # openshift-operators ya trae el OperatorGroup global del cluster.
+            namespace: openshift-operators
+            channel: latest
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
           name: servicemesh-operator
         spec:
           # Service Mesh (Istio) es dependencia de Connectivity Link: su gateway
