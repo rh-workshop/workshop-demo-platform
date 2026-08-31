@@ -18,6 +18,24 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: quay-enterprise
+  # DRIFT QUE INTRODUCE EL OPERADOR DE NOOBAA. Al reconciliar el CR lo completa
+  # con secciones vacias que no existen en Git (autoscaler, bucketLogging,
+  # cleanupPolicy, loadBalancerSourceSubnets, security.kms). El recurso esta
+  # Ready y el sync termina bien, pero la Application queda OutOfSync a
+  # perpetuidad y con selfHeal Argo reescribe el CR una y otra vez sin efecto.
+  #
+  # Se ignoran SOLO esos campos, por nombre: cualquier cambio real del CR
+  # (dbType, la clase de almacenamiento, el backingstore) se sigue viendo.
+  ignoreDifferences:
+    - group: noobaa.io
+      kind: NooBaa
+      jqPathExpressions:
+        - .spec.autoscaler
+        - .spec.bucketLogging
+        - .spec.bucketNotifications
+        - .spec.cleanupPolicy
+        - .spec.loadBalancerSourceSubnets
+        - .spec.security
   syncPolicy:
     retry:
       # Arranque en frio: el CRD del producto lo instala ACM por su cuenta y puede
