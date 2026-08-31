@@ -42,6 +42,9 @@ spec:
     # Overlay del ENTORNO DESTINO: la promoción escribe el digest ahí, nunca en el de origen.
     - name: target-overlay-path
       value: apps/demo-service/overlays/contingencia
+    # Defensa en profundidad: lo que entra a contingencia cumple la misma procedencia que prod.
+    - name: require-release-provenance
+      value: "true"
     # Vacío = sin sync explícito (el auto-sync de Argo despliega igual); poner el nombre real para validar la salud.
     - name: argocd-application
       value: ""

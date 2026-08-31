@@ -5,9 +5,15 @@ kind: Kustomization
 resources:
   - serviceaccount-builder.yaml
   - rolebinding-builder-pipelines-scc.yaml
+  # Pruebas unitarias de Go con cobertura, antes de construir (maneja el caso "sin tests").
+  - go-test-task.yaml
+  # Deteccion de secretos en arbol e historial de Git (gitleaks); falla cerrado.
+  - secret-scan-task.yaml
   # Analisis estatico del CODIGO, antes de construir: encuentra lo que el escaneo
   # de imagen no ve (defectos escritos por el equipo, no CVEs de dependencias).
   - code-scan-task.yaml
+  # Politicas DEPLOY de ACS sobre el overlay renderizado, antes de promocionar el digest.
+  - deployment-check-task.yaml
   - image-sign-task.yaml
   - image-scan-task.yaml
   - sbom-generate-task.yaml

@@ -98,9 +98,10 @@
             description: Sin escritura desde CI; la imagen llega por promoción
             permission: read
       # Herramientas de CI espejadas desde upstream (excepción documentada a la
-      # norma "solo Red Hat": no existe imagen Red Hat de semgrep ni de syft).
-      # El espejado es un skopeo copy puntual — ver code-scan-task.yaml y
-      # sbom-generate-task.yaml; el pipeline las consume SIEMPRE desde aquí.
+      # norma "solo Red Hat": no existe imagen Red Hat de semgrep, syft ni
+      # gitleaks). El espejado es un skopeo copy puntual — ver code-scan-task.yaml,
+      # sbom-generate-task.yaml y secret-scan-task.yaml; el pipeline las consume
+      # SIEMPRE desde aquí, nunca desde Docker Hub ni ghcr.io en tiempo de build.
       - name: company-tooling
         email: plataforma+tooling@example.com
         repositories:
@@ -109,6 +110,9 @@
             visibility: private
           - name: syft
             description: Generador de SBOM del CI, espejo de docker.io/anchore/syft
+            visibility: private
+          - name: gitleaks
+            description: Detector de secretos del CI, espejo de ghcr.io/gitleaks/gitleaks
             visibility: private
         robots:
           - name: puller

@@ -4,8 +4,12 @@
 # construye la imagen, la publica en el registro, y luego escribe el digest en
 # el repo de CONFIGURACIÓN. Ese git push lo recoge el auto-sync de Argo CD.
 #
-# Cadena de suministro, en tres secciones separadas y con puertas:
-#   TAGGING: la construcción publica el ÚNICO tag de la imagen, el INMUTABLE
+# Cadena de suministro, en secciones separadas y con puertas:
+#   PUERTA DE CÓDIGO (paralela, ANTES del build): tests unitarios (go-test),
+#     detección de secretos en árbol e historial (secret-scan, falla cerrado) y
+#     SAST (code-scan) miran el MISMO código clonado y corren en paralelo; el
+#     tagging y el build esperan a que las TRES pasen — puerta única.
+#   TAGGING: la construcción publica el tag ANCLA de la imagen, el INMUTABLE
 #     git-<sha-corto> (trazabilidad commit -> imagen). No hay tags móviles: nadie
 #     los consumía y un tag que se reapunta deja digests huérfanos que Quay purga.
 #     Si el tag ya existe en el registro, el pipeline NO reconstruye (idempotencia):
@@ -13,10 +17,20 @@
 #     anterior quedaría sin referencia — Quay lo recolecta y el rollback por Git muere.
 #     El despliegue va SIEMPRE por DIGEST: los tags pueden reapuntarse y no son
 #     reproducibles; el digest identifica criptográficamente el binario exacto.
+#   VERSIONADO GitFlow: además del ancla git-<sha>, la RAMA clonada deriva un tag
+#     de VERSIÓN legible (alias del MISMO digest, nunca otro build):
+#       feature/* y PRs  -> solo git-<sha7> (efímero, como siempre)
+#       develop          -> <version>-SNAPSHOT-<sha7>
+#       release/X.Y.Z    -> X.Y.Z-rc<n> (n = siguiente rc libre en el registro)
+#       tag vX.Y.Z (main)-> X.Y.Z (semver limpio)
+#     <version> sale del fichero VERSION en la raíz del repo de aplicación; si no
+#     existe, del parámetro `version`. Ver resolve-image-tags y apply-version-tag.
 #   FIRMA: image-sign firma el digest con cosign (formato clásico .sig, el que
 #     ACS descubre); complementa la atestación in-toto de Tekton Chains.
 #   ESCANEO: image-scan corta el pipeline si hay CVEs sobre el umbral (parámetro)
-#     o si alguna política BUILD de ACS con enforcement viola (firma exigida...).
+#     o si alguna política BUILD de ACS con enforcement viola (firma exigida...);
+#     deployment-check evalúa además el overlay RENDERIZADO contra las políticas
+#     DEPLOY de ACS antes de promocionar el digest al repo de configuración.
 #
 # Maneja los DOS repos: lee el de aplicación, escribe en el de configuración.
 # Este flujo promociona a DEV con push directo; hacia PROD la promoción se hace
@@ -51,6 +65,19 @@ spec:
     - {name: sast-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/semgrep:1.79.0"}
     # "false" informa de los hallazgos y sigue; "true" corta. En producción va en "true".
     - {name: sast-fail-on-violation, default: "false"}
+    # Toolchain de Go para las pruebas unitarias: imagen Red Hat, fijada por versión.
+    - {name: unit-test-image, default: "registry.redhat.io/ubi9/go-toolset:1.26.7"}
+    # "false" (hoy no hay tests): la ausencia de _test.go informa y sigue; "true" la convierte en obligatoria.
+    - {name: fail-on-no-tests, default: "false"}
+    # Detector de secretos espejado en el registro corporativo (tercera excepción a
+    # "solo Red Hat", junto a semgrep y syft): ver la cabecera de secret-scan-task.yaml.
+    - {name: secret-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/gitleaks:v8.29.1"}
+    # "true" por defecto: un secreto filtrado corta SIEMPRE; no admite "informar y seguir".
+    - {name: secrets-fail-on-violation, default: "true"}
+    # Versión base para los tags GitFlow cuando el repo NO trae fichero VERSION en la raíz.
+    - {name: version, default: "0.1.0"}
+    # "false" informa de violaciones DEPLOY sobre el overlay renderizado y sigue; "true" corta.
+    - {name: deploy-check-fail-on-violation, default: "false"}
   workspaces:
     - name: source
     - name: config
@@ -67,6 +94,9 @@ spec:
     # Los results de Pipeline solo admiten results de tasks (no params): la referencia completa es <image-repository>@<image-digest>.
     - name: immutable-tag
       value: $(tasks.resolve-image-tags.results.immutable-tag)
+    # Tag de versión GitFlow (alias del mismo digest); igual al inmutable en ramas efímeras.
+    - name: version-tag
+      value: $(tasks.resolve-image-tags.results.version-tag)
   tasks:
     - name: clone-source-code
       # Un reintento absorbe los fallos transitorios de red contra el repositorio remoto.
@@ -75,15 +105,41 @@ spec:
       params:
         - {name: URL, value: $(params.app-repo)}
         - {name: REVISION, value: $(params.revision)}
+        # Clone COMPLETO (no shallow): secret-scan escanea el HISTORIAL de Git; con el default (1 commit) el escaneo sería decorativo.
+        - {name: DEPTH, value: "0"}
       workspaces: [{name: output, workspace: source}]
-      # El SAST se encadena aquí (ver scan-source-code): el resto del pipeline
-      # cuelga de él, no del clone, para que nada se construya sin haberlo pasado.
+      # La puerta de código se encadena aquí: tests, secretos y SAST cuelgan del
+      # clone en PARALELO, y el resto del pipeline cuelga de los tres a la vez.
 
-    # --- SECCIÓN SAST: el código ANTES que el binario ---
-    # Va aquí, no después del build, porque si el código no pasa no tiene sentido
-    # gastar minutos construyendo ni publicar un artefacto que habría que retirar.
-    # Encuentra lo que image-scan NO ve: defectos escritos por el equipo (inyección,
-    # secretos incrustados, cripto débil), no CVEs de dependencias empaquetadas.
+    # --- PUERTA DE CÓDIGO: tests, secretos y SAST, en PARALELO y ANTES del build ---
+    # Los tres controles miran el MISMO código recién clonado y no dependen entre
+    # sí: serializarlos solo sumaría minutos. Van aquí, no después del build,
+    # porque si el código no pasa no tiene sentido gastar tiempo construyendo ni
+    # publicar un artefacto que habría que retirar. El tagging (y con él el build)
+    # espera a los TRES: puerta única.
+
+    # Pruebas unitarias con cobertura; hoy el repo no tiene tests y la task lo
+    # informa sin romper (fail-on-no-tests=false) — lista para cuando los haya.
+    - name: run-unit-tests
+      runAfter: [clone-source-code]
+      taskRef: {name: go-test}
+      params:
+        - {name: go-image, value: $(params.unit-test-image)}
+        - {name: fail-on-no-tests, value: $(params.fail-on-no-tests)}
+      workspaces: [{name: source, workspace: source}]
+
+    # Detección de secretos en árbol E HISTORIAL (gitleaks). Falla CERRADO por
+    # defecto: un secreto commiteado ya está comprometido y solo cabe rotarlo.
+    - name: detect-secrets
+      runAfter: [clone-source-code]
+      taskRef: {name: secret-scan}
+      params:
+        - {name: scanner-image, value: $(params.secret-scanner-image)}
+        - {name: fail-on-violation, value: $(params.secrets-fail-on-violation)}
+      workspaces: [{name: source, workspace: source}]
+
+    # SAST: encuentra lo que image-scan NO ve — defectos escritos por el equipo
+    # (inyección, cripto débil), no CVEs de dependencias empaquetadas.
     - name: scan-source-code
       runAfter: [clone-source-code]
       taskRef: {name: code-scan}
@@ -99,24 +155,35 @@ spec:
     # Reconstruir daría OTRO digest (los builds no son reproducibles bit a bit),
     # el tag se re-apuntaría y el digest anterior quedaría huérfano: Quay lo
     # purga y todo commit del repo de config que lo referencie pierde el rollback.
+    # Además del ancla, deriva el TAG DE VERSIÓN GitFlow de la rama clonada (ver
+    # cabecera): un ALIAS legible del mismo digest que aplica apply-version-tag.
     - name: resolve-image-tags
-      runAfter: [scan-source-code]
+      runAfter: [run-unit-tests, detect-secrets, scan-source-code]
       params:
         - {name: commit, value: $(tasks.clone-source-code.results.COMMIT)}
         - {name: image-repository, value: $(params.image-repository)}
+        - {name: revision, value: $(params.revision)}
+        - {name: version, value: $(params.version)}
       workspaces:
         - {name: registry-credentials, workspace: registry-credentials}
+        # El código clonado: de ahí sale el fichero VERSION si el repo lo trae.
+        - {name: source, workspace: source}
       taskSpec:
         params:
           - {name: commit, type: string}
           - {name: image-repository, type: string}
+          - {name: revision, type: string}
+          - {name: version, type: string}
         workspaces:
           - name: registry-credentials
+          - name: source
         results:
-          # Tag inmutable git-<sha-corto>: nunca se reutiliza ni se mueve.
+          # Tag inmutable git-<sha-corto>: nunca se reutiliza ni se mueve. Es el ANCLA de la idempotencia.
           - name: immutable-tag
           # Digest ya publicado bajo ese tag, o el centinela "none" si hay que construir.
           - name: existing-digest
+          # Tag de versión GitFlow derivado de la rama; igual al inmutable en ramas efímeras.
+          - name: version-tag
         steps:
           - name: compute-and-check-tag
             image: registry.redhat.io/rhel9/skopeo:9.8
@@ -130,8 +197,10 @@ spec:
               SHORT=$(printf '%s' "$(params.commit)" | cut -c1-7)
               TAG="git-${SHORT}"
               EXISTING="none"
+              LISTA=""
               # Se listan los tags del repositorio; un repo aún no creado (primer build) no es un error.
               if SALIDA=$(skopeo list-tags --authfile "$AUTH" "docker://$(params.image-repository)" 2>&1); then
+                LISTA="$SALIDA"
                 if printf '%s\n' "$SALIDA" | grep -q "\"${TAG}\""; then
                   EXISTING=$(skopeo inspect --no-tags --format '{{.Digest}}' --authfile "$AUTH" "docker://$(params.image-repository):${TAG}")
                   echo "El tag ${TAG} ya existe (digest ${EXISTING}): NO se reconstruye."
@@ -144,8 +213,60 @@ spec:
                   *) echo "ERROR de infraestructura consultando el registro:" >&2; printf '%s\n' "$SALIDA" >&2; exit 1 ;;
                 esac
               fi
+
+              # ---- Versionado GitFlow: el tag de versión sale de la RAMA clonada ----
+              # La versión base sale del fichero VERSION de la raíz del repo; si no existe, del parámetro `version`.
+              BASE="$(params.version)"
+              if [ -f "$(workspaces.source.path)/VERSION" ]; then
+                BASE=$(tr -d ' \t\r\n' < "$(workspaces.source.path)/VERSION")
+                echo "Versión base leída del fichero VERSION: ${BASE}"
+              fi
+              es_semver() { printf '%s' "$1" | grep -qE '^v?[0-9]+\.[0-9]+\.[0-9]+$'; }
+              REV="$(params.revision)"
+              VTAG="$TAG"
+              case "$REV" in
+                develop)
+                  # Rama de integración: versión-en-progreso, anclada al commit para que nunca sea ambigua.
+                  VTAG="${BASE}-SNAPSHOT-${SHORT}" ;;
+                release/*)
+                  # La versión del rc sale del NOMBRE de la rama (release/X.Y.Z); si no es semver, del fichero VERSION.
+                  REL="${REV#release/}"
+                  es_semver "$REL" || REL="$BASE"
+                  REL="${REL#v}"
+                  RCS=$(printf '%s\n' "$LISTA" | grep -oE "\"${REL}-rc[0-9]+\"" | tr -d '"' || true)
+                  # Idempotencia del rc: si el commit ya tiene imagen, se REUTILIZA el rc que apunte a su digest en vez de acuñar otro.
+                  ELEGIDO=""
+                  if [ "$EXISTING" != "none" ] && [ -n "$RCS" ]; then
+                    for T in $RCS; do
+                      D=$(skopeo inspect --no-tags --format '{{.Digest}}' --authfile "$AUTH" "docker://$(params.image-repository):${T}")
+                      if [ "$D" = "$EXISTING" ]; then ELEGIDO="$T"; break; fi
+                    done
+                  fi
+                  if [ -n "$ELEGIDO" ]; then
+                    VTAG="$ELEGIDO"
+                    echo "Este commit ya tiene su release candidate (${VTAG}): no se acuña otro."
+                  else
+                    # Siguiente rc libre: el mayor n existente en el registro, más uno.
+                    MAX=0
+                    for T in $RCS; do
+                      N="${T##*-rc}"
+                      if [ "$N" -gt "$MAX" ]; then MAX="$N"; fi
+                    done
+                    VTAG="${REL}-rc$((MAX + 1))"
+                  fi ;;
+                *)
+                  # Un TAG semver de git (release desde main) produce la versión limpia; cualquier
+                  # otra rama (feature/*, PRs, main sin tag) se queda con el git-<sha7> efímero.
+                  if es_semver "$REV"; then VTAG="${REV#v}"; fi ;;
+              esac
+              if [ "$VTAG" = "$TAG" ]; then
+                echo "Revisión efímera (${REV}): sin tag de versión, solo ${TAG}."
+              else
+                echo "Tag de versión GitFlow derivado de '${REV}': ${VTAG}"
+              fi
               printf '%s' "$EXISTING" | tee $(results.existing-digest.path)
               printf 'git-%s' "$SHORT" | tee $(results.immutable-tag.path)
+              printf '%s' "$VTAG" > $(results.version-tag.path)
 
     - name: build-and-publish-image
       runAfter: [resolve-image-tags]
@@ -237,6 +358,60 @@ spec:
       workspaces:
         - {name: source, workspace: source}
 
+    # --- SECCIÓN VERSIONADO: aplica el tag GitFlow como ALIAS del digest resuelto.
+    # skopeo copy dentro del MISMO repositorio no reconstruye nada: añade un tag
+    # que apunta al manifiesto ya publicado, conservando el digest. El interruptor
+    # se evalúa DENTRO del step y no con un `when`: una task saltada arrastraría
+    # por runAfter a set-image-digest y la promoción entera (trampa documentada).
+    - name: apply-version-tag
+      runAfter: [resolve-digest]
+      params:
+        - {name: image-repository, value: $(params.image-repository)}
+        - {name: image-digest, value: $(tasks.resolve-digest.results.image-digest)}
+        - {name: immutable-tag, value: $(tasks.resolve-image-tags.results.immutable-tag)}
+        - {name: version-tag, value: $(tasks.resolve-image-tags.results.version-tag)}
+      workspaces:
+        - {name: registry-credentials, workspace: registry-credentials}
+      taskSpec:
+        params:
+          - {name: image-repository, type: string}
+          - {name: image-digest, type: string}
+          - {name: immutable-tag, type: string}
+          - {name: version-tag, type: string}
+        workspaces:
+          - name: registry-credentials
+        steps:
+          - name: tag-alias
+            image: registry.redhat.io/rhel9/skopeo:9.8
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              AUTH="$(workspaces.registry-credentials.path)/config.json"
+              VTAG="$(params.version-tag)"
+              # Revisión efímera: el único tag es el ancla git-<sha>; no hay nada que aplicar.
+              if [ "$VTAG" = "$(params.immutable-tag)" ]; then
+                echo "Sin tag de versión para esta revisión; queda solo $(params.immutable-tag)."
+                exit 0
+              fi
+              DST="docker://$(params.image-repository):${VTAG}"
+              # Los tags de versión también son INMUTABLES: si ya existe apuntando a OTRO
+              # digest, alguien reconstruyó una versión publicada y hay que pararlo.
+              if ACTUAL=$(skopeo inspect --no-tags --format '{{.Digest}}' --authfile "$AUTH" "$DST" 2>/dev/null); then
+                if [ "$ACTUAL" = "$(params.image-digest)" ]; then
+                  echo "El tag ${VTAG} ya apunta a este digest; nada que hacer (idempotencia)."
+                  exit 0
+                fi
+                echo "ERROR: el tag ${VTAG} ya existe con OTRO digest (${ACTUAL}); un tag de versión no se reapunta jamás." >&2
+                exit 1
+              fi
+              # Alias registry-side: mismo repositorio, mismo manifiesto, digest conservado.
+              skopeo copy --all --src-authfile "$AUTH" --dest-authfile "$AUTH" \
+                "docker://$(params.image-repository)@$(params.image-digest)" "$DST"
+              echo "Tag de versión ${VTAG} aplicado sobre el digest $(params.image-digest)."
+
     # --- SECCIÓN FIRMA: cosign firma el digest resuelto (formato .sig que ACS verifica).
     - name: sign-image
       runAfter: [resolve-digest]
@@ -285,12 +460,26 @@ spec:
         - {name: REVISION, value: $(params.config-revision)}
       workspaces: [{name: output, workspace: config}]
 
+    # Evalúa el overlay RENDERIZADO contra las políticas DEPLOY de ACS: el control
+    # sobre los MANIFIESTOS (privilegios, límites, montajes), no sobre el binario.
+    - name: check-deploy-manifests
+      runAfter: [clone-config-repo]
+      taskRef: {name: deployment-check}
+      params:
+        - {name: overlay-path, value: $(params.overlay-path)}
+        - {name: fail-on-violation, value: $(params.deploy-check-fail-on-violation)}
+        - {name: rox-central-endpoint, value: $(params.rox-central-endpoint)}
+      workspaces:
+        - {name: config, workspace: config}
+        - {name: acs-credentials, workspace: acs-credentials}
+
     # Promociona el digest con "kustomize edit set image": entiende la semántica del
     # kustomization (no corrompe overlays con varias imágenes, como haría un sed) y el
     # "*" conserva el newName existente a la vez que elimina el newTag.
-    # Espera al ESCANEO y al SBOM: al repo de configuración solo llegan digests firmados, limpios y con inventario atestado.
+    # Espera al ESCANEO, al SBOM, al CHEQUEO DE MANIFIESTOS y al TAG DE VERSIÓN: al repo
+    # de configuración solo llegan digests firmados, limpios, evaluados y versionados.
     - name: set-image-digest
-      runAfter: [clone-config-repo, scan-image, generate-sbom]
+      runAfter: [clone-config-repo, scan-image, generate-sbom, check-deploy-manifests, apply-version-tag]
       params:
         - {name: overlay-path, value: $(params.overlay-path)}
         - {name: image-name, value: $(params.image-name)}
@@ -359,17 +548,27 @@ spec:
   finally:
     - name: pipeline-summary
       params:
+        - {name: tests-status, value: $(tasks.run-unit-tests.status)}
+        - {name: secrets-status, value: $(tasks.detect-secrets.status)}
+        - {name: sast-status, value: $(tasks.scan-source-code.status)}
         - {name: build-status, value: $(tasks.build-and-publish-image.status)}
+        - {name: version-status, value: $(tasks.apply-version-tag.status)}
         - {name: sign-status, value: $(tasks.sign-image.status)}
         - {name: sbom-status, value: $(tasks.generate-sbom.status)}
         - {name: scan-status, value: $(tasks.scan-image.status)}
+        - {name: manifests-status, value: $(tasks.check-deploy-manifests.status)}
         - {name: promote-status, value: $(tasks.push-config.status)}
       taskSpec:
         params:
+          - {name: tests-status, type: string}
+          - {name: secrets-status, type: string}
+          - {name: sast-status, type: string}
           - {name: build-status, type: string}
+          - {name: version-status, type: string}
           - {name: sign-status, type: string}
           - {name: sbom-status, type: string}
           - {name: scan-status, type: string}
+          - {name: manifests-status, type: string}
           - {name: promote-status, type: string}
         steps:
           - name: report
@@ -380,8 +579,13 @@ spec:
             script: |
               #!/usr/bin/env sh
               echo "===== Resumen del pipeline ====="
+              echo "Tests        : $(params.tests-status)"
+              echo "Secretos     : $(params.secrets-status)"
+              echo "SAST         : $(params.sast-status)"
               echo "Construcción : $(params.build-status)"
+              echo "Tag versión  : $(params.version-status)"
               echo "Firma        : $(params.sign-status)"
               echo "SBOM         : $(params.sbom-status)"
               echo "Escaneo      : $(params.scan-status)"
+              echo "Manifiestos  : $(params.manifests-status)"
               echo "Promoción    : $(params.promote-status)"

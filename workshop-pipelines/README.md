@@ -2,18 +2,26 @@
 
 Tres pipelines de Tekton en el namespace `workshop-demo-dev`:
 
-- `ci-build-image` — clona el monorepo de aplicación, construye la imagen con
-  buildah, la publica con su ÚNICO tag, el inmutable `git-<sha-corto>`, la
-  **firma** con cosign, genera y atesta su **SBOM** (syft + `cosign attest`,
-  en paralelo con firma y escaneo), la **escanea** con ACS (puerta de calidad)
-  y promociona el digest al repo de configuración (git push). **Idempotencia:** si el tag
+- `ci-build-image` — clona el monorepo de aplicación (clone COMPLETO, con
+  historial) y pasa la **puerta de código** en paralelo: **tests unitarios** de
+  Go con cobertura (`go-test`, tolera la ausencia de tests e informa),
+  **detección de secretos** en árbol e historial (`secret-scan` con gitleaks,
+  falla CERRADO por defecto) y **SAST** (`code-scan` con semgrep). Solo si las
+  tres pasan construye la imagen con buildah, la publica con su tag ancla, el
+  inmutable `git-<sha-corto>`, le aplica el **tag de versión GitFlow** derivado
+  de la rama (ver "Versionado por rama"), la **firma** con cosign, genera y
+  atesta su **SBOM** (syft + `cosign attest`, en paralelo con firma y escaneo),
+  la **escanea** con ACS (puerta de calidad), evalúa el **overlay renderizado**
+  contra las políticas DEPLOY de ACS (`deployment-check`, roxctl) y promociona
+  el digest al repo de configuración (git push). **Idempotencia:** si el tag
   `git-<sha>` ya existe en el registro, el pipeline NO reconstruye — reconstruir
   el mismo commit daría otro digest, movería el tag y dejaría huérfano el
   anterior (Quay lo purga y el rollback por Git muere en `ImagePullBackOff`).
   En su lugar salta el build, reutiliza el digest existente y CONTINÚA con
   firma, escaneo y promoción: relanzar el pipeline sobre el mismo commit es
   seguro y sirve para re-promocionar o para completar un run que falló a medias.
-  No hay tags móviles: nadie los consumía y todo despliegue va por digest.
+  No hay tags móviles: los tags de versión son alias INMUTABLES del mismo
+  digest y todo despliegue va por digest.
 - `cd-deploy-application` — clona el repo de configuración, valida que el
   overlay renderiza (`oc kustomize`) y pide a Argo CD un sync explícito de la
   Application (`app-demo-service-dev`) esperando a que quede Healthy.
@@ -21,7 +29,13 @@ Tres pipelines de Tekton en el namespace `workshop-demo-dev`:
   Quay. Antes de copiar **verifica la firma cosign en el origen** (`verify-signature`,
   `"true"` por defecto): sin esa puerta, quien tiene la credencial de promoción
   podía subir a prod cualquier digest de la organización origen, incluido uno
-  colocado a mano. Copia con `skopeo copy --all` (manifiesto completo, CONSERVA el
+  colocado a mano. Hacia prod/contingencia se suma la **puerta de procedencia**
+  (`require-release-provenance`, `"true"` en esos runs): el commit que la imagen
+  lleva estampado en `org.opencontainers.image.revision` (cubierto por el digest
+  que cosign firma) debe existir en el repo de aplicación, ser ancestro de
+  `main` y llevar un tag semver de git — a prod solo entran RELEASES, no builds
+  de una rama cualquiera. La firma prueba QUIÉN construyó; la procedencia, DESDE
+  DÓNDE. Copia con `skopeo copy --all` (manifiesto completo, CONSERVA el
   digest: lo validado en test es byte a byte lo que corre en prod) **y arrastra la
   firma y la atestación SBOM**, que cosign publica como tags aparte
   (`sha256-<hex>.sig` / `.att`) y por tanto no viajan con el manifiesto — sin
@@ -52,6 +66,32 @@ oc create -f workshop-pipelines/runs/pipelinerun-promote-dev-to-test.yaml -n wor
 oc create -f workshop-pipelines/runs/pipelinerun-promote-test-to-prod.yaml -n workshop-demo-dev
 oc create -f workshop-pipelines/runs/pipelinerun-promote-prod-to-contingencia.yaml -n workshop-demo-dev
 ```
+
+## Versionado por rama (GitFlow)
+
+El despliegue va SIEMPRE por digest — eso no cambia. Lo que añade el versionado
+es un **alias legible** del mismo digest, derivado de la rama que el CI clonó
+(parámetro `revision`), aplicado con `skopeo copy` dentro del mismo repositorio
+(no reconstruye: el digest se conserva). El ancla de idempotencia sigue siendo
+`git-<sha7>`, que se publica en TODOS los casos.
+
+| Revisión clonada | Tag de versión | Ejemplo |
+|---|---|---|
+| `feature/*`, PRs, `main` sin tag | ninguno (solo el ancla) | `git-3fa9c21` |
+| `develop` | `<version>-SNAPSHOT-<sha7>` | `1.4.0-SNAPSHOT-3fa9c21` |
+| `release/X.Y.Z` | `X.Y.Z-rc<n>` | `1.4.0-rc2` |
+| tag `vX.Y.Z` (release desde `main`) | `X.Y.Z` | `1.4.0` |
+
+- **De dónde sale `<version>`**: del fichero `VERSION` en la raíz del repo de
+  aplicación si existe; si no, del parámetro `version` del pipeline (default
+  `0.1.0`). En `release/X.Y.Z` manda el nombre de la rama.
+- **El `<n>` del rc** lo decide el registro: el mayor `X.Y.Z-rc*` existente más
+  uno. Con idempotencia: si el commit ya tiene imagen y un rc apunta a su
+  digest, se REUTILIZA ese rc en vez de acuñar otro.
+- **Los tags de versión son inmutables**: si `X.Y.Z` ya existe apuntando a otro
+  digest, el pipeline corta — una versión publicada no se reconstruye jamás.
+- El SNAPSHOT lleva el `<sha7>` a propósito: dos builds de `develop` nunca
+  comparten tag, así que ningún tag se reapunta ni deja digests huérfanos.
 
 ## Modelo de promoción entre organizaciones de Quay
 

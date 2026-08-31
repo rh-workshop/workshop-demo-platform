@@ -1,0 +1,82 @@
+# Task de CHEQUEO DE MANIFIESTOS: evalúa el overlay de despliegue con ACS
+# (roxctl deployment check) ANTES de promocionar el digest al repo de config.
+#
+# Completa la cadena con el control que faltaba sobre la CONFIGURACIÓN: el SAST
+# mira el código, image-scan mira el binario, y esta task mira los MANIFIESTOS
+# que Argo va a aplicar — contenedores privilegiados, sin límites de recursos,
+# montajes peligrosos, secretos en variables de entorno... políticas de ciclo
+# DEPLOY de ACS, evaluadas contra el YAML ya renderizado por kustomize.
+#
+# SIN DEPENDENCIAS NUEVAS: reutiliza la MISMA imagen de roxctl de image-scan y
+# la imagen de Argo (que ya trae kustomize) para renderizar. Las credenciales
+# son las mismas de image-scan (acs-pipeline-credentials).
+#
+# LÍMITE HONESTO de este control: roxctl NO analiza dependencias declaradas en
+# código fuente (go.mod) — no existe tal subcomando. La cobertura SCA real la
+# dan, tras el build, el SBOM de syft y el escaneo de imagen de ACS, que sí ven
+# los módulos Go compilados en el binario. Ver docs/backlog.md.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: deployment-check
+spec:
+  params:
+    # Overlay de Kustomize a renderizar y evaluar, p. ej. apps/demo-service/overlays/dev.
+    - {name: overlay-path, type: string}
+    # "false" informa de las violaciones y sigue; "true" corta. Mismo criterio que image-scan.
+    - {name: fail-on-violation, type: string, default: "false"}
+    # Endpoint de Central; por defecto el Service interno del cluster.
+    - {name: rox-central-endpoint, type: string, default: "central.stackrox.svc:443"}
+  workspaces:
+    # Repo de CONFIGURACIÓN ya clonado (el overlay que se evalúa vive ahí).
+    - name: config
+    # Secret acs-pipeline-credentials: rox-api-token + ca.pem de Central (el mismo de image-scan).
+    - name: acs-credentials
+  # Volumen efímero entre pasos: el YAML renderizado no toca el workspace.
+  volumes:
+    - {name: rendered, emptyDir: {}}
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities: {drop: [ALL]}
+    volumeMounts:
+      - {name: rendered, mountPath: /var/render}
+  steps:
+    # Se evalúa lo RENDERIZADO, no las piezas sueltas: roxctl no entiende Kustomize
+    # y una violación puede nacer justo de un parche del overlay.
+    - name: kustomize-render
+      # La imagen de Argo CD del operador GitOps ya instalado trae kustomize: no hace falta traer nada nuevo al cluster.
+      image: registry.redhat.io/openshift-gitops-1/argocd-rhel9:1.21
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        kustomize build "$(workspaces.config.path)/$(params.overlay-path)" -o /var/render/manifests.yaml
+        echo "Overlay $(params.overlay-path) renderizado ($(grep -c '^kind:' /var/render/manifests.yaml) recursos)."
+
+    - name: roxctl-deployment-check
+      # roxctl en la MISMA versión e imagen que image-scan: cero dependencias nuevas.
+      image: registry.redhat.io/advanced-cluster-security/rhacs-roxctl-rhel9:4.11.3
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        ROXCTL="roxctl --token-file $(workspaces.acs-credentials.path)/rox-api-token --ca $(workspaces.acs-credentials.path)/ca.pem -e $(params.rox-central-endpoint)"
+        # Igual que en image-scan, hay que separar dos causas de exit distinto de cero:
+        #   - VIOLACIÓN de política DEPLOY: la evaluación SÍ corrió (hay tabla); en modo informe se avisa y se continúa.
+        #   - ERROR de infraestructura (token caducado, CA errónea, Central caído): corta SIEMPRE, aunque fail-on-violation=false.
+        RC=0
+        $ROXCTL deployment check --file /var/render/manifests.yaml > /var/render/check.log 2>&1 || RC=$?
+        cat /var/render/check.log
+        if [ "$RC" -ne 0 ]; then
+          # La tabla de resultados solo aparece si Central llegó a evaluar las políticas.
+          if ! grep -qiE 'POLICY.*SEVERITY|violated' /var/render/check.log; then
+            echo "ERROR de infraestructura: roxctl no pudo evaluar los manifiestos (revisa token, CA y endpoint de Central)." >&2
+            exit "$RC"
+          fi
+          if [ "$(params.fail-on-violation)" = "true" ]; then
+            echo "FALLO: hay políticas DEPLOY de ACS en violación; el digest no se promociona." >&2
+            exit "$RC"
+          fi
+          echo "AVISO: hay políticas DEPLOY en violación. El pipeline CONTINÚA porque fail-on-violation=false."
+        else
+          echo "Manifiestos limpios frente a las políticas DEPLOY de ACS."
+        fi

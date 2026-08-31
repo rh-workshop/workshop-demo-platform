@@ -15,6 +15,11 @@
 #     write en prod/contingencia, y dársela rompería el aislamiento que justifica
 #     separar las organizaciones.
 #
+# DOS PUERTAS ANTES DE COPIAR: verify-signature (el digest viene firmado por el
+# pipeline) y verify-provenance (con require-release-provenance=true, el commit
+# de la imagen está en main y lleva tag semver — GitFlow: a prod solo entran
+# releases, no builds de una rama cualquiera).
+#
 # UN SOLO PIPELINE PARAMETRIZADO sirve para dev->test y test->prod: la barrera
 # hacia prod NO la pone el pipeline sino el RBAC — quién puede crear un
 # PipelineRun en el namespace donde existe el Secret con escritura sobre
@@ -51,6 +56,13 @@ spec:
     # Nunca se pone en "false" en un entorno regulado: es la unica puerta que impide
     # promocionar a prod una imagen que no salio del pipeline.
     - {name: verify-signature, default: "true"}
+    # PROCEDENCIA GitFlow (Zero Trust): con "true", el commit del que salió la imagen
+    # debe estar en main Y llevar un tag semver de git — solo así entra a prod. Va en
+    # "true" en los runs hacia prod/contingencia; dev->test se queda en "false"
+    # (a test llegan builds de develop/release que aún no están en main).
+    - {name: require-release-provenance, default: "false"}
+    # Repo de APLICACIÓN contra el que se comprueba la procedencia del commit.
+    - {name: app-repo, default: "https://github.com/rh-workshop/workshop-demo-app.git"}
     # Nombre LÓGICO de la imagen en el kustomization (campo images[].name), no la URL del registro.
     - {name: kustomize-image-name, default: app-workshop}
     # Application de Argo a sincronizar tras el push; VACÍO = no se pide sync (el auto-sync despliega igual).
@@ -115,10 +127,110 @@ spec:
                 --insecure-ignore-tlog "$(params.image-ref)" > /dev/null
               echo "Firma verificada en origen: $(params.image-ref)"
 
+    # PUERTA DE PROCEDENCIA (Zero Trust): la firma prueba que la imagen salió del
+    # pipeline, pero NO de qué rama — cualquier digest firmado desde una feature
+    # podría promocionarse a prod. Esta task cierra ese hueco: lee el commit que
+    # el build estampó como etiqueta OCI org.opencontainers.image.revision (viaja
+    # DENTRO del config de la imagen, cubierto por el digest que cosign firma, así
+    # que es a prueba de manipulación una vez firmada) y comprueba contra el repo
+    # de aplicación REAL que ese commit (1) existe, (2) es ancestro de main y
+    # (3) lleva un tag semver de git. Solo lo publicado desde main entra a prod.
+    #
+    # LO QUE ESTA PUERTA NO CUBRE (control compensatorio = RBAC + revisión): se
+    # confía en que el CI estampó GIT_COMMIT honestamente — la cadena es firma
+    # (identidad del pipeline) + etiqueta (identidad del commit) + git (identidad
+    # de la rama). Quien tenga la llave de firma puede fabricar la cadena entera;
+    # esa llave está fuera del alcance de los desarrolladores (ver README).
+    #
+    # El interruptor se evalúa DENTRO del step, no con `when`: una task saltada
+    # arrastraría por runAfter a toda la promoción (misma trampa que en verify-signature).
+    - name: verify-provenance
+      runAfter: [verify-signature]
+      params:
+        - {name: image-ref, value: "$(params.registry-host)/$(params.source-org)/$(params.image-name)@$(params.image-digest)"}
+        - {name: require-release-provenance, value: $(params.require-release-provenance)}
+        - {name: app-repo, value: $(params.app-repo)}
+      workspaces:
+        - {name: registry-credentials, workspace: source-registry-credentials}
+      taskSpec:
+        params:
+          - {name: image-ref, type: string}
+          - {name: require-release-provenance, type: string}
+          - {name: app-repo, type: string}
+        workspaces:
+          - name: registry-credentials
+        # Volumen efímero entre pasos: el commit extraído de la imagen pasa al paso de git.
+        volumes:
+          - {name: provenance, emptyDir: {}}
+        stepTemplate:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: provenance, mountPath: /var/prov}
+        steps:
+          # Paso 1: extraer del CONFIG de la imagen el commit que estampó el build.
+          - name: read-image-revision
+            image: registry.redhat.io/rhel9/skopeo:9.8
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              if [ "$(params.require-release-provenance)" != "true" ]; then
+                echo "Procedencia de release NO exigida en este salto (require-release-provenance=false)."
+                printf 'skip' > /var/prov/commit
+                exit 0
+              fi
+              # La etiqueta viaja en el config de la imagen, cuyo hash cubre el digest firmado.
+              COMMIT=$(skopeo inspect --config --authfile "$(workspaces.registry-credentials.path)/config.json" \
+                --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+                "docker://$(params.image-ref)")
+              # Falla CERRADO: sin etiqueta no hay procedencia que verificar, y eso ya descalifica.
+              if [ -z "$COMMIT" ] || [ "$COMMIT" = "<no value>" ]; then
+                echo "ERROR: la imagen no trae la etiqueta org.opencontainers.image.revision; procedencia inverificable." >&2
+                exit 1
+              fi
+              printf '%s' "$COMMIT" > /var/prov/commit
+              echo "Commit estampado en la imagen: ${COMMIT}"
+          # Paso 2: contrastar ese commit con el repositorio de aplicación REAL.
+          - name: check-commit-on-main
+            # La imagen de Argo CD del operador GitOps ya instalado trae git: no hace falta traer nada nuevo al cluster.
+            image: registry.redhat.io/openshift-gitops-1/argocd-rhel9:1.21
+            env:
+              # HOME escribible para git (el pod corre con UID aleatorio de OpenShift).
+              - {name: HOME, value: /tmp}
+            script: |
+              #!/usr/bin/env sh
+              set -eu
+              COMMIT=$(cat /var/prov/commit)
+              if [ "$COMMIT" = "skip" ]; then
+                echo "Verificación de procedencia saltada en este salto."
+                exit 0
+              fi
+              # Clone COMPLETO de solo lectura (repo público; para uno privado se monta git-credentials).
+              git clone --quiet "$(params.app-repo)" /var/prov/src
+              cd /var/prov/src
+              # (1) El commit tiene que EXISTIR en el repositorio canónico.
+              if ! git cat-file -e "${COMMIT}^{commit}" 2>/dev/null; then
+                echo "ERROR: el commit ${COMMIT} no existe en $(params.app-repo); la imagen no salió de este repositorio." >&2
+                exit 1
+              fi
+              # (2) Tiene que estar en la historia de main: nada de ramas sueltas hacia prod.
+              if ! git merge-base --is-ancestor "$COMMIT" origin/main; then
+                echo "ERROR: el commit ${COMMIT} no es ancestro de main; a prod solo se promociona lo publicado en main." >&2
+                exit 1
+              fi
+              # (3) Tiene que llevar un tag semver: una RELEASE deliberada, no un commit cualquiera de main.
+              TAG_SEMVER=$(git tag --points-at "$COMMIT" | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+              if [ -z "$TAG_SEMVER" ]; then
+                echo "ERROR: el commit ${COMMIT} está en main pero no lleva tag semver; etiqueta la release (git tag vX.Y.Z) antes de promocionar." >&2
+                exit 1
+              fi
+              echo "Procedencia verificada: commit ${COMMIT}, en main, release ${TAG_SEMVER}."
+
     # Copia el manifiesto completo (--all: todas las arquitecturas y la lista de
     # manifiestos) y VERIFICA que el digest en destino es el mismo que salió.
     - name: copy-image
-      runAfter: [verify-signature]
+      runAfter: [verify-signature, verify-provenance]
       # Un reintento absorbe los fallos transitorios de red contra el registro.
       retries: 1
       params:
@@ -293,12 +405,14 @@ spec:
     - name: pipeline-summary
       params:
         - {name: verify-status, value: $(tasks.verify-signature.status)}
+        - {name: provenance-status, value: $(tasks.verify-provenance.status)}
         - {name: copy-status, value: $(tasks.copy-image.status)}
         - {name: promote-status, value: $(tasks.push-config.status)}
         - {name: sync-status, value: $(tasks.sync-application.status)}
       taskSpec:
         params:
           - {name: verify-status, type: string}
+          - {name: provenance-status, type: string}
           - {name: copy-status, type: string}
           - {name: promote-status, type: string}
           - {name: sync-status, type: string}
@@ -312,6 +426,7 @@ spec:
               #!/usr/bin/env sh
               echo "===== Resumen de la promoción ====="
               echo "Firma en origen : $(params.verify-status)"
+              echo "Procedencia     : $(params.provenance-status)"
               echo "Copia de imagen : $(params.copy-status)"
               echo "Push del overlay: $(params.promote-status)"
               echo "Sync de Argo    : $(params.sync-status)"

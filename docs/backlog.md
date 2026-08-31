@@ -125,6 +125,40 @@ en la plataforma sin revisión. Ahora solo se despliegan los PR con la etiqueta
 Pendiente: cuotas/NetworkPolicy de `namespace-governance` para los namespaces
 `*-pr-*` (ver 6.4), y validación en vivo (clusters apagados).
 
+## 1-sexies. Cadena DevSecOps del CI completada — HECHO
+
+**Implementado** en `workshop-pipelines/gitops/base/` (sin pipelines nuevos: las
+piezas entran en los tres existentes, porque lo que cambia entre ambientes son
+datos, no responsabilidades):
+
+- **Tests unitarios** (`go-test-task.yaml`): `go test ./... -coverprofile` con
+  imagen Red Hat (`ubi9/go-toolset`), cobertura como result. El monorepo hoy NO
+  tiene tests: la task lo detecta y lo informa sin romper
+  (`fail-on-no-tests: "false"`); ponerlo en `"true"` los hará obligatorios.
+- **Detección de secretos** (`secret-scan-task.yaml`): gitleaks sobre árbol e
+  HISTORIAL completo (el clone del CI pasó a `DEPTH: "0"`; un shallow haría el
+  escaneo decorativo y la task lo detecta y corta). Falla CERRADO por defecto
+  (`fail-on-violation: "true"`): un secreto filtrado no admite "informar y
+  seguir". Tercera excepción documentada a "solo Red Hat" (no existe detector de
+  secretos en registry.redhat.io), espejada en `company-tooling` como semgrep y
+  syft (`quay/ansible/organizations.yml`).
+- **Chequeo de manifiestos** (`deployment-check-task.yaml`): `roxctl deployment
+  check` sobre el overlay RENDERIZADO con kustomize — políticas DEPLOY de ACS
+  (privilegios, límites, montajes) antes de promocionar el digest. Cero
+  dependencias nuevas: misma imagen roxctl y mismas credenciales que
+  `image-scan`.
+- **Versionado GitFlow** (`resolve-image-tags` + `apply-version-tag` en el CI):
+  tag de versión derivado de la rama como ALIAS inmutable del mismo digest
+  (`skopeo copy` intra-repo, sin reconstruir). Ver "Versionado por rama" en
+  `workshop-pipelines/README.md`.
+- **Procedencia en la promoción** (`verify-provenance` en `promote-image`): con
+  `require-release-provenance: "true"` (los runs hacia prod y contingencia), el
+  commit estampado en `org.opencontainers.image.revision` debe existir en el
+  repo de aplicación, ser ancestro de `main` y llevar tag semver.
+
+**Sin validar en vivo** (solo compilación estática con `oc kustomize`): queda
+para la siguiente reconstrucción del laboratorio.
+
 ## 2. Dominio propio `labjp.xyz` (Cloudflare)
 
 Hoy los hostnames usan el dominio del sandbox RHPDS, que cambia en cada
@@ -275,3 +309,44 @@ frontera de namespace. Pendiente: mover `workshop-pipelines/gitops/overlays/dev`
 a `workshop-ci`, darle su entrada en `namespace-governance` y en las Policies de
 cuota, y actualizar los `runs/`. No se hizo ahora porque toca la narrativa de
 varias sesiones del workshop y no se puede validar en vivo.
+
+## 7. Decisiones de alcance DevSecOps: lo que NO se implementa, y por qué
+
+Decir explícitamente qué NO se cubre vale más que fingir que sí. Estas tres
+decisiones acompañan a la cadena de 1-sexies.
+
+### 7.1 SonarQube — NO se implementa (decisión)
+
+En la parte de SEGURIDAD se solapa con semgrep, que ya corre en el CI; lo que
+aportaría de verdad es la métrica de CALIDAD con histórico (deuda técnica,
+duplicación, cobertura acumulada). El coste no compensa aquí: es un servidor
+con Postgres y mantenimiento propio, y su edición Community **no analiza ramas
+ni Pull Requests** — exactamente lo que un flujo GitFlow necesita; la edición
+de pago que sí lo hace no se justifica para este material. Se integra SOLO si
+el cliente ya tiene un SonarQube corporativo: entonces es una task más
+(`sonar-scanner` contra su servidor) sin operar nada nuevo.
+
+### 7.2 DAST — NO se implementa (decisión)
+
+Un DAST (ZAP y similares) exige un entorno desplegado y estable contra el que
+atacar, tuning de reglas por aplicación y triage continuo de falsos positivos:
+desproporcionado para los servicios del workshop. El `smoke-test` ya cubre la
+ALCANZABILIDAD post-despliegue. **Lo que queda sin cubrir y hay que decirlo**:
+vulnerabilidades que solo aparecen en ejecución (fallos de autenticación y
+sesión, cabeceras, inyección explotable de extremo a extremo). En la cadena
+actual las mitigan parcialmente el SAST (el defecto en el código) y las
+políticas de Kuadrant (AuthPolicy/RateLimitPolicy delante del servicio).
+
+### 7.3 SCA de dependencias declaradas (go.mod) — roxctl no lo cubre
+
+`roxctl` no tiene ningún subcomando que analice un `go.mod` (ni manifiestos de
+dependencias de otros lenguajes) ANTES del build: sus objetos de análisis son
+la imagen (`image scan`/`image check`) y los manifiestos de despliegue
+(`deployment check`, que sí se integró). La cobertura SCA real llega tras el
+build: el SBOM de syft y el escaneo de imagen de ACS ven los módulos Go
+compilados en el binario — con Go es una brecha pequeña (todo dependencia
+acaba en el binario), pero DESPLAZADA en el tiempo: un CVE en una dependencia
+se descubre tras construir, no antes. Si se quisiera cerrar en pre-build haría
+falta otra herramienta (p. ej. `osv-scanner`), que hoy no se añade por la norma
+de dependencias mínimas; quedaría como cuarta excepción espejada si algún día
+compensa.

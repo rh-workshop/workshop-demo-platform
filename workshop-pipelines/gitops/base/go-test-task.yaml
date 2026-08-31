@@ -1,0 +1,77 @@
+# Task de PRUEBAS UNITARIAS: ejecuta `go test` con cobertura antes del build.
+#
+# Es la primera puerta del CI junto al SAST y la detección de secretos: las tres
+# miran el MISMO código recién clonado y corren en paralelo; el build no arranca
+# hasta que las tres pasan. Un test roto corta SIEMPRE el pipeline — un fallo de
+# prueba no es "informar y seguir", es código que no cumple su propio contrato.
+#
+# CASO "NO HAY TESTS", manejado con elegancia: hoy el monorepo no tiene ningún
+# fichero _test.go. Sin este manejo, `go test` saldría 0 con "[no test files]" y
+# la puerta aparentaría verde sin haber probado nada — el peor de los mundos. La
+# task lo DETECTA y lo dice en el log y en el result; con fail-on-no-tests=false
+# (el default de hoy) continúa, y cuando el equipo quiera EXIGIR tests basta
+# poner el parámetro en "true" sin tocar la task.
+#
+# La imagen es Red Hat (ubi9/go-toolset): aquí no hay excepción a la norma.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: go-test
+spec:
+  params:
+    # Toolchain de Go soportado por Red Hat, fijado por versión (nunca "latest").
+    - {name: go-image, type: string, default: "registry.redhat.io/ubi9/go-toolset:1.26.7"}
+    # Paquetes a probar; el default recorre todo el módulo del monorepo.
+    - {name: packages, type: string, default: "./..."}
+    # "false" (hoy): si no existe NINGÚN _test.go se informa y se continúa.
+    # "true": la ausencia de tests corta el pipeline — para cuando se exijan.
+    # OJO: esto solo gobierna la AUSENCIA de tests; un test que falla corta siempre.
+    - {name: fail-on-no-tests, type: string, default: "false"}
+  workspaces:
+    # Código fuente ya clonado por la tarea anterior del pipeline.
+    - name: source
+  results:
+    # Cobertura total de sentencias (p. ej. "73.4%"), o "sin-tests" si no hay ninguno.
+    - {name: coverage, description: Cobertura total de las pruebas unitarias}
+  steps:
+    - name: go-test-coverage
+      image: $(params.go-image)
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        # Cachés y HOME en el filesystem efímero del step: el pod corre con UID aleatorio de OpenShift y no puede escribir en el HOME de la imagen.
+        - {name: HOME, value: /tmp}
+        - {name: GOPATH, value: /tmp/go}
+        - {name: GOCACHE, value: /tmp/.cache/go-build}
+        - {name: GOMODCACHE, value: /tmp/go/pkg/mod}
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        echo "Pruebas unitarias sobre $(workspaces.source.path) (paquetes: $(params.packages))"
+
+        # La detección va PRIMERO y por fichero, no por la salida de go test:
+        # sin _test.go, go test sale 0 con "[no test files]" y la puerta quedaría
+        # verde de mentira. find no falla si no encuentra nada, así que se cuenta.
+        NUM_TESTS=$(find . -name '*_test.go' -not -path './vendor/*' | wc -l | tr -d ' ')
+        if [ "${NUM_TESTS}" -eq 0 ]; then
+          printf 'sin-tests' > $(results.coverage.path)
+          echo "AVISO: el repositorio NO tiene ningún fichero _test.go; no hay nada que probar."
+          if [ "$(params.fail-on-no-tests)" = "true" ]; then
+            echo "FALLO: fail-on-no-tests=true exige que existan pruebas unitarias." >&2
+            exit 1
+          fi
+          echo "El pipeline continúa (fail-on-no-tests=false); añade tests y esta puerta los ejecutará sola."
+          exit 0
+        fi
+
+        echo "Ficheros de test encontrados: ${NUM_TESTS}"
+        # -coverprofile fuera del workspace: el perfil es un artefacto del step, no del repo.
+        # Un test en rojo corta el pipeline SIEMPRE: aquí no hay modo "informar".
+        go test $(params.packages) -coverprofile=/tmp/cover.out
+
+        # La última línea de cover -func trae el total: "total: (statements) NN.N%".
+        COBERTURA=$(go tool cover -func=/tmp/cover.out | awk '/^total:/ {print $NF}')
+        printf '%s' "${COBERTURA:-0.0%}" > $(results.coverage.path)
+        echo "Cobertura total de sentencias: ${COBERTURA:-0.0%}"

@@ -45,6 +45,9 @@ spec:
     # Overlay del ENTORNO DESTINO: la promoción escribe el digest ahí, nunca en el de origen.
     - name: target-overlay-path
       value: apps/demo-service/overlays/prod
+    # Zero Trust hacia PROD: el commit de la imagen debe estar en main y llevar tag semver (GitFlow).
+    - name: require-release-provenance
+      value: "true"
     # Vacío = sin sync explícito (el auto-sync de Argo despliega igual); poner el nombre real para validar la salud.
     - name: argocd-application
       value: ""
