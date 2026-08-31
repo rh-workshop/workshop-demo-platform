@@ -51,7 +51,9 @@ spec:
           # MetalLB solo aplica en BARE-METAL. En un cloud (AWS/Azure/GCP) el proveedor
           # ya provisiona un balanceador por cada Service LoadBalancer, y MetalLB en L2
           # no funciona: la red virtual no reenvia el ARP gratuito del que depende.
-          # Descomentar SOLO en un entorno bare-metal (ver use_metallb en clusters.yml).
+          # OBLIGATORIO en la instalacion del cliente, que es sobre servidores propios: sin MetalLB
+          # los Service de tipo LoadBalancer se quedan en Pending y Kafka no queda expuesto.
+          # Aqui sigue comentado porque este cluster corre en nube y la propia nube los provisiona.
           # - producto: metallb
           #   namespace: metallb-system
   template:
