@@ -20,104 +20,72 @@
   connection: local
   gather_facts: false
 
+  # El "qué" (prefijo, ambientes, repositorios) vive en vars/platform-vars.yml:
+  # UN solo fichero de datos para todos los playbooks; aquí solo hay iteración.
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
   vars:
     quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
     quay_token: "{{ lookup('env', 'QUAY_TOKEN') }}"
     quay_api: "https://{{ quay_host }}/api/v1"
     validate_certs: "{{ lookup('env', 'QUAY_VALIDATE_CERTS') | default(true, true) }}"
 
-    # El "que" de este playbook: lo unico que se edita al anadir un dominio.
+    # UNA ORGANIZACION POR AMBIENTE, construida por ITERACION sobre los datos
+    # (environments × image_repositories), sin listas duplicadas ni `when`.
     #
-    # UNA ORGANIZACION POR ENTORNO. La separación es de SEGURIDAD, no cosmética:
-    # el robot que publica en dev no tiene ninguna credencial sobre prod, así que
-    # un CI comprometido en desarrollo no puede alterar la imagen que corre en
-    # producción. Con una sola organización compartida, un único token con
-    # permiso de escritura alcanzaría todos los entornos.
+    # La separación es de SEGURIDAD, no cosmética: el robot que publica en dev
+    # no tiene ninguna credencial sobre prod, así que un CI comprometido en
+    # desarrollo no puede alterar la imagen que corre en producción. Con una
+    # sola organización compartida, un único token con permiso de escritura
+    # alcanzaría todos los entornos.
     #
     # La promoción entre entornos NO se hace reconstruyendo: se copia el
     # manifiesto entre organizaciones (skopeo copy), de modo que el digest se
     # conserva y lo que se valida en test es exactamente lo que corre en prod.
     #
-    # Los repositorios y robots son iguales en las cuatro; lo que cambia es quién
-    # tiene permiso de escritura:
-    #   dev / test   -> el CI publica (pusher con write)
-    #   prod / conti -> NADIE publica desde CI: la imagen llega SOLO por promoción
-    #                   con una credencial aparte, fuera del alcance del pipeline
-    #                   de build. Por eso su pusher es 'read'.
-    organizations:
-      - name: company-dev
-        email: plataforma+dev@example.com
-        repositories: &repos_workshop
-          # demo-service sirve a los escenarios demo/canary/blue-green/circuit-breaker
-          # (mismo binario, distintas variables de entorno); api-service es el servicio
-          # REST del taller. Los nombres coinciden con los overlays de
-          # workshop-demo-app-config: la promoción copia org→org sin renombrar.
-          - name: demo-service
-            description: Imagen del servicio de ejemplo del taller
-            visibility: private
-          - name: api-service
-            description: Imagen del servicio REST del taller
-            visibility: private
-        robots:
-          - name: puller
-            description: Cuenta de solo lectura para descargar imágenes
-            permission: read
-          - name: pusher
-            description: Cuenta del pipeline de CI para publicar imágenes
-            permission: write
-      - name: company-test
-        email: plataforma+test@example.com
-        repositories: *repos_workshop
-        robots:
-          - name: puller
-            description: Cuenta de solo lectura para descargar imágenes
-            permission: read
-          - name: pusher
-            description: Cuenta del pipeline de CI para publicar imágenes
-            permission: write
-      - name: company-prod
-        email: plataforma+prod@example.com
-        repositories: *repos_workshop
-        robots:
-          - name: puller
-            description: Cuenta de solo lectura para descargar imágenes
-            permission: read
-          # Solo lectura a propósito: a prod se llega promocionando, no publicando.
-          - name: pusher
-            description: Sin escritura desde CI; la imagen llega por promoción
-            permission: read
-      - name: company-contingencia
-        email: plataforma+contingencia@example.com
-        repositories: *repos_workshop
-        robots:
-          - name: puller
-            description: Cuenta de solo lectura para descargar imágenes
-            permission: read
-          # Igual que prod: el sitio de contingencia sirve lo ya promocionado.
-          - name: pusher
-            description: Sin escritura desde CI; la imagen llega por promoción
-            permission: read
-      # Herramientas de CI espejadas desde upstream (excepción documentada a la
-      # norma "solo Red Hat": no existe imagen Red Hat de semgrep, syft ni
-      # gitleaks). El espejado es un skopeo copy puntual — ver code-scan-task.yaml,
-      # sbom-generate-task.yaml y secret-scan-task.yaml; el pipeline las consume
-      # SIEMPRE desde aquí, nunca desde Docker Hub ni ghcr.io en tiempo de build.
-      - name: company-tooling
-        email: plataforma+tooling@example.com
-        repositories:
-          - name: semgrep
-            description: SAST del CI, espejo de docker.io/semgrep/semgrep
-            visibility: private
-          - name: syft
-            description: Generador de SBOM del CI, espejo de docker.io/anchore/syft
-            visibility: private
-          - name: gitleaks
-            description: Detector de secretos del CI, espejo de ghcr.io/gitleaks/gitleaks
-            visibility: private
-        robots:
-          - name: puller
-            description: Cuenta de solo lectura para que el CI descargue las herramientas
-            permission: read
+    # Los repositorios y robots son iguales en todas; lo que cambia es quién
+    # tiene permiso de escritura, y lo decide el dato ci_push del ambiente:
+    #   ci_push: true  -> el CI publica (pusher con write)
+    #   ci_push: false -> NADIE publica desde CI: la imagen llega SOLO por
+    #                     promoción con una credencial aparte. Su pusher es 'read'.
+    robots_ci:
+      - name: puller
+        description: Cuenta de solo lectura para descargar imágenes
+        permission: read
+      - name: pusher
+        description: Cuenta del pipeline de CI para publicar imágenes
+        permission: write
+    robots_promotion_only:
+      - name: puller
+        description: Cuenta de solo lectura para descargar imágenes
+        permission: read
+      # Solo lectura a propósito: aquí se llega promocionando, no publicando.
+      - name: pusher
+        description: Sin escritura desde CI; la imagen llega por promoción
+        permission: read
+    # La lista final: una organización por ambiente más la de tooling (espejos
+    # de herramientas del CI — ver la excepción documentada en platform-vars.yml).
+    organizations: "{{ _orgs_ambientes + [_org_tooling] }}"
+    _orgs_ambientes: >-
+      {%- set orgs = [] -%}
+      {%- for amb in environments -%}
+      {%- set _ = orgs.append({
+            'name': org_prefix ~ '-' ~ amb.name,
+            'email': 'plataforma+' ~ amb.name ~ '@' ~ org_email_domain,
+            'repositories': image_repositories,
+            'robots': (robots_ci if amb.ci_push else robots_promotion_only)
+          }) -%}
+      {%- endfor -%}
+      {{ orgs }}
+    _org_tooling:
+      name: "{{ org_prefix }}-tooling"
+      email: "plataforma+tooling@{{ org_email_domain }}"
+      repositories: "{{ tooling_repositories }}"
+      robots:
+        - name: puller
+          description: Cuenta de solo lectura para que el CI descargue las herramientas
+          permission: read
 
   tasks:
     - name: Comprobar que hay credenciales

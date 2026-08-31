@@ -22,6 +22,11 @@
   connection: local
   gather_facts: false
 
+  # El "qué" (prefijo, ambientes, cuotas y retención) vive en vars/platform-vars.yml:
+  # UN solo fichero de datos para todos los playbooks; aquí solo hay iteración.
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
   vars:
     quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
     quay_token: "{{ lookup('env', 'QUAY_TOKEN') }}"
@@ -44,28 +49,21 @@
     # solo entra lo promocionado y hay que poder volver atrás varias versiones.
     # Podar prod con el mismo criterio que dev dejaría sin imagen a la que
     # revertir tras unos pocos despliegues.
-    organizations:
-      - name: company-dev
-        quota_bytes: 53687091200
-        # auto-prune por ANTIGUEDAD: se conserva todo lo publicado en este plazo.
-        prune_keep_since: 4w
-      - name: company-test
-        quota_bytes: 53687091200
-        prune_keep_since: 12w
-      - name: company-prod
-        quota_bytes: 107374182400
-        # Mas historico: es de donde se revierte si un despliegue sale mal, y es
-        # tambien la evidencia de que lo desplegado estaba firmado.
-        prune_keep_since: 52w
-      - name: company-contingencia
-        quota_bytes: 107374182400
-        # Igual que prod: debe poder servir cualquier version que prod sirva.
-        prune_keep_since: 52w
-      - name: company-tooling
-        # Espejos de herramientas del CI (semgrep, syft): pocos tags, poco volumen.
-        quota_bytes: 10737418240
-        # Las herramientas se referencian por tag fijado: conservar largo plazo.
-        prune_keep_since: 52w
+    #
+    # Los NUMEROS (quota_bytes, prune_keep_since) viven con cada ambiente en
+    # vars/platform-vars.yml; aquí solo se derivan los nombres de organización.
+    organizations: >-
+      {%- set orgs = [] -%}
+      {%- for amb in environments -%}
+      {%- set _ = orgs.append({
+            'name': org_prefix ~ '-' ~ amb.name,
+            'quota_bytes': amb.quota_bytes,
+            'prune_keep_since': amb.prune_keep_since
+          }) -%}
+      {%- endfor -%}
+      {{ orgs + [{'name': org_prefix ~ '-tooling',
+                  'quota_bytes': tooling_quota_bytes,
+                  'prune_keep_since': tooling_prune_keep_since}] }}
 
   tasks:
     - name: Comprobar que hay credenciales

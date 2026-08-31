@@ -19,38 +19,28 @@
   connection: local
   gather_facts: false
 
+  # El "qué" (realm y lista de clientes) vive en vars/platform-vars.yml:
+  # UN solo fichero de datos para todos los playbooks; aquí solo hay iteración.
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
   vars:
     keycloak_host: "{{ lookup('env', 'KEYCLOAK_HOST') }}"
     keycloak_admin: "{{ lookup('env', 'KEYCLOAK_ADMIN') }}"
     keycloak_password: "{{ lookup('env', 'KEYCLOAK_PASSWORD') }}"
     keycloak_url: "https://{{ keycloak_host }}"
-    realm: workshop
+    # El realm es un dato del modelo (platform-vars.yml), no de este playbook.
+    realm: "{{ keycloak_realm }}"
     # PRODUCCION: verificar SIEMPRE el certificado de Keycloak. Estaba cableado a
     # false, y por esta llamada viaja la CONTRASENA DEL ADMIN del realm master: un
     # MITM en la red del operador se llevaba el control del SSO entero. Ahora es
     # true por defecto y solo se baja explicitamente con KEYCLOAK_VALIDATE_CERTS.
     validar_certificados: "{{ lookup('env', 'KEYCLOAK_VALIDATE_CERTS') | default(true, true) }}"
 
-    # El "qué" de este playbook: lo único que se edita al añadir una aplicación.
-    # Cada servicio expuesto por el gateway (con su AuthPolicy que exige JWT) tiene
-    # aquí su client machine-to-machine. El realm es 'workshop'.
-    clients:
-      - id: demo-service
-        displayName: Servicio de ejemplo
-        # Flujo máquina-a-máquina: la aplicación pide el token con su propio
-        # identificador y secreto, sin intervención de una persona.
-        service_account: true
-        publicAccess: false
-      # Client del servicio canary: su AuthPolicy exige un JWT de este realm.
-      - id: canary-service
-        displayName: Servicio canary (canary deployment)
-        service_account: true
-        publicAccess: false
-      # Client del servicio circuit-breaker.
-      - id: circuit-breaker-service
-        displayName: Servicio circuit breaker
-        service_account: true
-        publicAccess: false
+    # El "qué" de este playbook — los clients machine-to-machine de cada servicio
+    # expuesto por el gateway — se edita en vars/platform-vars.yml (keycloak_clients),
+    # nunca aquí: añadir una aplicación es añadir una entrada de datos.
+    clients: "{{ keycloak_clients }}"
 
   tasks:
     - name: Comprobar que hay credenciales

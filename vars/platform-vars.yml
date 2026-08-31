@@ -1,0 +1,97 @@
+# Datos de PLATAFORMA compartidos por los playbooks de producto (quay, keycloak,
+# acs) — el ÚNICO sitio donde un adoptante cambia su prefijo de organizaciones,
+# sus ambientes y su inventario de aplicaciones. SIN credenciales: las
+# credenciales van SIEMPRE por variables de entorno (ver cada playbook).
+#
+# Este fichero SÍ se versiona: describe el modelo (el "qué"), no un cluster
+# concreto. Lo específico de los clusters (dominios, API, tokens) vive en
+# bootstrap/ansible/clusters.yml, que está en .gitignore.
+#
+# Los playbooks lo cargan con vars_files e ITERAN sobre estos datos: añadir un
+# ambiente o una aplicación es añadir una entrada aquí, nunca tocar un playbook.
+
+# Prefijo de las organizaciones del registro (…-dev, …-test, …-prod, …-contingencia,
+# …-tooling). Un adoptante lo sustituye por el suyo AQUÍ y reejecuta los playbooks.
+# OJO: los overlays de Kustomize y los defaults de los pipelines llevan el prefijo
+# literal (Argo no lee variables): ver docs/adopcion-cliente.md para la lista.
+org_prefix: company
+
+# Dominio de los correos administrativos de las organizaciones del registro.
+org_email_domain: example.com
+
+# Los AMBIENTES del modelo y su gobierno en el registro. ci_push decide el
+# permiso del robot pusher: true = el CI publica (write); false = NADIE publica
+# desde CI (read) y la imagen llega SOLO por promoción con credencial aparte.
+environments:
+  - name: dev
+    ci_push: true
+    quota_bytes: 53687091200
+    # auto-prune por ANTIGÜEDAD: se conserva todo lo publicado en este plazo.
+    prune_keep_since: 4w
+  - name: test
+    ci_push: true
+    quota_bytes: 53687091200
+    prune_keep_since: 12w
+  - name: prod
+    ci_push: false
+    quota_bytes: 107374182400
+    # Más histórico: es de donde se revierte y la evidencia de lo firmado.
+    prune_keep_since: 52w
+  - name: contingencia
+    ci_push: false
+    quota_bytes: 107374182400
+    # Igual que prod: debe poder servir cualquier versión que prod sirva.
+    prune_keep_since: 52w
+
+# Repositorios de imagen de las APLICACIONES: los mismos en todas las
+# organizaciones de ambiente (la promoción copia org→org sin renombrar) y los
+# mismos nombres que usan los overlays del repo de configuración de aplicaciones.
+image_repositories:
+  - name: demo-service
+    description: Imagen del servicio de ejemplo del taller
+    visibility: private
+  - name: api-service
+    description: Imagen del servicio REST del taller
+    visibility: private
+
+# Herramientas de CI espejadas desde upstream (excepción documentada a la norma
+# "solo Red Hat": no existe imagen Red Hat de semgrep, syft ni gitleaks). El
+# espejado es un skopeo copy puntual; el pipeline las consume SIEMPRE desde la
+# organización <org_prefix>-tooling, nunca desde Docker Hub ni ghcr.io.
+tooling_repositories:
+  - name: semgrep
+    description: SAST del CI, espejo de docker.io/semgrep/semgrep
+    visibility: private
+  - name: syft
+    description: Generador de SBOM del CI, espejo de docker.io/anchore/syft
+    visibility: private
+  - name: gitleaks
+    description: Detector de secretos del CI, espejo de ghcr.io/gitleaks/gitleaks
+    visibility: private
+
+# Cuota y retención de la organización tooling (pocos tags, poco volumen;
+# se referencian por tag fijado: conservar largo plazo).
+tooling_quota_bytes: 10737418240
+tooling_prune_keep_since: 52w
+
+# Realm de Keycloak del modelo. Cambiarlo aquí NO basta: el KeycloakRealmImport
+# (keycloak/gitops/base) y los issuerUrl de los overlays llevan el nombre
+# literal — ver docs/adopcion-cliente.md.
+keycloak_realm: workshop
+
+# Clientes machine-to-machine del realm: uno por servicio expuesto por el
+# gateway cuya AuthPolicy exige JWT. Añadir un servicio = añadir una entrada.
+keycloak_clients:
+  - id: demo-service
+    displayName: Servicio de ejemplo
+    # Flujo máquina-a-máquina: la aplicación pide el token con su propio identificador y secreto.
+    service_account: true
+    publicAccess: false
+  - id: canary-service
+    displayName: Servicio canary (canary deployment)
+    service_account: true
+    publicAccess: false
+  - id: circuit-breaker-service
+    displayName: Servicio circuit breaker
+    service_account: true
+    publicAccess: false

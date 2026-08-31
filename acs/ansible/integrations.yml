@@ -29,7 +29,14 @@
   connection: local
   gather_facts: false
 
+  # El "qué" (el prefijo de organizaciones, que da nombre a la integración) vive
+  # en vars/platform-vars.yml: UN solo fichero de datos para todos los playbooks.
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
   vars:
+    # Nombre de la integración en Central, derivado del prefijo del registro.
+    integracion_nombre: "quay-{{ org_prefix }}"
     acs_host: "{{ lookup('env', 'ACS_HOST') }}"
     acs_token: "{{ lookup('env', 'ACS_TOKEN') }}"
     acs_api: "https://{{ acs_host }}/v1"
@@ -67,9 +74,9 @@
       changed_when: false
       register: integraciones_existentes
 
-    - name: Localizar la integracion quay-company por nombre
+    - name: Localizar la integracion del registro por nombre
       ansible.builtin.set_fact:
-        integracion_quay: "{{ integraciones_existentes.json.integrations | selectattr('name', 'equalto', 'quay-company') | list | first | default({}) }}"
+        integracion_quay: "{{ integraciones_existentes.json.integrations | selectattr('name', 'equalto', integracion_nombre) | list | first | default({}) }}"
 
     - name: Registrar Quay como Scanner + Registry en ACS
       ansible.builtin.uri:
@@ -80,8 +87,8 @@
           Authorization: "Bearer {{ acs_token }}"
         body_format: json
         body:
-          # Sustituir "company" por el nombre de la organización de Quay (el mismo de quay/ansible/organizations.yml).
-          name: quay-company
+          # El nombre sale del org_prefix de vars/platform-vars.yml (el mismo de quay/ansible/organizations.yml).
+          name: "{{ integracion_nombre }}"
           id: "{{ integracion_quay.id | default(omit) }}"
           type: quay
           categories:
