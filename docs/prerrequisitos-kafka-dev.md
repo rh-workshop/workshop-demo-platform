@@ -9,11 +9,33 @@
 
 ## Propósito
 
-Este documento enumera todo lo que debe estar disponible y verificado en el ambiente de
-desarrollo **antes** de iniciar la implementación del pipeline de auditoría de logs sobre
-Red Hat Streams for Apache Kafka. Cada sección detalla los valores exactos que exige la
-configuración declarativa (GitOps) del pipeline; la sección final consolida un checklist
-accionable.
+Este documento describe la implementación del pipeline de auditoría de logs sobre Red Hat
+Streams for Apache Kafka en el ambiente de desarrollo, y detalla los valores exactos que
+exige su configuración declarativa (GitOps).
+
+> **La instalación y la configuración las ejecuta el equipo de implementación.** Lo que se
+> solicita al cliente son **accesos, definiciones de negocio y credenciales**; el resto de
+> este documento es descriptivo, para que el equipo de plataforma sepa qué se va a
+> desplegar en su ambiente.
+>
+> El detalle de lo que debe entregar el cliente —y qué valor de referencia se aplicará si
+> una decisión no se confirma— está en el fichero **`prerrequisitos-kafka-dev.xlsx`**, que
+> es el entregable de seguimiento.
+
+**Decisiones que corresponden al cliente**, hoy cubiertas con valores de referencia:
+
+| Decisión | Valor de referencia |
+|---|---|
+| Nombre del cluster de Kafka | `demo-kafka` |
+| Nombres de los 4 tópicos | `tp.observability.logs.{encrypted,masked}` y sus colas de descarte |
+| Nombres de usuarios y grupos de consumo | `log-processor`, `log-sink`, `dummy-data-producer` |
+| Retención de los tópicos | 24 h (principales) y 72 h (colas de descarte) |
+| Atributos considerados datos personales | `customer.email`, `customer.dni`, `card.pan` |
+| Volumen esperado de eventos | 3 particiones · 2,5 MB máximo por mensaje |
+| Destino final de los eventos enmascarados | Pendiente de definir |
+
+Cambiar cualquiera de estos valores **después** del despliegue obliga a tocar todos los
+clientes que ya se hayan integrado: conviene confirmarlos antes de empezar.
 
 El pipeline consta de tres roles que comparten un mismo binario (Quarkus/Java) más un
 emisor de referencia en .NET:
@@ -410,49 +432,15 @@ Tests unitarios por lenguaje (Java/.NET), detección de secretos en árbol e his
 
 ---
 
-## 9. Checklist final
+## 9. Seguimiento
 
-### Plataforma
-- [ ] Cluster OpenShift de dev disponible en versión `<OCP_VERSION>` compatible
-- [ ] ACM operativo y cluster de dev importado (Placement `clusters-dev` resolviendo)
-- [ ] Policy `install-operators-workload` aplicada: operador `amq-streams` (canal `stable`, CSV `amqstreams.v3.2.1-10`) instalado en el namespace `kafka`
-- [ ] Namespace `kafka` creado con las etiquetas de plataforma acordadas
-- [ ] StorageClass por defecto de **bloque (RWO)** confirmada: `<STORAGE_CLASS_DEFAULT>` (mínimo 10Gi libres: 5Gi broker + 5Gi controller)
-- [ ] User Workload Monitoring habilitado (para los `PodMonitor` de Kafka)
+El checklist accionable vive en **`prerrequisitos-kafka-dev.xlsx`**, que es el entregable
+de seguimiento: una sola hoja, con lo que entrega el cliente separado de lo que ejecuta el
+equipo de implementación, el valor de referencia que se aplicará si una decisión no se
+confirma, y una columna de estado para reportar el avance.
 
-### Kafka
-- [ ] Cluster `demo-kafka` sincronizado por Argo (1 broker + 1 controller, KRaft, sin Cruise Control en dev)
-- [ ] Los 4 tópicos `tp.observability.logs.*` creados (verificar `replicas: 1` en dev)
-- [ ] Los 3 `KafkaUser` (`log-processor`, `log-sink`, `dummy-data-producer`) reconciliados y sus Secrets generados por el operador
-- [ ] Listeners 9093 (interno) y 9094 (Route) con TLS y autenticación mTLS activos
-
-### Secretos
-- [ ] Secret `kv-demo` creado a mano en `kafka` con la clave `aes-key` (`openssl rand -base64 32`) — llave exclusiva de dev
-- [ ] Compromiso registrado: en producción la llave irá en el vault corporativo vía External Secrets Operator
-- [ ] Pull secret del registro presente en el namespace `kafka` y enlazado al ServiceAccount `default` (lo aplica la Policy de ACM — ver 5.2)
-- [ ] Reloader (o mecanismo equivalente de reinicio ante rotación de Secrets) disponible en el cluster
-
-### Git y GitOps
-- [ ] Los 4 repositorios creados (2 de código, 1 de configuración, 1 de plataforma) con la estructura `apps/<servicio>/overlays/<ambiente>`
-- [ ] Credencial de solo lectura de Argo CD sobre los repos privados configurada
-- [ ] ApplicationSet `kafka-services-dev` aplicado y generando las Applications
-- [ ] AppProject con la allow-list que incluye los kinds de `kafka.strimzi.io` aplicado
-- [ ] Ramas `main` (plataforma y configuración) protegidas con revisión obligatoria
-
-### Registro de imágenes
-- [ ] Organizaciones `<PREFIJO>-dev` y `<PREFIJO>-tooling` creadas con cuota y auto-prune
-- [ ] Repositorios `kafka-audit-pipeline`, `kafka-audit-demo-producer` y `kafka-audit-producer-dotnet` creados (privados)
-- [ ] Robots `puller`, `pusher` (write en dev) y `acs-scanner` creados con sus permisos
-- [ ] Herramientas de CI espejadas en tooling (semgrep, syft, gitleaks)
-
-### CI/CD
-- [ ] Operador OpenShift Pipelines instalado (incluye Pipelines as Code)
-- [ ] Namespace de CI con Pipeline, Tasks, `ServiceAccount builder` y su RoleBinding a `pipelines-scc-clusterrole`
-- [ ] CRs `Repository` de PaC aplicados para los 3 repos del pipeline de auditoría
-- [ ] Secrets `pac-git-token` y `pac-webhook-secret` creados en el namespace de CI
-- [ ] Webhooks configurados en los repos de Git (Route de `pipelines-as-code-controller`, JSON, secreto HMAC)
-- [ ] Secrets `git-credentials`, `quay-push-credentials`, `cosign-signing-key` y `acs-pipeline-credentials` creados
-- [ ] ACS Central accesible desde el CI con token de rol Continuous Integration
+Se mantiene en un único sitio a propósito: duplicar el checklist aquí llevaría a que las
+dos copias dejaran de coincidir.
 
 ---
 
