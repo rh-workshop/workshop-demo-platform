@@ -254,6 +254,10 @@
               cluster.open-cluster-management.io/clusterset: default
               environment: "{{ item.environment }}"
               role: "{{ item.role }}"
+              # auto-detect es el patrón documentado de import: el import-controller lo sustituye por el valor real (vendor=OpenShift, cloud=Amazon...).
+              cloud: auto-detect
+              # Sin vendor=OpenShift el addon de Observability salta el cluster ("labels not ready") y el spoke nunca envía métricas al hub.
+              vendor: auto-detect
           spec:
             hubAcceptsClient: true
       loop: "{{ spokes }}"
@@ -272,9 +276,7 @@
           spec:
             clusterName: "{{ item.name }}"
             clusterNamespace: "{{ item.name }}"
-            clusterLabels:
-              cloud: auto-detect
-              vendor: auto-detect
+            # clusterLabels está deprecado y ACM lo ignora: las etiquetas cloud/vendor van en el ManagedCluster (arriba).
             # policyController es imprescindible: sin él las OperatorPolicy no llegan al spoke.
             applicationManager:
               enabled: true

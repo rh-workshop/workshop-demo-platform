@@ -42,26 +42,29 @@ spec:
     # Sin esto no llega ninguna metrica: el resto del despliegue existiria pero
     # los paneles quedarian vacios.
     enableMetrics: true
-    # Cada cuantos segundos empuja cada spoke. 30s es el intervalo por defecto y
-    # el equilibrio razonable: bajarlo multiplica el volumen almacenado y el
+    # Cada cuantos segundos empuja cada spoke. 300s es el default documentado de
+    # ACM (rango valido 15-3600): bajarlo multiplica el volumen almacenado y el
     # trafico entre clusters sin aportar precision util para tendencias.
-    interval: 30
-
+    interval: 300
 
   # RETENCION POR RESOLUCION. Cuanto mas antigua la muestra, menos detalle se
   # conserva: el detalle fino solo es util para diagnosticar incidentes
   # recientes, mientras que el historico se usa para tendencias y capacidad.
-  retentionConfig:
-    # Lo que cada spoke guarda en LOCAL antes de enviarlo: es un buffer, no
-    # almacenamiento. Da margen para que un corte de red hacia el hub no pierda
-    # metricas.
-    retentionInLocal: 24h
-    # Muestras crudas: la ventana de diagnostico de un incidente.
-    retentionResolutionRaw: 15d
-    # Agregado a 5 minutos: analisis de la ultima semana ampliada.
-    retentionResolution5m: 30d
-    # Agregado a 1 hora: tendencias y planificacion de capacidad.
-    retentionResolution1h: 365d
+  # OJO: en v1beta2 retentionConfig vive bajo spec.advanced; en la raiz el API
+  # server lo PODA en silencio y Thanos corre con los defaults (raw 365d).
+  advanced:
+    retentionConfig:
+      # Lo que cada spoke guarda en LOCAL antes de enviarlo: es un buffer, no
+      # almacenamiento. Da margen para que un corte de red hacia el hub no pierda
+      # metricas.
+      retentionInLocal: 24h
+      # Muestras crudas: la ventana de diagnostico de un incidente (el default
+      # 365d guarda TODO en crudo un año; aqui el historico largo va agregado).
+      retentionResolutionRaw: 15d
+      # Agregado a 5 minutos: analisis de la ultima semana ampliada.
+      retentionResolution5m: 30d
+      # Agregado a 1 hora: tendencias y planificacion de capacidad.
+      retentionResolution1h: 365d
 
   storageConfig:
     # Conexion al object storage. El Secret lo siembra Ansible: lleva llaves de
@@ -73,7 +76,10 @@ spec:
     # del cluster: el overlay lo resuelve al del entorno.
     storageClass: CHANGE_ME_STORAGECLASS
     # Volumenes de cada componente de Thanos. Son cache y estado de trabajo: el
-    # dato duradero vive en el object storage, no aqui.
+    # dato duradero vive en el object storage, no aqui. Van por debajo de los
+    # defaults de la doc (compact/receive 100Gi, store 10Gi) porque este modelo
+    # gestiona pocos clusters; con mas flota deben crecer, y solo se expanden si
+    # la StorageClass soporta volume expansion (el tamano se fija al crear).
     alertmanagerStorageSize: 1Gi
     compactStorageSize: 5Gi
     receiveStorageSize: 5Gi
