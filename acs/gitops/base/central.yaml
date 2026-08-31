@@ -3,6 +3,28 @@
 # Central guarda las politicas, recibe los datos de los clusters vigilados y
 # expone la consola y la API. Con la ruta habilitada, queda accesible por HTTPS.
 # Un unico Central puede gobernar varios clusters.
+#
+# DIMENSIONADO — LEER ANTES DE COPIAR ESTOS VALORES A PRODUCCION.
+#
+# Los defaults del operador estan calculados para un despliegue grande: reservan
+# 12,7 cores solo en el namespace stackrox (central-db 4, scanner-v4-indexer 3,
+# scanner v2 2, central 1,5, scanner-v4-db 1, matcher 1). Medido en este entorno,
+# el consumo REAL de todo ACS en reposo es de 27 milicores — un factor de 470
+# entre lo reservado y lo usado.
+#
+# Eso no es gratis: `requests` es lo que el planificador RESTA de la capacidad
+# del nodo aunque nadie lo use. Con 12,7 cores bloqueados, otras cargas dejan de
+# poder programarse en un cluster que en realidad esta ocioso.
+#
+# Los valores de abajo se ajustan al perfil REAL de esta plataforma: un registro
+# con pocas decenas de imagenes y escaneos disparados por el CI, no un inventario
+# de miles. Se bajan los `requests` (lo que se reserva siempre) y se conservan
+# `limits` holgados (el techo bajo carga), de modo que un escaneo pesado sigue
+# pudiendo consumir lo que necesite sin bloquear el cluster el resto del tiempo.
+#
+# EN PRODUCCION hay que re-dimensionar con el volumen real del cliente: numero de
+# imagenes, frecuencia de escaneo y tamaño del inventario. Red Hat publica guias
+# de sizing por rango de nodos e imagenes — usarlas, no estos valores.
 apiVersion: platform.stackrox.io/v1alpha1
 kind: Central
 metadata:
@@ -16,3 +38,70 @@ spec:
     exposure:
       route:
         enabled: true
+    # Central atiende la consola y la API: poco CPU sostenido, picos al navegar.
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+    db:
+      # La base de datos es el componente que mas reserva por defecto (4 cores).
+      # Su carga real depende del tamaño del inventario, no del numero de nodos.
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+
+  # Scanner v4 es el motor vigente. El indexer solo trabaja cuando entra una
+  # imagen nueva: reservar 1,5 cores por replica de forma permanente para un
+  # trabajo a rafagas es justo lo que conviene evitar.
+  scannerV4:
+    indexer:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+    matcher:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 3Gi
+    db:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+
+  # Scanner v2 (legacy) convive con v4 mientras haya integraciones que lo usen.
+  # Reserva 2 cores por defecto para un componente en retirada.
+  scanner:
+    analyzer:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+    db:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
