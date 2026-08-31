@@ -53,11 +53,11 @@ image_repositories:
   - name: api-service
     description: Imagen del servicio REST del taller
     visibility: private
-  - name: kafka-logs-pipeline
+  - name: kafka-audit-pipeline
     description: Pipeline de logs de auditoría sobre Kafka (descifra, enmascara y entrega)
     visibility: private
   # Su código NO viaja en la imagen de producción: es un artefacto aparte a propósito.
-  - name: kafka-logs-demo-producer
+  - name: kafka-audit-demo-producer
     description: Generador de datos ficticios del pipeline de auditoría (solo dev y test)
     visibility: private
   - name: kafka-audit-producer-dotnet
