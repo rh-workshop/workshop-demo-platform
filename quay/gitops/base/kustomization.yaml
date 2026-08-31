@@ -1,8 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # NooBaa antes que el QuayRegistry: el objectstorage 'managed' depende de su API.
-  - noobaa.yaml
-  # Backing store y bucket class por defecto: con manualDefaultBackingStore el operador no los crea solo.
-  - backingstore.yaml
+  # SOLO el registro. El ALMACENAMIENTO que hay debajo lo aporta el overlay del
+  # cluster eligiendo un componente: components/storage-s3 (object storage
+  # nativo de la nube) o components/storage-noobaa (MCG sobre un PVC, para
+  # clusters sin object storage). Ver quay_storage_backend en vars/platform-vars.yml.
+  #
+  # Antes NooBaa estaba aqui, en la base, lo que obligaba a desplegarlo SIEMPRE
+  # —incluso en un cluster de nube donde sobra, y donde ademas rompia el push del
+  # CI: NOT_ENOUGH_SPACE con el disco al 1% de uso.
   - quayregistry.yaml

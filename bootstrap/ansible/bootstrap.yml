@@ -542,6 +542,15 @@
 # QUAY_HOST/QUAY_TOKEN en el entorno, y aquí heredan los facts de arriba.
 # El orden importa: sin organizaciones no hay robots que consultar ni
 # repositorios a los que espejar.
+
+# El almacenamiento va PRIMERO: con quay_storage_backend=s3 el operador no
+# gestiona el object storage, y hasta que la conexión al bucket no está en el
+# config bundle el registro no sirve pushes — ni habría API a la que pedirle
+# organizaciones. Con backend noobaa este play no hace nada y termina.
+- name: Almacenamiento de Quay (conexión al object storage)
+  ansible.builtin.import_playbook: ../../quay/ansible/storage.yml
+  tags: [quay]
+
 - name: Organizaciones, repositorios y robots de Quay
   ansible.builtin.import_playbook: ../../quay/ansible/organizations.yml
   tags: [quay]

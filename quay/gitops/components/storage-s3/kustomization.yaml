@@ -1,0 +1,41 @@
+# ALMACENAMIENTO DE QUAY: S3 NATIVO DE LA NUBE.
+#
+# Quay sigue siendo el registro; lo unico que cambia es donde aterrizan los
+# blobs. Se retira el intermediario (NooBaa) y Quay habla directamente con S3.
+#
+# El componente NO despliega nada de almacenamiento: solo marca el objectstorage
+# como NO gestionado por el operador. La conexion real (endpoint, bucket y
+# credenciales) viaja en DISTRIBUTED_STORAGE_CONFIG dentro del `quay-config-bundle`,
+# que es un SECRETO y por tanto nunca se versiona: lo siembra el bootstrap desde
+# las credenciales que acuña el Cloud Credential Operator.
+#
+# Con `managed: false` el operador deja de crear el ObjectBucketClaim y de
+# exigir la API de NooBaa, que es justo lo que permite no instalar MCG.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - target:
+      kind: QuayRegistry
+      name: company-quay
+    patch: |
+      - op: replace
+        path: /spec/components
+        value:
+          - {kind: quay, managed: true}
+          # NO-PRODUCCION: postgres gestionado = 1 pod sin HA. En prod = DB externa gestionada.
+          - {kind: postgres, managed: true}
+          - {kind: redis, managed: true}
+          # El almacenamiento lo aporta S3, no el operador: la conexion va en el config bundle.
+          - {kind: objectstorage, managed: false}
+          - {kind: route, managed: true}
+          # NO-PRODUCCION: tls gestionado usa el wildcard del cluster. En prod = cert corporativo via ESO.
+          - {kind: tls, managed: true}
+          # Clair ON: escaneo de vulnerabilidades como puerta al push; ACS lee sus resultados.
+          - {kind: clair, managed: true}
+          - {kind: clairpostgres, managed: true}
+          - {kind: mirror, managed: false}
+          # NO-PRODUCCION: monitoring managed exige el operador en modo all-namespaces.
+          - {kind: monitoring, managed: false}
+          # HPA ON: el registro sirve pulls de todo el cluster y de los spokes.
+          - {kind: horizontalpodautoscaler, managed: true}

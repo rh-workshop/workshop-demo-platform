@@ -95,6 +95,30 @@ ci_namespaces:
 tooling_quota_bytes: 10737418240
 tooling_prune_keep_since: 52w
 
+# DÓNDE GUARDA QUAY LOS BLOBS. No cambia el registro (Quay sigue siendo Quay):
+# cambia la capa de almacenamiento que hay debajo.
+#
+#   s3     — object storage nativo de la nube. Es el DEFAULT y lo correcto en
+#            AWS: durabilidad y escalado del proveedor, sin piezas intermedias.
+#            El QuayRegistry pasa a `objectstorage: managed: false` y el bundle
+#            lleva DISTRIBUTED_STORAGE_CONFIG apuntando al bucket.
+#   noobaa — MCG/NooBaa emulando S3 sobre un PVC. Es el camino para clusters SIN
+#            object storage de nube (bare-metal / on-premise, caso muy real en
+#            banca). Red Hat lo documenta como de "disponibilidad limitada".
+#
+# POR QUÉ EL DEFAULT ES s3, con evidencia: con noobaa sobre un PVC de 50Gi, el
+# push del CI fallaba con `blob upload invalid` porque NooBaa respondía
+# NOT_ENOUGH_SPACE ("Couldn't allocate chunk") teniendo 49Gi libres al 1% de
+# uso — su contabilidad interna se corrompía al reiniciarse el pod del
+# backingstore (ciclo ALL_NODES_OFFLINE → Rejected → OPTIMAL). Un intermediario
+# más que puede caerse entre el CI y el registro.
+quay_storage_backend: s3
+
+# Bucket de S3 para los blobs (solo si quay_storage_backend es s3). Vacío = se
+# deriva del nombre de infraestructura del cluster, que es único por instalación
+# y evita colisiones en el espacio de nombres global de S3.
+quay_s3_bucket: ""
+
 # Realm de Keycloak del modelo. Cambiarlo aquí NO basta: el KeycloakRealmImport
 # (keycloak/gitops/base) y los issuerUrl de los overlays llevan el nombre
 # literal — ver docs/adopcion-cliente.md.

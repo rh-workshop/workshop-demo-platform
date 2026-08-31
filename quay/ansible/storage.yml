@@ -1,0 +1,188 @@
+---
+# ALMACENAMIENTO DE QUAY: siembra la conexion al object storage en el config bundle.
+#
+# POR QUE ESTO ES UN PLAYBOOK Y NO UN MANIFIESTO DE ARGO. La conexion lleva
+# credenciales (access key y secret del bucket), asi que vive en un SECRETO y no
+# puede versionarse en Git. Argo despliega el QuayRegistry, que referencia el
+# secreto POR NOMBRE; quien rellena su contenido es este playbook.
+#
+# El backend lo decide `quay_storage_backend` en vars/platform-vars.yml:
+#
+#   s3     — Quay habla directo con el object storage de la nube. Este playbook
+#            crea el bucket si falta, resuelve las credenciales y escribe
+#            DISTRIBUTED_STORAGE_CONFIG en el bundle.
+#   noobaa — MCG emula S3 sobre un PVC y el operador de Quay reclama el bucket
+#            por su cuenta (objectstorage: managed: true). Aqui no hay nada que
+#            sembrar: el playbook no toca el bundle y termina.
+#
+# El overlay de Kustomize debe elegir el componente que CORRESPONDA a esta
+# variable (quay/gitops/components/storage-{s3,noobaa}): son las dos caras de la
+# misma decision — el "que" declarativo y el "con que credenciales".
+- name: Configurar el almacenamiento de Quay
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [quay, quay-storage]
+
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
+  vars:
+    # Namespace del registro; el bundle vive aqui.
+    quay_namespace: quay-enterprise
+    # Nombre del bundle que referencia el QuayRegistry (spec.configBundleSecret).
+    quay_config_secret: quay-config-bundle
+
+  tasks:
+    # Con NooBaa el operador gestiona el bucket: no hay credenciales que sembrar.
+    - name: Terminar si el backend no es S3
+      ansible.builtin.meta: end_play
+      when: quay_storage_backend != 's3'
+
+    # El nombre del bucket es global en S3: derivarlo del identificador de
+    # infraestructura evita colisionar con otra instalacion del mismo material.
+    - name: Resolver el nombre de infraestructura del cluster
+      kubernetes.core.k8s_info:
+        api_version: config.openshift.io/v1
+        kind: Infrastructure
+        name: cluster
+      register: infra
+
+    - name: Fijar los datos del bucket
+      ansible.builtin.set_fact:
+        s3_bucket: "{{ quay_s3_bucket if quay_s3_bucket | length > 0 else 'quay-datastore-' ~ infra.resources[0].status.infrastructureName }}"
+        s3_region: "{{ infra.resources[0].status.platformStatus.aws.region }}"
+
+    # De donde salen las credenciales del bucket, en orden de preferencia:
+    #   1. Secreto propio de Quay, si el Cloud Credential Operator ya lo acuño.
+    #   2. Variables de entorno, para un cluster donde el CCO no acuña (modo
+    #      manual o STS) y las credenciales las aporta quien instala.
+    - name: Buscar credenciales de S3 acuñadas para Quay
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ quay_namespace }}"
+        name: quay-s3-credentials
+      register: quay_s3_secret
+
+    - name: Resolver las credenciales de S3
+      ansible.builtin.set_fact:
+        s3_access_key: >-
+          {{ (quay_s3_secret.resources[0].data.aws_access_key_id | b64decode)
+             if quay_s3_secret.resources | length > 0 and quay_s3_secret.resources[0].data.aws_access_key_id is defined
+             else lookup('env', 'AWS_ACCESS_KEY_ID') }}
+        s3_secret_key: >-
+          {{ (quay_s3_secret.resources[0].data.aws_secret_access_key | b64decode)
+             if quay_s3_secret.resources | length > 0 and quay_s3_secret.resources[0].data.aws_secret_access_key is defined
+             else lookup('env', 'AWS_SECRET_ACCESS_KEY') }}
+      no_log: true
+
+    - name: Comprobar que hay credenciales de S3
+      ansible.builtin.assert:
+        that:
+          - s3_access_key | trim | length > 0
+          - s3_secret_key | trim | length > 0
+        fail_msg: >-
+          No hay credenciales para el bucket de Quay. Crea el secreto
+          {{ quay_namespace }}/quay-s3-credentials (claves aws_access_key_id y
+          aws_secret_access_key) o exporta AWS_ACCESS_KEY_ID y
+          AWS_SECRET_ACCESS_KEY. Con quay_storage_backend=noobaa no hacen falta.
+
+    # Idempotente: create-bucket sobre un bucket propio ya existente devuelve
+    # BucketAlreadyOwnedByYou, que no es un error que deba parar el bootstrap.
+    - name: Crear el bucket de S3 si falta
+      ansible.builtin.command:
+        argv:
+          - aws
+          - s3api
+          - create-bucket
+          - --bucket
+          - "{{ s3_bucket }}"
+          - --region
+          - "{{ s3_region }}"
+          - --create-bucket-configuration
+          - "LocationConstraint={{ s3_region }}"
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ s3_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ s3_secret_key }}"
+      register: bucket_create
+      changed_when: bucket_create.rc == 0
+      failed_when:
+        - bucket_create.rc != 0
+        - "'BucketAlreadyOwnedByYou' not in bucket_create.stderr"
+        - "'BucketAlreadyExists' not in bucket_create.stderr"
+
+    - name: Leer el config bundle actual
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ quay_namespace }}"
+        name: "{{ quay_config_secret }}"
+      register: bundle
+
+    - name: Comprobar que el bundle existe
+      ansible.builtin.assert:
+        that: bundle.resources | length > 0
+        fail_msg: >-
+          No existe {{ quay_namespace }}/{{ quay_config_secret }}. Lo genera el
+          bootstrap (secretos de dia-0) antes de llegar aqui.
+
+    # Se PARTE del bundle vivo y solo se reemplaza el bloque de almacenamiento:
+    # las claves criptograficas (SECRET_KEY, DATABASE_SECRET_KEY) deben
+    # conservarse o la base de datos existente queda ilegible.
+    - name: Componer el bundle con la conexion a S3
+      ansible.builtin.set_fact:
+        bundle_actual: "{{ bundle.resources[0].data['config.yaml'] | b64decode | from_yaml }}"
+
+    - name: Fijar DISTRIBUTED_STORAGE_CONFIG apuntando al bucket
+      ansible.builtin.set_fact:
+        bundle_nuevo: >-
+          {{ bundle_actual | combine({
+               'DISTRIBUTED_STORAGE_CONFIG': {
+                 'default': ['S3Storage', {
+                   's3_bucket': s3_bucket,
+                   's3_region': s3_region,
+                   's3_access_key': s3_access_key,
+                   's3_secret_key': s3_secret_key,
+                   'host': 's3.' ~ s3_region ~ '.amazonaws.com',
+                   'storage_path': '/datastorage/registry'}]},
+               'DISTRIBUTED_STORAGE_PREFERENCE': ['default'],
+               'DISTRIBUTED_STORAGE_DEFAULT_LOCATIONS': []})
+          }}
+      no_log: true
+
+    - name: Escribir el bundle solo si la conexion cambia
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ quay_config_secret }}"
+            namespace: "{{ quay_namespace }}"
+          stringData:
+            config.yaml: "{{ bundle_nuevo | to_nice_yaml(indent=2) }}"
+      register: bundle_escrito
+      when: bundle_actual.get('DISTRIBUTED_STORAGE_CONFIG') != bundle_nuevo.DISTRIBUTED_STORAGE_CONFIG
+      no_log: true
+
+    # El operador no relee el bundle por si solo: solo reacciona a cambios del
+    # QuayRegistry. Tocar una anotacion es lo que dispara la reconciliacion.
+    - name: Forzar al operador a releer la configuracion
+      kubernetes.core.k8s:
+        state: patched
+        api_version: quay.redhat.com/v1
+        kind: QuayRegistry
+        name: company-quay
+        namespace: "{{ quay_namespace }}"
+        definition:
+          metadata:
+            annotations:
+              workshop.redhat.com/storage-generation: "{{ s3_bucket }}"
+      when: bundle_escrito.changed
+
+    - name: Informar del backend configurado
+      ansible.builtin.debug:
+        msg: >-
+          Quay almacena en S3: bucket {{ s3_bucket }} ({{ s3_region }}).
+          NooBaa no se despliega en este cluster.

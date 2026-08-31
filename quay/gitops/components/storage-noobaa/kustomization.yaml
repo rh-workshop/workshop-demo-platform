@@ -1,0 +1,20 @@
+# ALMACENAMIENTO DE QUAY: MCG / NooBaa SOBRE UN PVC.
+#
+# Camino para clusters SIN object storage de nube — bare-metal y on-premise, un
+# caso muy real en banca. NooBaa presenta un PVC como si fuera S3 y el operador
+# de Quay reclama ahi su bucket (objectstorage: managed: true).
+#
+# CUANDO NO USARLO: en una nube que ya ofrece object storage, esto añade una
+# pieza intermedia que puede caerse entre el CI y el registro. Verificado en
+# vivo: con el pod del backingstore reiniciandose (ciclo ALL_NODES_OFFLINE →
+# Rejected → OPTIMAL), el push del CI moria con `blob upload invalid` porque
+# NooBaa respondia NOT_ENOUGH_SPACE teniendo 49Gi libres al 1% de uso. Red Hat
+# lo documenta ademas como de "disponibilidad limitada". Para nube: storage-s3.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  # NooBaa antes que el backing store: este ultimo depende de su API.
+  - noobaa.yaml
+  # Backing store y bucket class por defecto: con manualDefaultBackingStore el operador no los crea solo.
+  - backingstore.yaml
