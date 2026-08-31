@@ -1,0 +1,12 @@
+# Observabilidad multi-cluster: namespace + CR.
+#
+# El Secret `thanos-object-storage` NO esta aqui a proposito: lleva las llaves
+# del object storage y se siembra con acm/ansible/observability.yml. El CR lo
+# referencia por nombre, asi que Argo gobierna el "que" y Ansible aporta el
+# secreto — el mismo reparto que en el resto de la plataforma.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # El namespace primero: el CR solo se reconcilia dentro de el.
+  - namespace.yaml
+  - multiclusterobservability.yaml

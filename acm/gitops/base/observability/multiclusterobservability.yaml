@@ -1,0 +1,75 @@
+# Observabilidad multi-cluster de ACM: metricas de TODOS los clusters
+# gestionados, centralizadas en el hub.
+#
+# QUE HACE. El operador despliega un Thanos completo en el hub (receive, query,
+# store, compact, rule) y habilita el addon `observability-controller` en cada
+# ManagedCluster. Cada spoke envia sus metricas al hub, que las guarda en object
+# storage y las expone en Grafana. Es lo que permite responder "como esta la
+# plataforma" sin entrar cluster por cluster.
+#
+# POR QUE IMPORTA AQUI, mas alla del panel: el analisis del canary de Argo
+# Rollouts consulta el Thanos Querier del cluster. Sin observabilidad, la
+# AnalysisTemplate no tiene contra que medir y el despliegue progresivo no puede
+# decidir si promociona o revierte.
+#
+# ALMACENAMIENTO. Se apoya en el mismo object storage nativo de la nube que usa
+# Quay (ver quay_storage_backend en vars/platform-vars.yml). La conexion viaja en
+# el Secret `thanos-object-storage`, que NO se versiona: lo siembra
+# acm/ansible/observability.yml a partir de las credenciales del cluster. En un
+# entorno sin object storage de nube el mismo Secret puede apuntar a NooBaa/MCG.
+#
+# DIMENSIONADO. Los valores de abajo son los del modelo y deben revisarse con el
+# volumen real del cliente: en banca la retencion suele estar sujeta a normativa,
+# y es un dato de negocio, no una decision tecnica.
+apiVersion: observability.open-cluster-management.io/v1beta2
+kind: MultiClusterObservability
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: observability
+spec:
+  # Downsampling ON: Thanos agrega las muestras antiguas a resoluciones de 5m y
+  # 1h. Sin esto, una consulta de un rango largo lee datos crudos y satura la
+  # memoria del querier; con el, el historico se consulta barato.
+  enableDownsampling: true
+
+  # RETENCION POR RESOLUCION. Cuanto mas antigua la muestra, menos detalle se
+  # conserva: el detalle fino solo es util para diagnosticar incidentes
+  # recientes, mientras que el historico se usa para tendencias y capacidad.
+  retentionConfig:
+    # Lo que cada spoke guarda en LOCAL antes de enviarlo: es un buffer, no
+    # almacenamiento. Da margen para que un corte de red hacia el hub no pierda
+    # metricas.
+    retentionInLocal: 24h
+    # Muestras crudas: la ventana de diagnostico de un incidente.
+    retentionResolutionRaw: 15d
+    # Agregado a 5 minutos: analisis de la ultima semana ampliada.
+    retentionResolution5m: 30d
+    # Agregado a 1 hora: tendencias y planificacion de capacidad.
+    retentionResolution1h: 365d
+
+  storageConfig:
+    # Conexion al object storage. El Secret lo siembra Ansible: lleva llaves de
+    # acceso y por eso no puede estar en Git.
+    metricObjectStorage:
+      name: thanos-object-storage
+      key: thanos.yaml
+    # StorageClass de los volumenes de los componentes con estado. Es un dato
+    # del cluster: el overlay lo resuelve al del entorno.
+    storageClass: CHANGE_ME_STORAGECLASS
+    # Volumenes de cada componente de Thanos. Son cache y estado de trabajo: el
+    # dato duradero vive en el object storage, no aqui.
+    alertmanagerStorageSize: 1Gi
+    compactStorageSize: 5Gi
+    receiveStorageSize: 5Gi
+    ruleStorageSize: 1Gi
+    storeStorageSize: 5Gi
+
+  # Tolera nodos con la marca de infraestructura: en un cluster con nodos infra
+  # dedicados, la observabilidad debe poder programarse ahi y no competir con las
+  # cargas de negocio.
+  tolerations:
+    - key: node-role.kubernetes.io/infra
+      effect: NoSchedule
+      operator: Exists

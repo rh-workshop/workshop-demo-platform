@@ -38,6 +38,10 @@ spec:
   # Solo se usa con el backend s3 (quay/gitops/components/storage-s3).
   - server: '*'
     namespace: openshift-cloud-credential-operator
+  # Observabilidad multi-cluster: el operador SOLO reconcilia el CR en este
+  # namespace exacto, asi que el nombre no es elegible.
+  - server: '*'
+    namespace: open-cluster-management-observability
   - server: '*'
     namespace: stackrox
   - server: '*'
@@ -124,6 +128,10 @@ spec:
   # CCO acuña, y el propio CCO decide si puede resolverla.
   - group: cloudcredential.openshift.io
     kind: CredentialsRequest
+  # CR de la observabilidad multi-cluster. El Secret con las llaves del object
+  # storage NO entra: lo siembra Ansible y sigue fuera del alcance de Argo.
+  - group: observability.open-cluster-management.io
+    kind: MultiClusterObservability
   # Configuración y servicios auxiliares de los productos.
   - group: ''
     kind: ConfigMap

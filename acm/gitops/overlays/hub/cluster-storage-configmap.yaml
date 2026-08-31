@@ -1,0 +1,13 @@
+# StorageClass de ESTE cluster, en un unico sitio.
+#
+# Es un dato del entorno, no del modelo: en AWS es gp3-csi, en otro proveedor o
+# en bare-metal sera otra. Kustomize la inyecta desde aqui en los CR que la
+# necesitan (ver `replacements` en kustomization.yaml), de modo que un adoptante
+# cambia una linea y no busca el valor disperso por varios manifiestos.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-storage
+  namespace: open-cluster-management-observability
+data:
+  storageClass: gp3-csi

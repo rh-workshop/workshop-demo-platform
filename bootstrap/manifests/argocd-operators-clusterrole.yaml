@@ -21,6 +21,8 @@ rules:
       - cluster.open-cluster-management.io
       - policy.open-cluster-management.io
       - apps.open-cluster-management.io
+      # Observabilidad multi-cluster (MultiClusterObservability).
+      - observability.open-cluster-management.io
       # ACS: Central, SecuredCluster y las políticas declarativas.
       - platform.stackrox.io
       - config.stackrox.io

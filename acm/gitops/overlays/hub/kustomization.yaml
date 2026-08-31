@@ -2,3 +2,27 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+  # El valor vive en un ConfigMap y no suelto para que quede VISIBLE en el
+  # cluster como documentacion del origen del dato.
+  - cluster-storage-configmap.yaml
+
+# LA STORAGECLASS ES UN DATO DEL CLUSTER, no del modelo: la base deja el marcador
+# y el overlay lo resuelve. Argo CD no sustituye marcadores, asi que sin esto el
+# literal CHANGE_ME_STORAGECLASS llega al cluster y los volumenes de Thanos se
+# quedan Pending sin provisionar.
+#
+# Se usa `replacements` y no un patch porque un strategic merge patch sobre un
+# CRD REEMPLAZA las listas en vez de fusionarlas (Kustomize no conoce su
+# patchMergeKey); ademas aqui el campo se localiza por RUTA exacta, asi que
+# anadir campos a la base no lo rompe en silencio.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: cluster-storage
+      fieldPath: data.storageClass
+    targets:
+      - select:
+          kind: MultiClusterObservability
+          name: observability
+        fieldPaths:
+          - spec.storageConfig.storageClass

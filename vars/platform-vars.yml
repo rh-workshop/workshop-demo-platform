@@ -134,6 +134,15 @@ quay_storage_backend: s3
 # y evita colisiones en el espacio de nombres global de S3.
 quay_s3_bucket: ""
 
+# Bucket de S3 para las MÉTRICAS de la observabilidad multi-cluster. Vacío = se
+# deriva igual que el anterior.
+#
+# Es un bucket DISTINTO del de imágenes a propósito: métricas e imágenes tienen
+# ciclos de vida y retenciones que no coinciden, y separarlos permite aplicar
+# políticas de retención a uno sin tocar el otro. Comparten backend porque la
+# decisión de dónde vive el object storage es una sola (quay_storage_backend).
+observability_s3_bucket: ""
+
 # Realm de Keycloak del modelo. Cambiarlo aquí NO basta: el KeycloakRealmImport
 # (keycloak/gitops/base) y los issuerUrl de los overlays llevan el nombre
 # literal — ver docs/adopcion-cliente.md.

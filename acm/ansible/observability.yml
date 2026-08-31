@@ -1,0 +1,154 @@
+---
+# Conexion al object storage de la observabilidad multi-cluster.
+#
+# POR QUE ES UN PLAYBOOK Y NO UN MANIFIESTO DE ARGO. El Secret lleva las llaves
+# de acceso al bucket, asi que no puede versionarse en Git. Argo despliega el
+# MultiClusterObservability, que lo referencia POR NOMBRE; quien rellena su
+# contenido es este playbook. Es el mismo reparto que en quay/ansible/storage.yml.
+#
+# QUE HACE:
+#   1. Crea el bucket de metricas si falta (idempotente).
+#   2. Compone el thanos.yaml con la conexion y lo deja como Secret en el
+#      namespace de la observabilidad.
+#
+# BACKEND. Reutiliza `quay_storage_backend` de vars/platform-vars.yml, que es la
+# decision de plataforma sobre donde vive el object storage:
+#   s3     -> bucket nativo de la nube (durabilidad y escalado del proveedor).
+#   noobaa -> MCG sobre un PVC, para clusters sin object storage de nube. En ese
+#             caso el endpoint es el servicio de NooBaa y las llaves salen del
+#             Secret que genera su ObjectBucketClaim.
+#
+# El bucket de metricas es DISTINTO del de imagenes a proposito: son datos con
+# ciclos de vida y retenciones que no tienen por que coincidir, y separarlos
+# permite aplicar politicas de retencion distintas sin afectar al registro.
+- name: Configurar el object storage de la observabilidad
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [acm, observability]
+
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
+  vars:
+    # El namespace NO es elegible: el operador solo reconcilia el CR aqui.
+    observability_namespace: open-cluster-management-observability
+    # Nombre que referencia el MultiClusterObservability en storageConfig.
+    thanos_secret: thanos-object-storage
+
+  tasks:
+    # El nombre del bucket es global en S3: derivarlo del identificador de
+    # infraestructura evita colisionar con otra instalacion del mismo material.
+    - name: Resolver el nombre de infraestructura del cluster
+      kubernetes.core.k8s_info:
+        api_version: config.openshift.io/v1
+        kind: Infrastructure
+        name: cluster
+      register: infra
+
+    - name: Fijar los datos del bucket de metricas
+      ansible.builtin.set_fact:
+        obs_bucket: "{{ observability_s3_bucket if observability_s3_bucket | length > 0 else 'acm-observability-' ~ infra.resources[0].status.infrastructureName }}"
+        obs_region: "{{ infra.resources[0].status.platformStatus.aws.region | default('us-east-1') }}"
+
+    # Se reutilizan las credenciales que ya resuelve el flujo de Quay: son del
+    # mismo proveedor y el mismo cluster. Si el CCO acuño una identidad propia,
+    # se prefiere esa; si no, las del entorno.
+    - name: Buscar credenciales de S3
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: quay-enterprise
+        name: quay-s3-credentials
+      register: s3_secret
+
+    - name: Resolver las credenciales de S3
+      ansible.builtin.set_fact:
+        s3_access_key: >-
+          {{ (s3_secret.resources[0].data.aws_access_key_id | b64decode)
+             if s3_secret.resources | length > 0 and s3_secret.resources[0].data.aws_access_key_id is defined
+             else lookup('env', 'AWS_ACCESS_KEY_ID') }}
+        s3_secret_key: >-
+          {{ (s3_secret.resources[0].data.aws_secret_access_key | b64decode)
+             if s3_secret.resources | length > 0 and s3_secret.resources[0].data.aws_secret_access_key is defined
+             else lookup('env', 'AWS_SECRET_ACCESS_KEY') }}
+      no_log: true
+
+    - name: Comprobar que hay credenciales de object storage
+      ansible.builtin.assert:
+        that:
+          - s3_access_key | trim | length > 0
+          - s3_secret_key | trim | length > 0
+        fail_msg: >-
+          No hay credenciales para el bucket de metricas. Crea el secreto
+          quay-enterprise/quay-s3-credentials o exporta AWS_ACCESS_KEY_ID y
+          AWS_SECRET_ACCESS_KEY.
+
+    # Idempotente: create-bucket sobre un bucket propio ya existente devuelve
+    # BucketAlreadyOwnedByYou, que no es un error que deba parar el bootstrap.
+    - name: Crear el bucket de metricas si falta
+      ansible.builtin.command:
+        argv:
+          - aws
+          - s3api
+          - create-bucket
+          - --bucket
+          - "{{ obs_bucket }}"
+          - --region
+          - "{{ obs_region }}"
+          - --create-bucket-configuration
+          - "LocationConstraint={{ obs_region }}"
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ s3_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ s3_secret_key }}"
+      register: bucket_create
+      changed_when: bucket_create.rc == 0
+      failed_when:
+        - bucket_create.rc != 0
+        - "'BucketAlreadyOwnedByYou' not in bucket_create.stderr"
+        - "'BucketAlreadyExists' not in bucket_create.stderr"
+      when: quay_storage_backend == 's3'
+
+    # El namespace lo crea Argo con la Application de acm: se espera en vez de
+    # crearlo aqui para no disputarle la propiedad del objeto.
+    - name: Esperar al namespace de la observabilidad
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Namespace
+        name: "{{ observability_namespace }}"
+      register: obs_ns
+      until: obs_ns.resources | default([]) | length > 0
+      retries: 30
+      delay: 10
+
+    # Formato que espera Thanos: un YAML con el tipo de backend y su config.
+    - name: Sembrar la conexion al object storage
+      kubernetes.core.k8s:
+        state: present
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ thanos_secret }}"
+            namespace: "{{ observability_namespace }}"
+          stringData:
+            thanos.yaml: |
+              type: s3
+              config:
+                bucket: {{ obs_bucket }}
+                endpoint: s3.{{ obs_region }}.amazonaws.com
+                access_key: {{ s3_access_key }}
+                secret_key: {{ s3_secret_key }}
+      no_log: true
+
+    - name: Informar del backend configurado
+      ansible.builtin.debug:
+        msg: >-
+          Observabilidad apuntando a s3://{{ obs_bucket }} ({{ obs_region }}).
+          Argo despliega el MultiClusterObservability, que referencia el secreto
+          {{ thanos_secret }}; el operador levanta Thanos y habilita el addon de
+          metricas en cada ManagedCluster.

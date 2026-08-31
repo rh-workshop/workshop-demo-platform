@@ -25,3 +25,7 @@ resources:
   - policies/require-registry-pull-secret/policy.yaml
   - policies/require-registry-pull-secret/placementbinding.yaml
   - policies/require-registry-pull-secret/workload-placementbinding.yaml
+  # Observabilidad multi-cluster: metricas de todos los clusters gestionados,
+  # centralizadas en el hub. Tambien es de lo que se alimenta el analisis del
+  # canary de Argo Rollouts.
+  - observability

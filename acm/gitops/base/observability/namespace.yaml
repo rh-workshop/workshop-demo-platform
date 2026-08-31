@@ -1,0 +1,14 @@
+# Namespace de la observabilidad multi-cluster de ACM.
+#
+# EL NOMBRE NO ES ELEGIBLE: el operador solo reconcilia el MultiClusterObservability
+# si vive exactamente en `open-cluster-management-observability`. Con cualquier
+# otro nombre el CR se crea pero nadie lo atiende.
+#
+# Va en un fichero aparte del resto de namespaces del hub porque su ciclo de vida
+# es el de la observabilidad: si se retira, se retira con ella.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-cluster-management-observability
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops

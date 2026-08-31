@@ -136,6 +136,11 @@
       loop:
         - "{{ repo_root }}/bootstrap/manifests/openshift-gitops-subscription.yaml"
         - "{{ repo_root }}/bootstrap/manifests/acm-subscription.yaml"
+      # Etiqueta propia para reaplicar SOLO las Subscription sin repetir la
+      # instalacion entera: su `config.env` cambia (p. ej. al autorizar el
+      # namespace de un RolloutManager cluster-scoped) y esos ajustes son de dia 2.
+      #   ansible-playbook bootstrap.yml --tags operators
+      tags: [operators, control-plane]
 
     - name: Esperar a que el CSV de cada operador llegue a Succeeded
       kubernetes.core.k8s_info:
@@ -566,3 +571,10 @@
 - name: Sembrar los pull secrets del CI (pusher del ambiente + puller de tooling)
   ansible.builtin.import_playbook: ../../quay/ansible/pull-secrets.yml
   tags: [quay]
+
+# --- 13. Observabilidad multi-cluster: la conexión al object storage donde
+# Thanos guarda las métricas. Va al final porque su namespace lo crea Argo con
+# la Application de acm, y el CR no arranca hasta que el secreto existe.
+- name: Object storage de la observabilidad multi-cluster
+  ansible.builtin.import_playbook: ../../acm/ansible/observability.yml
+  tags: [acm, observability]
