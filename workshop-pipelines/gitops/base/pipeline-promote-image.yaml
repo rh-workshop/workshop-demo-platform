@@ -46,6 +46,10 @@ spec:
     - name: image-digest
     # Tag con el que la imagen aparece en la organización destino; el inmutable git-<sha> del CI.
     - name: image-tag
+    # CÓMO llega el digest a Git. Por defecto "pr": este pipeline es el camino a
+    # test, prod y contingencia, y esos ambientes exigen revisión. "direct"
+    # empuja a la rama sin que nadie apruebe — solo para ambientes de trabajo.
+    - {name: config-push-mode, default: pr}
     # Repo de configuración donde vive el overlay del entorno destino.
     - {name: config-repo, default: "https://github.com/rh-workshop/workshop-demo-app-config.git"}
     # Rama del repo de configuración: los entornos se separan por OVERLAY, no por rama.
@@ -371,6 +375,28 @@ spec:
               exit 0
             fi
             git commit -m "ci: promote $(params.image-name) to $(params.target-org) at digest $(params.image-digest)"
+
+            # PROMOCIONAR POR PULL REQUEST ES EL MODO POR DEFECTO, y aquí importa
+            # más que en el CI: este pipeline es el único camino hacia test, prod
+            # y contingencia. Empujar directo a la rama de configuración dejaría
+            # que una promoción llegue a producción sin que nadie la mire, que es
+            # justo lo que el RBAC y la verificación de firma existen para evitar.
+            # Argo CD recomienda promocionar por PR; con "direct" se pierde esa
+            # barrera y solo debería usarse en ambientes de trabajo.
+            if [ "$(params.config-push-mode)" = "pr" ]; then
+              # La rama lleva el destino y el digest corto: dos promociones
+              # distintas nunca colisionan y el nombre dice qué promociona.
+              RAMA="ci/promote-$(params.image-name)-$(params.target-org)-$(printf '%s' "$(params.image-digest)" | cut -c8-19)"
+              # --force sobre SU propia rama: reejecutar reescribe la suya, no la de otro.
+              if git push --force origin "HEAD:refs/heads/${RAMA}"; then
+                echo "Rama publicada: ${RAMA}"
+                echo "Abre el Pull Request hacia $(params.config-revision) para completar la promoción."
+                exit 0
+              fi
+              echo "No se pudo publicar la rama ${RAMA}." >&2
+              exit 1
+            fi
+
             # Reintento con rebase: si otro PipelineRun empujó antes, el push sería non-fast-forward.
             # git-clone deja el repo en detached HEAD: hay que calificar la rama destino.
             for intento in 1 2 3; do
@@ -395,6 +421,13 @@ spec:
         - input: $(params.argocd-application)
           operator: notin
           values: [""]
+        # En modo "pr" el digest aún NO está en la rama que Argo observa: vive en
+        # una rama pendiente de revisión. Sincronizar aquí desplegaría lo viejo y
+        # daría un falso "promoción completada" — el despliegue ocurre cuando se
+        # aprueba el Pull Request, que es exactamente el punto de la revisión.
+        - input: $(params.config-push-mode)
+          operator: in
+          values: ["direct"]
       taskRef: {name: argocd-sync}
       params:
         - {name: application-name, value: $(params.argocd-application)}
