@@ -33,6 +33,24 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: workshop-demo-dev
+  # DRIFT QUE INTRODUCE EL PROPIO TEKTON. El webhook de admision completa cada
+  # step con un `computeResources: {}` vacio que no existe en Git. Sin esto las
+  # Tasks quedan OutOfSync a perpetuidad aunque esten perfectamente aplicadas, y
+  # con selfHeal Argo entra en un bucle de reescritura sin fin.
+  #
+  # Se ignora SOLO ese campo, y solo en los steps: cualquier otro cambio en una
+  # Task (imagen, script, cotas de recursos declaradas en stepTemplate) sigue
+  # detectandose como drift. Los otros dos defaults que anadia Tekton —el `type`
+  # de los results y el cpu entero normalizado a string— se corrigieron en el
+  # origen, declarandolos explicitamente en los manifiestos.
+  ignoreDifferences:
+    - group: tekton.dev
+      kind: Task
+      # Expresion jq, no jsonPointer: apunta al campo EXACTO dentro de cada step.
+      # Un `/spec/steps` a secas ignoraria tambien la imagen y el script, que es
+      # precisamente el drift que si queremos ver.
+      jqPathExpressions:
+        - .spec.steps[].computeResources
   syncPolicy:
     retry:
       # Arranque en frio: el CRD del producto lo instala ACM por su cuenta y puede

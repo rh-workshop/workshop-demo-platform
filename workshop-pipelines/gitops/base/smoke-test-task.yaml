@@ -39,7 +39,7 @@ spec:
     - {name: k6-vus, type: string, default: "5"}
     - {name: k6-duration, type: string, default: "30s"}
   results:
-    - {name: status, description: Codigo HTTP devuelto por el servicio}
+    - {name: status, type: string, description: Codigo HTTP devuelto por el servicio}
   # Cotas de recursos: la documentacion de Tekton las exige en cada step. Sin
   # limite, un build puede agotar la memoria del nodo y tumbar otros workloads;
   # y en un namespace con LimitRange el pod no arranca si no las declara.

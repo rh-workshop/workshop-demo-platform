@@ -45,7 +45,7 @@ spec:
   stepTemplate:
     computeResources:
       requests: {cpu: 250m, memory: 512Mi}
-      limits: {cpu: 1, memory: 2Gi}
+      limits: {cpu: "1", memory: 2Gi}
   steps:
     # La imagen upstream de syft es FROM scratch (sin shell): se invoca el binario directamente con args, no con script.
     - name: syft-generate

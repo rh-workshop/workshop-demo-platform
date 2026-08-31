@@ -36,14 +36,14 @@ spec:
   results:
     # Cobertura de instrucciones JaCoCo (p. ej. "73.4%"), "sin-cobertura" si el
     # build no integra JaCoCo, o "sin-tests" si no hay ficheros de prueba.
-    - {name: coverage, description: Cobertura total de las pruebas unitarias}
+    - {name: coverage, type: string, description: Cobertura total de las pruebas unitarias}
   # Cotas de recursos: la documentacion de Tekton las exige en cada step. Sin
   # limite, un build puede agotar la memoria del nodo y tumbar otros workloads;
   # y en un namespace con LimitRange el pod no arranca si no las declara.
   stepTemplate:
     computeResources:
       requests: {cpu: 500m, memory: 1Gi}
-      limits: {cpu: 2, memory: 4Gi}
+      limits: {cpu: "2", memory: 4Gi}
   steps:
     - name: java-test
       image: $(params.test-image)

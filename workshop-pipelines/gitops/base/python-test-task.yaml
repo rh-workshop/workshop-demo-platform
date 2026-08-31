@@ -41,14 +41,14 @@ spec:
   results:
     # Cobertura total (p. ej. "73%"), "sin-cobertura" si el repo no declara
     # pytest-cov, o "sin-tests" si no hay ningún fichero de prueba.
-    - {name: coverage, description: Cobertura total de las pruebas unitarias}
+    - {name: coverage, type: string, description: Cobertura total de las pruebas unitarias}
   # Cotas de recursos: la documentacion de Tekton las exige en cada step. Sin
   # limite, un build puede agotar la memoria del nodo y tumbar otros workloads;
   # y en un namespace con LimitRange el pod no arranca si no las declara.
   stepTemplate:
     computeResources:
       requests: {cpu: 250m, memory: 512Mi}
-      limits: {cpu: 1, memory: 2Gi}
+      limits: {cpu: "1", memory: 2Gi}
   steps:
     - name: pytest
       image: $(params.test-image)
