@@ -144,6 +144,11 @@ spec:
   # NooBaa (MCG standalone): object storage de Quay en este entorno sin ODF.
   - group: noobaa.io
     kind: NooBaa
+  # Backing store y bucket class por defecto del MCG (quay/gitops/base): el AppProject falla cerrado, sin esto el sync se bloquea.
+  - group: noobaa.io
+    kind: BackingStore
+  - group: noobaa.io
+    kind: BucketClass
   - group: rhdh.redhat.com
     kind: Backstage
   # Connectivity Link: Gateway API + CRs de Kuadrant y sus componentes.

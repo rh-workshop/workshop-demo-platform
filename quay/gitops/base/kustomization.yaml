@@ -3,4 +3,6 @@ kind: Kustomization
 resources:
   # NooBaa antes que el QuayRegistry: el objectstorage 'managed' depende de su API.
   - noobaa.yaml
+  # Backing store y bucket class por defecto: con manualDefaultBackingStore el operador no los crea solo.
+  - backingstore.yaml
   - quayregistry.yaml
