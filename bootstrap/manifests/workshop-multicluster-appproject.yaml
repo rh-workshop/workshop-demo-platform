@@ -106,6 +106,9 @@ spec:
   # servir a ExternalSecret de cualquier namespace.
   - group: external-secrets.io
     kind: ClusterSecretStore
+  # Instancia del controlador de ESO (el operador solo observa este CR).
+  - group: operator.openshift.io
+    kind: ExternalSecretsConfig
   # ClusterIssuer del overlay de cert-manager.
   - group: cert-manager.io
     kind: ClusterIssuer

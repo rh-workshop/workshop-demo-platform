@@ -26,6 +26,8 @@ rules:
       # External Secrets: ClusterSecretStore y ExternalSecret. NO da acceso a los
       # secretos en si — solo a los objetos que declaran DE DONDE leerlos.
       - external-secrets.io
+      # Instancia del controlador de ESO (ExternalSecretsConfig).
+      - operator.openshift.io
       # ACS: Central, SecuredCluster y las políticas declarativas.
       - platform.stackrox.io
       - config.stackrox.io

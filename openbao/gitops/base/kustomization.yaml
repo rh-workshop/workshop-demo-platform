@@ -10,5 +10,8 @@ resources:
   - namespace.yaml
   - service.yaml
   - statefulset.yaml
+  # La instancia del controlador de ESO: sin ella nadie atiende los
+  # ClusterSecretStore ni los ExternalSecret.
+  - externalsecretsconfig.yaml
   # El store va despues del almacen: apunta a su Service.
   - clustersecretstore.yaml
