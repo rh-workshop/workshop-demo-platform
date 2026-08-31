@@ -47,6 +47,36 @@ rules:
     verbs:
       - "*"
 
+  # Recursos basicos que Argo despliega directamente, sin operador de por medio.
+  # Hasta ahora todos los productos los aportaba su operador desde un CR, asi que
+  # el controller nunca los habia creado el mismo; OpenBao es el primero que se
+  # despliega como carga normal (StatefulSet + Service + ServiceAccount).
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - serviceaccounts
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+
   # Cloud Credential Operator: SOLO el CredentialsRequest del bucket de Quay
   # (backend s3). Va en una regla aparte y con los verbos ENUMERADOS, no con
   # "*": pedir credenciales de nube es un permiso sensible y no debe heredar el
