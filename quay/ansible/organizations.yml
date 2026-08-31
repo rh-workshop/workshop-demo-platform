@@ -70,6 +70,15 @@
       - name: pusher
         description: Sin escritura desde CI; la imagen llega por promoción
         permission: read
+      # LA ÚNICA identidad con escritura en un ambiente controlado, y por eso
+      # existe SOLO donde ci_push es false. Es lo que hace ejecutable la regla
+      # "a prod se llega promocionando": el CI no puede publicar aquí, pero el
+      # pipeline de promoción sí, con una credencial distinta que se monta en
+      # otro namespace y bajo otro RBAC. Sin este robot la regla dejaría el
+      # ambiente incomunicado en vez de protegido.
+      - name: promoter
+        description: Cuenta del pipeline de promoción; única con escritura en este ambiente
+        permission: write
       - name: acs-scanner
         description: Cuenta de solo lectura para que ACS resuelva y escanee imágenes
         permission: read
