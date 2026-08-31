@@ -85,6 +85,30 @@
              else lookup('env', 'AWS_SECRET_ACCESS_KEY') }}
       no_log: true
 
+    # Si el CCO no pudo acuñar, decirlo AQUI y con el motivo: el error nativo
+    # ("unable to fetch root cloud cred secret") solo aparece en el status del
+    # CredentialsRequest, donde nadie lo mira hasta que algo falla mas abajo.
+    - name: Comprobar si el CCO pudo acuñar la identidad
+      kubernetes.core.k8s_info:
+        api_version: cloudcredential.openshift.io/v1
+        kind: CredentialsRequest
+        namespace: openshift-cloud-credential-operator
+        name: quay-s3
+      register: cr_quay
+      failed_when: false
+
+    - name: Avisar si el CredentialsRequest no esta provisionado
+      ansible.builtin.debug:
+        msg: >-
+          El CCO no ha acuñado la identidad de S3
+          ({{ (cr_quay.resources[0].status.conditions | first).message | default('sin provisionar') }}).
+          Es lo esperado en clusters STS, en modo manual o en laboratorios donde
+          se retira la credencial raiz tras instalar. Se usaran las credenciales
+          del secreto {{ quay_namespace }}/quay-s3-credentials o del entorno.
+      when:
+        - cr_quay.resources | length > 0
+        - not (cr_quay.resources[0].status.provisioned | default(false))
+
     - name: Comprobar que hay credenciales de S3
       ansible.builtin.assert:
         that:
