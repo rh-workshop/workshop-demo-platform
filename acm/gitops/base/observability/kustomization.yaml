@@ -9,4 +9,7 @@ kind: Kustomization
 resources:
   # El namespace primero: el CR solo se reconcilia dentro de el.
   - namespace.yaml
+  # Entrega la conexion al object storage desde el almacen: sustituye al
+  # Secret que sembraba Ansible directamente en el cluster.
+  - externalsecret-thanos.yaml
   - multiclusterobservability.yaml
