@@ -251,7 +251,7 @@ etiquetado), pero un preview sigue corriendo sin techo de recursos ni
 aislamiento de red. Pendiente: ampliar el patrón de las Policies a
 `demo-service-pr-*`.
 
-### 6.5 Las organizaciones de Quay no corresponden con lo desplegado — MEDIO
+### 6.5 Las organizaciones de Quay no corresponden con lo desplegado — HECHO
 
 `quay/ansible/organizations.yml` crea cuatro organizaciones (`company-dev`,
 `company-test`, `company-prod`, `company-contingencia`) con el repositorio
@@ -263,6 +263,11 @@ de lo desplegado pasa por la barrera de promoción. Pendiente: renombrar los
 repositorios en el modelo (`demo-service`, `api-service`) y reapuntar cada
 overlay a la organización de su entorno. Toca los dos repos y obliga a re-subir
 las imágenes, así que va con la siguiente reconstrucción del laboratorio.
+
+**Resuelto**: los overlays de `workshop-demo-app-config` apuntan ya a
+`company-<ambiente>/<servicio>` (dev con digest real; test/prod/contingencia
+como placeholders que rellena la promoción) y `quay/ansible/organizations.yml`
+gobierna esas organizaciones desde `vars/platform-vars.yml`.
 
 ### 6.6 El ID de la SignatureIntegration de ACS es un valor de otra instalación — MEDIO
 
@@ -292,11 +297,13 @@ motivo comentado en el manifiesto y la línea `transparency.url` preparada.
 Pendiente: desplegar Rekor con Red Hat Trusted Artifact Signer y reactivar las
 dos líneas juntas.
 
-### 6.9 Datos de un entorno concreto en un fichero de ejemplo — BAJO
+### 6.9 Datos de un entorno concreto en un fichero de ejemplo — HECHO
 
 `workshop-pipelines/runs/pipelinerun-ci-build-image.yaml` lleva cableado el host
 real de un sandbox (`…sandbox3572.opentlc.com`), mientras que el run de
 promoción usa `CHANGE_ME_QUAY_HOST`. Debe homologarse a `CHANGE_ME_*`.
+
+**Resuelto**: todos los `runs/` usan `CHANGE_ME_*`.
 
 ### 6.10 Separar el namespace del CI del namespace de aplicación — MEDIO
 
@@ -350,3 +357,17 @@ se descubre tras construir, no antes. Si se quisiera cerrar en pre-build haría
 falta otra herramienta (p. ej. `osv-scanner`), que hoy no se añade por la norma
 de dependencias mínimas; quedaría como cuarta excepción espejada si algún día
 compensa.
+
+## 8. Los servicios de dev corren en el HUB; test/prod/contingencia en su cluster
+
+Herencia del modelo original del taller: `workshop-services-dev` despliega al
+hub (`kubernetes.default.svc`) y los `HTTPRoute` de dev usan el dominio del hub,
+mientras que los AppSets `workshop-services-test/prod/contingencia` (nuevos)
+despliegan al cluster de su ambiente vía `clusterDecisionResource`. Es una
+asimetría deliberada para no romper el material vivo del workshop (los labs y
+las capturas asumen el hub), pero en una adopción real dev debería ir a su
+spoke como los demás: convertir `workshop-services-dev` al mismo `matrix`
+(clusterDecisionResource × git) que sus hermanos, mover el namespace del CI si
+se quiere co-localizar, y revisar `namespace-governance` (hoy gobierna esos
+namespaces en el hub). No se hizo ahora porque toca la narrativa de varias
+sesiones y no se puede validar en vivo.

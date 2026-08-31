@@ -9,13 +9,20 @@ despliegue** (`workshop-config`).
 ## Modelo mental: GitOps central multi-cluster
 
 Hay **un solo Argo CD, en el cluster hub**, con Red Hat ACM. Desde ahí se
-despliega a los clusters workload (dev, prod), importados por ACM. No hay un Argo
-por cluster. Este es el patrón canónico documentado por Red Hat: la cadena
+despliega a los clusters workload (dev, test, prod, contingencia — un cluster
+por ambiente; los que existan), importados por ACM. No hay un Argo por cluster.
+Este es el patrón canónico documentado por Red Hat: la cadena
 **`ManagedClusterSetBinding` → `Placement` → `GitOpsCluster` → `ApplicationSet`**.
+
+> **¿Vas a adoptar esta base con tus propios clusters/repos/apps?** Todo lo
+> específico de un adoptante es un dato: el checklist completo, en orden, está
+> en [`docs/adopcion-cliente.md`](docs/adopcion-cliente.md).
 
 - **`ManagedClusterSetBinding`** vincula el cluster set al namespace de Argo.
 - **`Placement`** selecciona los clusters destino por su etiqueta `environment`
-  (dev / prod). El hub lleva `role=hub` y **no** recibe cargas workload.
+  (dev / test / prod / contingencia). El hub lleva `role=hub` y **no** recibe
+  cargas workload. Un ambiente sin cluster no genera nada: se activa al
+  importar su cluster, sin tocar manifiestos.
 - **`GitOpsCluster`** registra en Argo los clusters que deciden los Placement:
   crea un Secret de cluster por cada uno. Sin él, Argo no sabe cómo llegar a un
   spoke.
@@ -165,8 +172,8 @@ elemento nuevo. Si el conjunto es uno y fijo, el generador sobra.
 
 | Qué se despliega | Qué varía | Cómo se declara |
 |---|---|---|
-| Servicios del workshop | el dev añade y quita apps | AppSet `workshop-services-dev`, generador `git`: escanea `apps/*/overlays/dev` |
-| Operadores de workload (keycloak, connectivity-link, cert-manager, metallb) | ACM añade y quita clusters | AppSet `workload-dev`/`-prod`, generador `matrix(clusterDecisionResource × list)` |
+| Servicios del workshop | el dev añade y quita apps (y cada servicio decide en qué ambientes vive creando su overlay) | AppSets `workshop-services-<ambiente>`, generador `git`: escanean `apps/*/overlays/<ambiente>` |
+| Operadores de workload (keycloak, connectivity-link, cert-manager, metallb) | ACM añade y quita clusters | AppSet `workload-<ambiente>` (uno por ambiente: dev/test/prod/contingencia), generador `matrix(clusterDecisionResource × list)` |
 | Configuración de monitorización | va a **todos** los clusters, hub incluido | AppSet `monitoring` sobre `clusters-all`; el overlay sale de la etiqueta `environment` |
 | Operadores solo del hub (acm, quay, acs, pipelines) | **nada**: un destino conocido | Application suelta en `apps/hub/` |
 
@@ -204,6 +211,8 @@ limita.
 ```
 workshop-platform/
 ├── bootstrap/              # día 0: manifiestos del plano de control + playbook (ansible/)
+├── vars/                   # platform-vars.yml: el ÚNICO fichero de datos de los playbooks
+│                           # de producto (prefijo de orgs, ambientes, apps, clients)
 ├── gitops/                 # el árbol GitOps central (clusters, appsets, apps)
 ├── quay/{gitops,ansible}/       # QuayRegistry → Argo · orgs/robots → API
 ├── keycloak/{gitops,ansible}/   # Keycloak/RealmImport → Argo · clientes → API
