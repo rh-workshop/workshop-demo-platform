@@ -150,6 +150,13 @@
           field_manager: bootstrap-ansible
           force_conflicts: true
       loop: "{{ manifiestos_bootstrap }}"
+      # Etiqueta propia para poder REAPLICAR solo el plano de control sin repetir
+      # la instalacion entera: los AppProject son barandillas vivas (destinos y
+      # kinds permitidos) que cambian al anadir un ambiente o un tipo de recurso,
+      # y sin esto la unica forma de actualizarlos era un `oc apply` a mano —
+      # justo lo que este playbook existe para evitar.
+      #   ansible-playbook bootstrap.yml --tags control-plane
+      tags: [control-plane, appprojects]
 
     # --- 5. Credenciales: del entorno o de un vault, nunca de Git ---
     - name: Sembrar repo-creds de Argo si el repositorio es privado
