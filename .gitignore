@@ -8,3 +8,6 @@ vault-password*
 
 # Inventario real de clusters del bootstrap: nombra clusters reales, nunca a Git
 bootstrap/ansible/clusters.yml
+
+# Ficheros de bloqueo que crean Excel/Word al abrir un documento.
+~$*
