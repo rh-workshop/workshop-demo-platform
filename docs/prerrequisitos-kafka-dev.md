@@ -290,12 +290,32 @@ sincronizada la Policy.
 
 ## 6. Repositorios Git
 
-| Repositorio | Contenido | Quién lo consume |
-|---|---|---|
-| `<ORG_GIT>/kafka-audit-pipeline` (código) | Fuente Java (Quarkus) del pipeline (processor/sink) y del emisor de referencia; `.tekton/` con sus PipelineRuns. De él salen **dos imágenes** | CI (Pipelines as Code). **Argo CD NO lo mira** |
-| `<ORG_GIT>/kafka-audit-producer` (código) | Paquete .NET y host de ejemplo; `.tekton/` propio | CI. Argo CD NO lo mira |
-| `<ORG_GIT>/kafka-audit-pipeline-config` (configuración) | Kustomize de despliegue: tópicos, usuarios, Deployments, overlays por ambiente; `.tekton/` con los PipelineRuns de promoción | **Argo CD** (ApplicationSet `kafka-services-dev`) |
-| `<ORG_GIT>/platform-config` (plataforma) | Cluster Kafka (`kafka/gitops/`), ApplicationSets, AppProject, Policies de ACM, pipelines de CI | **Argo CD** (repo de administración de plataforma) |
+Intervienen cuatro, pero **el cliente solo crea tres**: el cuarto es el repositorio de
+plataforma, que ya existe si el cliente tiene GitOps —y si no, lo aporta el equipo de
+implementación—. Sobre él únicamente se abre una solicitud de cambio.
+
+| Repositorio | Contenido | Quién lo consume | ¿Lo crea el cliente? |
+|---|---|---|---|
+| `<ORG_GIT>/kafka-audit-pipeline` (código) | Fuente Java (Quarkus) del pipeline (processor/sink) y del emisor de referencia; `.tekton/` con sus PipelineRuns. De él salen **dos imágenes** | CI (Pipelines as Code). **Argo CD NO lo mira** | **Sí** |
+| `<ORG_GIT>/kafka-audit-producer` (código) | Paquete .NET y host de ejemplo; `.tekton/` propio | CI. Argo CD NO lo mira | **Sí** |
+| `<ORG_GIT>/kafka-audit-pipeline-config` (configuración) | Kustomize de despliegue: tópicos, usuarios, Deployments, overlays por ambiente; `.tekton/` con los PipelineRuns de promoción | **Argo CD** (ApplicationSet `kafka-services-dev`) | **Sí** |
+| `<ORG_GIT>/platform-config` (plataforma) | Cluster Kafka (`kafka/gitops/`), ApplicationSets, AppProject, Policies de ACM, pipelines de CI | **Argo CD** (repo de administración de plataforma) | No — ya existe o se aporta |
+
+### 6.0 Por qué el código y la configuración van separados
+
+No es una preferencia de estilo: el pipeline de CI **escribe** en el repositorio de
+configuración (le hace `git push` de la versión publicada de la imagen). Si compartieran
+repositorio, ese push volvería a disparar el CI, que publicaría otra versión, que
+provocaría otro push — un ciclo sin fin.
+
+Además, el ApplicationSet descubre servicios con un generador `git` que apunta a **un
+solo repositorio**, y la promoción a ambientes superiores se hace por Pull Request contra
+las ramas del repositorio de configuración: mezclarlas con las ramas de desarrollo del
+código entrelazaría dos ciclos de vida distintos.
+
+Los dos repositorios de código sí podrían fusionarse técnicamente, pero se mantienen
+separados porque el componente .NET se entrega como **paquete** a los equipos del cliente:
+unirlo al servicio ataría el versionado de una librería al ciclo de vida de otra cosa.
 
 ### 6.1 Estructura obligatoria del repo de configuración
 
