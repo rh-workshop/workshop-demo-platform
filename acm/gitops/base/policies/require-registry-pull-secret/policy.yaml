@@ -13,10 +13,15 @@
 # LEE el valor del secreto que vive en el hub y lo copia al cluster destino, sin
 # que el contenido pase nunca por el repositorio.
 #
-# DE DONDE SALE EL ORIGEN. `quay-pull-credentials` en el namespace de CI del hub
-# lo crea quay/ansible/pull-secrets.yml a partir de los robots de Quay (pusher
-# del ambiente + puller de tooling). Esta Policy solo lo PROPAGA: la fuente de
-# verdad sigue siendo el playbook, que es quien habla con la API del registro.
+# DE DONDE SALE EL ORIGEN. `quay-pull-credentials` en el namespace
+# `open-cluster-management` del hub lo crea quay/ansible/pull-secrets.yml a
+# partir de los robots de Quay (pusher del ambiente + puller de tooling). Esta
+# Policy solo lo PROPAGA: la fuente de verdad sigue siendo el playbook, que es
+# quien habla con la API del registro.
+#
+# El namespace del origen NO es elegible: los hub templates solo pueden leer
+# secretos de `open-cluster-management`. Apuntar a otro falla con
+# "the namespace argument is restricted to open-cluster-management".
 #
 # object-templates-raw en vez de namespaceSelector: mismo motivo que
 # require-limitrange — cero namespaces coincidentes debe ser Compliant, para que
@@ -53,7 +58,7 @@ spec:
           # se escribe dentro, el motor de plantillas intenta interpretar los
           # delimitadores del propio texto explicativo y falla con template-error.
           object-templates-raw: |
-            {{- $creds := "{{hub fromSecret "workshop-demo-dev" "quay-pull-credentials" ".dockerconfigjson" hub}}" }}
+            {{- $creds := "{{hub fromSecret "open-cluster-management" "quay-pull-credentials" ".dockerconfigjson" hub}}" }}
             {{- range (lookup "v1" "Namespace" "" "").items }}
             {{- $ns := .metadata.name }}
             {{- /* Mismos namespaces de negocio que require-limitrange y require-resourcequota. */ -}}
