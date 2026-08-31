@@ -13,6 +13,10 @@
 # poner el parámetro en "true" sin tocar la task.
 #
 # La imagen es Red Hat (ubi9/go-toolset): aquí no hay excepción a la norma.
+#
+# CONTRATO COMÚN de las tasks de prueba (dotnet-test/java-test/python-test/
+# go-test): params test-image, context y fail-on-no-tests; workspace source;
+# result coverage. El pipeline de CI elige la task por el parámetro `language`.
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
@@ -20,7 +24,9 @@ metadata:
 spec:
   params:
     # Toolchain de Go soportado por Red Hat, fijado por versión (nunca "latest").
-    - {name: go-image, type: string, default: "registry.redhat.io/ubi9/go-toolset:1.26.7"}
+    - {name: test-image, type: string, default: "registry.redhat.io/ubi9/go-toolset:1.26.7"}
+    # Subdirectorio del monorepo a probar; "." usa la raíz del repositorio.
+    - {name: context, type: string, default: "."}
     # Paquetes a probar; el default recorre todo el módulo del monorepo.
     - {name: packages, type: string, default: "./..."}
     # "false" (hoy): si no existe NINGÚN _test.go se informa y se continúa.
@@ -35,8 +41,8 @@ spec:
     - {name: coverage, description: Cobertura total de las pruebas unitarias}
   steps:
     - name: go-test-coverage
-      image: $(params.go-image)
-      workingDir: $(workspaces.source.path)
+      image: $(params.test-image)
+      workingDir: $(workspaces.source.path)/$(params.context)
       securityContext:
         allowPrivilegeEscalation: false
         capabilities: {drop: [ALL]}

@@ -5,7 +5,11 @@ kind: Kustomization
 resources:
   - serviceaccount-builder.yaml
   - rolebinding-builder-pipelines-scc.yaml
-  # Pruebas unitarias de Go con cobertura, antes de construir (maneja el caso "sin tests").
+  # Pruebas unitarias ANTES de construir, una task POR LENGUAJE con contrato común
+  # (el pipeline elige por el parámetro language); todas manejan el caso "sin tests".
+  - dotnet-test-task.yaml
+  - java-test-task.yaml
+  - python-test-task.yaml
   - go-test-task.yaml
   # Deteccion de secretos en arbol e historial de Git (gitleaks); falla cerrado.
   - secret-scan-task.yaml

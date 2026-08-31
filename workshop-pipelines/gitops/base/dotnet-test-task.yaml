@@ -1,0 +1,105 @@
+# Task de PRUEBAS UNITARIAS de .NET: ejecuta `dotnet test` antes del build.
+#
+# Misma puerta y mismo contrato que go-test/java-test/python-test: params
+# test-image, context y fail-on-no-tests; workspace source; result coverage.
+# El pipeline de CI elige la task por el parámetro `language` (una task POR
+# lenguaje, cada una fija su imagen soportada — no una genérica con comando
+# libre, que sería ingobernable).
+#
+# QUÉ ESPERA DEL REPOSITORIO: proyectos de prueba .csproj/.fsproj que
+# referencien Microsoft.NET.Test.Sdk (el marcador estándar de un test project:
+# xUnit, NUnit y MSTest lo traen). Si no hay ninguno, se informa y se continúa
+# (o se corta con fail-on-no-tests=true). La COBERTURA se publica solo si el
+# proyecto referencia coverlet.collector (lo trae la plantilla `dotnet new
+# xunit`); si no, el result queda en "sin-cobertura" — no se instala nada.
+#
+# El restore de NuGet lo hace `dotnet test` solo; en una red corporativa se
+# gobierna con un NuGet.config VERSIONADO en el repo de aplicación (fuente
+# interna en vez de nuget.org), no con parámetros de esta task.
+#
+# La imagen es Red Hat (ubi9/dotnet-100 = .NET 10, el lenguaje prioritario del
+# cliente). OJO con el tag: en este repositorio el stream dotnet-100 etiqueta
+# por la base RHEL ("9.8"), no por la versión del SDK — verificado contra
+# registry.access.redhat.com.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: dotnet-test
+spec:
+  params:
+    # SDK de .NET soportado por Red Hat, fijado por versión (nunca "latest").
+    - {name: test-image, type: string, default: "registry.access.redhat.com/ubi9/dotnet-100:9.8"}
+    # Subdirectorio del monorepo a probar; "." recorre el repositorio entero.
+    - {name: context, type: string, default: "."}
+    # "false": si no existe NINGÚN proyecto de prueba se informa y se continúa.
+    # "true": la ausencia de tests corta el pipeline — para cuando se exijan.
+    # OJO: esto solo gobierna la AUSENCIA de tests; un test que falla corta siempre.
+    - {name: fail-on-no-tests, type: string, default: "false"}
+  workspaces:
+    # Código fuente ya clonado por la tarea anterior del pipeline.
+    - name: source
+  results:
+    # Cobertura de líneas (p. ej. "73.4%"), "sin-cobertura" si el proyecto no
+    # trae coverlet, o "sin-tests" si no hay ningún proyecto de prueba.
+    - {name: coverage, description: Cobertura total de las pruebas unitarias}
+  steps:
+    - name: dotnet-test
+      image: $(params.test-image)
+      workingDir: $(workspaces.source.path)/$(params.context)
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        # HOME y caché de NuGet en el filesystem efímero: el pod corre con UID aleatorio de OpenShift y no puede escribir en el HOME de la imagen.
+        - {name: HOME, value: /tmp}
+        - {name: NUGET_PACKAGES, value: /tmp/nuget}
+        - {name: DOTNET_CLI_TELEMETRY_OPTOUT, value: "1"}
+        - {name: DOTNET_NOLOGO, value: "1"}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "Pruebas unitarias .NET sobre $(pwd)"
+
+        # Un proyecto de PRUEBA es el que referencia Microsoft.NET.Test.Sdk: es el
+        # marcador común de xUnit/NUnit/MSTest. Se detecta por fichero, no por la
+        # salida de dotnet: sin tests, `dotnet test` saldría verde sin probar nada.
+        PROYECTOS=$(grep -rl --include='*.csproj' --include='*.fsproj' 'Microsoft.NET.Test.Sdk' . || true)
+        if [ -z "${PROYECTOS}" ]; then
+          printf 'sin-tests' > $(results.coverage.path)
+          echo "AVISO: no hay ningún proyecto de prueba (.csproj con Microsoft.NET.Test.Sdk)."
+          if [ "$(params.fail-on-no-tests)" = "true" ]; then
+            echo "FALLO: fail-on-no-tests=true exige que existan pruebas unitarias." >&2
+            exit 1
+          fi
+          echo "El pipeline continúa (fail-on-no-tests=false); añade un test project y esta puerta lo ejecutará sola."
+          exit 0
+        fi
+        echo "Proyectos de prueba encontrados:" && echo "${PROYECTOS}"
+
+        # La cobertura solo si el proyecto ya trae el colector coverlet (plantilla
+        # xunit estándar); no se instala nada en tiempo de CI.
+        ARGS=""
+        if grep -rq --include='*.csproj' --include='*.fsproj' 'coverlet.collector' .; then
+          ARGS='--collect:XPlat Code Coverage'
+        else
+          echo "AVISO: sin coverlet.collector en los proyectos; se ejecuta sin cobertura."
+        fi
+
+        # Un test en rojo corta el pipeline SIEMPRE: aquí no hay modo "informar".
+        for PROYECTO in ${PROYECTOS}; do
+          echo "== dotnet test ${PROYECTO}"
+          if [ -n "${ARGS}" ]; then
+            dotnet test "${PROYECTO}" --results-directory /tmp/TestResults "${ARGS}"
+          else
+            dotnet test "${PROYECTO}"
+          fi
+        done
+
+        # El colector deja un cobertura.xml (formato Cobertura) con line-rate en [0,1].
+        COBERTURA="sin-cobertura"
+        FICHERO=$(find /tmp/TestResults -name 'coverage.cobertura.xml' 2>/dev/null | head -1 || true)
+        if [ -n "${FICHERO}" ]; then
+          COBERTURA=$(awk 'match($0, /line-rate="[0-9.]+"/) {r=substr($0, RSTART+11, RLENGTH-12); printf "%.1f%%", r*100; exit}' "${FICHERO}")
+        fi
+        printf '%s' "${COBERTURA}" > $(results.coverage.path)
+        echo "Cobertura de líneas: ${COBERTURA}"

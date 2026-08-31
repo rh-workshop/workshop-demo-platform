@@ -1,0 +1,97 @@
+# Task de PRUEBAS UNITARIAS de Java: ejecuta `mvn test` (o el wrapper de
+# Gradle) antes del build.
+#
+# Misma puerta y mismo contrato que dotnet-test/go-test/python-test: params
+# test-image, context y fail-on-no-tests; workspace source; result coverage.
+# El pipeline de CI elige la task por el parámetro `language` (una task POR
+# lenguaje, cada una fija su imagen soportada).
+#
+# QUÉ ESPERA DEL REPOSITORIO: un pom.xml (se prefiere ./mvnw si el repo lo
+# versiona; si no, el mvn que trae la imagen) o un build.gradle CON su wrapper
+# ./gradlew — la imagen no trae Gradle y descargarlo en CI queda fuera de la
+# norma de dependencias mínimas. La COBERTURA se publica solo si el build ya
+# integra JaCoCo (target/site/jacoco/jacoco.csv); si no, "sin-cobertura".
+#
+# El resolve de dependencias lo gobierna el settings.xml/init.gradle VERSIONADO en
+# el repo de aplicación (espejo corporativo tipo Nexus/Artifactory), no esta task.
+#
+# La imagen es Red Hat (ubi9/openjdk-21, que incluye Maven): sin excepción a la norma.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: java-test
+spec:
+  params:
+    # JDK soportado por Red Hat, fijado por versión (nunca "latest").
+    - {name: test-image, type: string, default: "registry.access.redhat.com/ubi9/openjdk-21:1.23"}
+    # Subdirectorio del monorepo a probar; "." usa la raíz del repositorio.
+    - {name: context, type: string, default: "."}
+    # "false": si no existe NINGÚN test se informa y se continúa.
+    # "true": la ausencia de tests corta el pipeline — para cuando se exijan.
+    # OJO: esto solo gobierna la AUSENCIA de tests; un test que falla corta siempre.
+    - {name: fail-on-no-tests, type: string, default: "false"}
+  workspaces:
+    # Código fuente ya clonado por la tarea anterior del pipeline.
+    - name: source
+  results:
+    # Cobertura de instrucciones JaCoCo (p. ej. "73.4%"), "sin-cobertura" si el
+    # build no integra JaCoCo, o "sin-tests" si no hay ficheros de prueba.
+    - {name: coverage, description: Cobertura total de las pruebas unitarias}
+  steps:
+    - name: java-test
+      image: $(params.test-image)
+      workingDir: $(workspaces.source.path)/$(params.context)
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        # HOME y repo local de Maven en el filesystem efímero: el pod corre con UID aleatorio de OpenShift y no puede escribir en el HOME de la imagen.
+        - {name: HOME, value: /tmp}
+        - {name: MAVEN_OPTS, value: "-Dmaven.repo.local=/tmp/.m2/repository"}
+        - {name: GRADLE_USER_HOME, value: /tmp/.gradle}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "Pruebas unitarias Java sobre $(pwd)"
+
+        # La detección va por fichero, no por la salida del build: sin clases de
+        # test, Maven/Gradle salen verdes con "Tests run: 0" y la puerta mentiría.
+        NUM_TESTS=$(find . -path '*/src/test/*' \( -name '*.java' -o -name '*.kt' \) 2>/dev/null | wc -l | tr -d ' ')
+        if [ "${NUM_TESTS}" -eq 0 ]; then
+          printf 'sin-tests' > $(results.coverage.path)
+          echo "AVISO: no hay ningún fichero de prueba bajo src/test/."
+          if [ "$(params.fail-on-no-tests)" = "true" ]; then
+            echo "FALLO: fail-on-no-tests=true exige que existan pruebas unitarias." >&2
+            exit 1
+          fi
+          echo "El pipeline continúa (fail-on-no-tests=false); añade tests y esta puerta los ejecutará sola."
+          exit 0
+        fi
+        echo "Ficheros de test encontrados: ${NUM_TESTS}"
+
+        # Un test en rojo corta el pipeline SIEMPRE: aquí no hay modo "informar".
+        if [ -f pom.xml ]; then
+          # Se prefiere el wrapper del repo (fija la versión de Maven); si no, el de la imagen.
+          if [ -x ./mvnw ]; then MVN=./mvnw; else MVN=mvn; fi
+          "${MVN}" -B -ntp test
+        elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then
+          if [ ! -x ./gradlew ]; then
+            echo "ERROR: proyecto Gradle sin wrapper ./gradlew; la imagen no trae Gradle. Versiona el wrapper en el repositorio." >&2
+            exit 1
+          fi
+          ./gradlew --no-daemon test
+        else
+          echo "ERROR: no hay pom.xml ni build.gradle en $(pwd); revisa el parámetro context." >&2
+          exit 1
+        fi
+
+        # JaCoCo (si el build lo integra) deja un CSV con instrucciones perdidas/cubiertas por clase.
+        COBERTURA="sin-cobertura"
+        FICHERO=$(find . -path '*/site/jacoco/jacoco.csv' 2>/dev/null | head -1 || true)
+        if [ -n "${FICHERO}" ]; then
+          COBERTURA=$(awk -F',' 'NR>1 {perdidas+=$4; cubiertas+=$5} END {if (perdidas+cubiertas>0) printf "%.1f%%", cubiertas*100/(perdidas+cubiertas); else print "sin-cobertura"}' "${FICHERO}")
+        else
+          echo "AVISO: el build no integra JaCoCo; se informa sin cobertura."
+        fi
+        printf '%s' "${COBERTURA}" > $(results.coverage.path)
+        echo "Cobertura de instrucciones: ${COBERTURA}"

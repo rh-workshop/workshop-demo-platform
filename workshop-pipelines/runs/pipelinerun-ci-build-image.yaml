@@ -33,6 +33,10 @@ spec:
     # Umbral del escaneo como PARÁMETRO: CRITICAL corta solo lo crítico; súbelo a IMPORTANT para endurecer la puerta.
     - name: scan-severity-threshold
       value: CRITICAL
+    # Lenguaje de la aplicación: elige la task de pruebas <language>-test
+    # (dotnet|java|python|go). El demo del taller es Go; una app .NET pondría "dotnet".
+    - name: language
+      value: go
   workspaces:
     # Solución canónica de Tekton para compartir un PVC RWO entre tareas: el asistente de afinidad (activo por defecto) las coprograma en el mismo nodo.
     # Por eso NO se deshabilita con la anotación pipeline.tekton.dev/affinity-assistant y basta ReadWriteOnce.

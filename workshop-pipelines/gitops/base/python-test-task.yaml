@@ -1,0 +1,109 @@
+# Task de PRUEBAS UNITARIAS de Python: ejecuta `pytest` con cobertura antes
+# del build.
+#
+# Misma puerta y mismo contrato que dotnet-test/java-test/go-test: params
+# test-image, context y fail-on-no-tests; workspace source; result coverage.
+# El pipeline de CI elige la task por el parámetro `language` (una task POR
+# lenguaje, cada una fija su imagen soportada).
+#
+# QUÉ ESPERA DEL REPOSITORIO: las dependencias declaradas en requirements.txt
+# (se instala tal cual) o en pyproject.toml (se instala el proyecto con su
+# extra "test" si lo declara; si no, a secas). pytest y pytest-cov deben venir
+# DECLARADOS como dependencia de test del propio repo: esta task no impone
+# framework. Si tras instalar no hay pytest, se ejecuta unittest discover como
+# degradación (sin cobertura).
+#
+# El índice de paquetes se gobierna con pip.conf/PIP_INDEX_URL del repositorio
+# o del espejo corporativo; el parámetro pip-index-url permite fijarlo sin
+# tocar la task.
+#
+# La imagen es Red Hat (ubi9/python-312): sin excepción a la norma. El stream
+# solo publica tags "1-<build>" (no hay semver): se fija el build verificado.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: python-test
+spec:
+  params:
+    # Intérprete soportado por Red Hat, fijado por build (nunca "latest").
+    - {name: test-image, type: string, default: "registry.access.redhat.com/ubi9/python-312:1-1762230134"}
+    # Subdirectorio del monorepo a probar; "." usa la raíz del repositorio.
+    - {name: context, type: string, default: "."}
+    # Índice de paquetes alternativo (espejo corporativo); vacío = el del entorno/repo.
+    - {name: pip-index-url, type: string, default: ""}
+    # "false": si no existe NINGÚN test se informa y se continúa.
+    # "true": la ausencia de tests corta el pipeline — para cuando se exijan.
+    # OJO: esto solo gobierna la AUSENCIA de tests; un test que falla corta siempre.
+    - {name: fail-on-no-tests, type: string, default: "false"}
+  workspaces:
+    # Código fuente ya clonado por la tarea anterior del pipeline.
+    - name: source
+  results:
+    # Cobertura total (p. ej. "73%"), "sin-cobertura" si el repo no declara
+    # pytest-cov, o "sin-tests" si no hay ningún fichero de prueba.
+    - {name: coverage, description: Cobertura total de las pruebas unitarias}
+  steps:
+    - name: pytest
+      image: $(params.test-image)
+      workingDir: $(workspaces.source.path)/$(params.context)
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        # HOME y cachés en el filesystem efímero: el pod corre con UID aleatorio de OpenShift y no puede escribir en el HOME de la imagen.
+        - {name: HOME, value: /tmp}
+        - {name: PIP_CACHE_DIR, value: /tmp/.cache/pip}
+        - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "Pruebas unitarias Python sobre $(pwd)"
+
+        # La detección va por fichero: sin tests, pytest sale 5 (no collected) y
+        # unittest sale verde sin probar nada — la puerta debe decirlo, no callar.
+        NUM_TESTS=$(find . \( -name 'test_*.py' -o -name '*_test.py' \) -not -path '*/.venv/*' -not -path '*/venv/*' | wc -l | tr -d ' ')
+        if [ "${NUM_TESTS}" -eq 0 ]; then
+          printf 'sin-tests' > $(results.coverage.path)
+          echo "AVISO: no hay ningún fichero de prueba (test_*.py / *_test.py)."
+          if [ "$(params.fail-on-no-tests)" = "true" ]; then
+            echo "FALLO: fail-on-no-tests=true exige que existan pruebas unitarias." >&2
+            exit 1
+          fi
+          echo "El pipeline continúa (fail-on-no-tests=false); añade tests y esta puerta los ejecutará sola."
+          exit 0
+        fi
+        echo "Ficheros de test encontrados: ${NUM_TESTS}"
+
+        # El índice corporativo, si se fija, gobierna TODAS las instalaciones del step.
+        if [ -n "$(params.pip-index-url)" ]; then
+          export PIP_INDEX_URL="$(params.pip-index-url)"
+        fi
+
+        # Las dependencias las DECLARA el repo: requirements.txt manda; si no, el
+        # propio proyecto (pyproject.toml) con su extra "test" cuando lo declare.
+        if [ -f requirements.txt ]; then
+          python -m pip install --no-color -r requirements.txt
+        elif [ -f pyproject.toml ]; then
+          python -m pip install --no-color '.[test]' 2>/dev/null || python -m pip install --no-color .
+        else
+          echo "AVISO: sin requirements.txt ni pyproject.toml; se prueba con la biblioteca estándar."
+        fi
+
+        # Un test en rojo corta el pipeline SIEMPRE: aquí no hay modo "informar".
+        COBERTURA="sin-cobertura"
+        if python -m pytest --version >/dev/null 2>&1; then
+          if python -c 'import pytest_cov' >/dev/null 2>&1; then
+            python -m pytest --cov=. --cov-report=term | tee /tmp/pytest.out
+            # La línea TOTAL de coverage termina en el porcentaje: "TOTAL ... 73%".
+            COBERTURA=$(awk '/^TOTAL/ {print $NF}' /tmp/pytest.out | tail -1)
+          else
+            echo "AVISO: el repo no declara pytest-cov; se ejecuta sin cobertura."
+            python -m pytest
+          fi
+        else
+          # Degradación explícita: sin pytest declarado se usa unittest de la stdlib.
+          echo "AVISO: el repo no declara pytest; se usa unittest discover (sin cobertura)."
+          python -m unittest discover -v
+        fi
+        printf '%s' "${COBERTURA:-sin-cobertura}" > $(results.coverage.path)
+        echo "Cobertura total: ${COBERTURA:-sin-cobertura}"

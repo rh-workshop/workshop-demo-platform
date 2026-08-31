@@ -3,8 +3,9 @@
 Tres pipelines de Tekton en el namespace `workshop-demo-dev`:
 
 - `ci-build-image` — clona el monorepo de aplicación (clone COMPLETO, con
-  historial) y pasa la **puerta de código** en paralelo: **tests unitarios** de
-  Go con cobertura (`go-test`, tolera la ausencia de tests e informa),
+  historial) y pasa la **puerta de código** en paralelo: **tests unitarios**
+  con cobertura (la task `<language>-test` del lenguaje del servicio — ver
+  "Pruebas unitarias por lenguaje"; tolera la ausencia de tests e informa),
   **detección de secretos** en árbol e historial (`secret-scan` con gitleaks,
   falla CERRADO por defecto) y **SAST** (`code-scan` con semgrep). Solo si las
   tres pasan construye la imagen con buildah, la publica con su tag ancla, el
@@ -66,6 +67,60 @@ oc create -f workshop-pipelines/runs/pipelinerun-promote-dev-to-test.yaml -n wor
 oc create -f workshop-pipelines/runs/pipelinerun-promote-test-to-prod.yaml -n workshop-demo-dev
 oc create -f workshop-pipelines/runs/pipelinerun-promote-prod-to-contingencia.yaml -n workshop-demo-dev
 ```
+
+## Pruebas unitarias por lenguaje (.NET, Java, Python, Go)
+
+La puerta de tests es **una task POR lenguaje** — `dotnet-test`, `java-test`,
+`python-test`, `go-test` — y no una task genérica con el comando por parámetro.
+Es una decisión de gobierno: cada task **fija su imagen Red Hat** (verificada
+contra el registro) y las particularidades de su ecosistema; una task de
+"comando libre" permitiría ejecutar cualquier cosa con cualquier imagen desde
+un PipelineRun.
+
+El pipeline de CI es **único**: el parámetro `language` elige la task por
+nombre vía el **resolver `cluster`** de Tekton
+(`taskRef: {resolver: cluster, name: $(params.language)-test}`), en el
+namespace del propio run. Así la selección es un **dato del run**, no una
+bifurcación: no hay cuatro pipelines casi iguales ni cuatro tasks con `when`
+(que además ensuciarían el grafo y el resumen con tareas Skipped).
+
+Las cuatro tasks comparten contrato: params `test-image` (con su default Red
+Hat propio), `context` (subdirectorio del monorepo) y `fail-on-no-tests`;
+workspace `source`; result `coverage`. Todas **detectan la ausencia de tests
+por fichero** (no por la salida verde-de-mentira de la herramienta), informan
+y continúan con `fail-on-no-tests: "false"` (el default), o cortan con
+`"true"`. Un test en rojo corta SIEMPRE.
+
+| `language` | Task | Imagen (verificada) | Detecta tests por | Cobertura |
+|---|---|---|---|---|
+| `dotnet` | `dotnet-test` | `ubi9/dotnet-100:9.8` (.NET 10; el stream etiqueta por base RHEL) | `.csproj/.fsproj` con `Microsoft.NET.Test.Sdk` | coverlet.collector si el repo lo trae |
+| `java` | `java-test` | `ubi9/openjdk-21:1.23` (incluye Maven; Gradle SOLO con wrapper) | ficheros bajo `src/test/` | JaCoCo si el build lo integra |
+| `python` | `python-test` | `ubi9/python-312:1-1762230134` (el stream no publica semver) | `test_*.py` / `*_test.py` | pytest-cov si el repo lo declara |
+| `go` | `go-test` | `ubi9/go-toolset:1.26.7` | `*_test.go` | `go tool cover` (siempre) |
+
+Las dependencias de build/test (NuGet, Maven, pip) las gobierna el REPO de
+aplicación con su configuración versionada (`NuGet.config`, `settings.xml`,
+`pip.conf`/`pip-index-url`) apuntando al espejo corporativo: la task no instala
+herramientas ni impone índices.
+
+## Contrato con el repositorio de aplicación (Containerfile)
+
+El Containerfile vive en el repo de APLICACIÓN, no aquí; el pipeline solo exige
+este contrato, sea cual sea el lenguaje:
+
+- **Un `Containerfile` en la raíz** (o la ruta que fije el parámetro
+  `containerfile`) que construya con **imágenes base Red Hat** (`ubi9/dotnet-100`,
+  `ubi9/openjdk-21-runtime`, `ubi9/python-312`, `ubi9/go-toolset` + `ubi9-micro`…).
+- **Acepta `ARG GIT_COMMIT`** y lo estampa como etiqueta OCI
+  `org.opencontainers.image.revision`: la puerta de procedencia de la promoción
+  a prod lo verifica contra el repo (existe, es ancestro de `main`, lleva tag).
+- **Monorepo**: acepta `ARG APP=<servicio>` para elegir qué servicio empaqueta
+  (se pasa por el parámetro `build-args`); los tests del servicio se acotan con
+  `test-context` si no viven en la raíz.
+- **Opcional `VERSION`** en la raíz del repo: la versión base del tag GitFlow
+  cuando la rama no la lleva en el nombre.
+- El build corre DENTRO del cluster con buildah, sin daemon y sin privilegios:
+  nada de `DOCKER_BUILDKIT`, montajes del host ni `--privileged` en el Containerfile.
 
 ## Versionado por rama (GitFlow)
 

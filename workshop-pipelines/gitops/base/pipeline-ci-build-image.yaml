@@ -65,9 +65,13 @@ spec:
     - {name: sast-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/semgrep:1.79.0"}
     # "false" informa de los hallazgos y sigue; "true" corta. En producción va en "true".
     - {name: sast-fail-on-violation, default: "false"}
-    # Toolchain de Go para las pruebas unitarias: imagen Red Hat, fijada por versión.
-    - {name: unit-test-image, default: "registry.redhat.io/ubi9/go-toolset:1.26.7"}
-    # "false" (hoy no hay tests): la ausencia de _test.go informa y sigue; "true" la convierte en obligatoria.
+    # Lenguaje de la aplicación (dotnet|java|python|go): elige la TASK de pruebas
+    # <language>-test vía el resolver cluster — una task por lenguaje, cada una con
+    # su imagen Red Hat fijada; el pipeline es único y la selección es un dato.
+    - {name: language, default: "go"}
+    # Subdirectorio del monorepo que prueban los tests unitarios; "." = la raíz.
+    - {name: test-context, default: "."}
+    # "false" (hoy no hay tests): la ausencia de tests informa y sigue; "true" la convierte en obligatoria.
     - {name: fail-on-no-tests, default: "false"}
     # Detector de secretos espejado en el registro corporativo (tercera excepción a
     # "solo Red Hat", junto a semgrep y syft): ver la cabecera de secret-scan-task.yaml.
@@ -120,11 +124,15 @@ spec:
 
     # Pruebas unitarias con cobertura; hoy el repo no tiene tests y la task lo
     # informa sin romper (fail-on-no-tests=false) — lista para cuando los haya.
+    # La task se resuelve por NOMBRE a partir del lenguaje ($(params.language)-test,
+    # en el namespace del run): mismo pipeline para .NET, Java, Python y Go, sin
+    # duplicarlo ni ramificar con `when` — las cuatro tasks comparten contrato
+    # (test-image propio, context, fail-on-no-tests, result coverage).
     - name: run-unit-tests
       runAfter: [clone-source-code]
-      taskRef: {name: go-test}
+      taskRef: {resolver: cluster, params: [{name: kind, value: task}, {name: name, value: "$(params.language)-test"}, {name: namespace, value: "$(context.pipelineRun.namespace)"}]}
       params:
-        - {name: go-image, value: $(params.unit-test-image)}
+        - {name: context, value: $(params.test-context)}
         - {name: fail-on-no-tests, value: $(params.fail-on-no-tests)}
       workspaces: [{name: source, workspace: source}]
 
