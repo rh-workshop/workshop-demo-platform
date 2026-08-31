@@ -1,0 +1,53 @@
+# Recolección de las métricas que exponen los pods de Kafka.
+# El CR Kafka solo las PUBLICA; sin este PodMonitor nadie las lee y los paneles quedan vacíos.
+# Funciona porque la monitorización de la plataforma tiene enableUserWorkload activado (ver monitoring/).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kafka-resources
+  namespace: kafka
+  labels:
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: kafka
+spec:
+  selector:
+    # Cubre los pods del cluster que exponen JMX: brokers y controladores.
+    matchLabels:
+      strimzi.io/kind: Kafka
+  podMetricsEndpoints:
+    - path: /metrics
+      port: tcp-prometheus
+---
+# Métricas de Cruise Control, que se expone en su propio pod y con otra etiqueta.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cruise-control
+  namespace: kafka
+  labels:
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: kafka
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/kind: cruise-control
+  podMetricsEndpoints:
+    - path: /metrics
+      port: tcp-prometheus
+---
+# Métricas del Kafka Exporter: el retraso (lag) de los grupos de consumo, la señal que más se vigila en operación.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kafka-exporter
+  namespace: kafka
+  labels:
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: kafka
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/name: demo-kafka-kafka-exporter
+  podMetricsEndpoints:
+    - path: /metrics
+      port: tcp-prometheus

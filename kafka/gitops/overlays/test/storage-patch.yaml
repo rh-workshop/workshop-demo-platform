@@ -1,0 +1,14 @@
+# Mismo número de nodos que producción, con disco reducido: en test el volumen de datos es de prueba.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: broker
+  namespace: kafka
+spec:
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 10Gi
+        deleteClaim: false

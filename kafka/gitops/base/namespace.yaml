@@ -1,0 +1,8 @@
+# Namespace de la plataforma de mensajería; el operador AMQ Streams lo vigila y reconcilia sus CR.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka
+  labels:
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: kafka

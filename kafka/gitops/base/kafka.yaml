@@ -1,0 +1,63 @@
+# Cluster Kafka en modo KRaft (sin ZooKeeper): los roles viven en KafkaNodePool dedicados.
+# Las réplicas y el almacenamiento NO se fijan aquí sino en los KafkaNodePool, y cada overlay los ajusta por ambiente.
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: demo-kafka
+  namespace: kafka
+spec:
+  kafka:
+    # Sin 'version' ni 'metadataVersion': el operador usa la que trae su release.
+    # Para que un upgrade del operador NO arrastre un upgrade de brokers, fijar aquí ambas
+    # con la versión que reporte 'oc get kafka demo-kafka -o jsonpath={.status.kafkaVersion}'.
+    listeners:
+      # Listener interno con mTLS para los clientes que corren dentro del cluster.
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: tls
+      # Listener externo por Route (passthrough): portable a cloud, no exige MetalLB ni bare-metal.
+      # En bare-metal con MetalLB se cambia a type loadbalancer en el overlay del ambiente.
+      - name: external
+        port: 9094
+        type: route
+        tls: true
+        authentication:
+          type: tls
+    # Autorización por ACL declarativas: cada cliente recibe sus permisos vía KafkaUser.
+    # Sin superUsers a propósito: un superusuario bypasearía toda la autorización.
+    authorization:
+      type: simple
+    # Métricas JMX en formato Prometheus, que recoge la monitorización de la plataforma.
+    metricsConfig:
+      type: jmxPrometheusExporter
+      valueFrom:
+        configMapKeyRef:
+          name: kafka-metrics
+          key: kafka-metrics-config.yml
+    config:
+      # Durabilidad: 3 réplicas por partición y 2 en sincronía como mínimo para aceptar escrituras.
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      # Los tópicos se declaran en Git: crear uno por accidente desde un cliente queda prohibido.
+      auto.create.topics.enable: false
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+  # Cruise Control permite rebalancear particiones entre brokers sin parar el servicio.
+  cruiseControl:
+    metricsConfig:
+      type: jmxPrometheusExporter
+      valueFrom:
+        configMapKeyRef:
+          name: kafka-metrics
+          key: cruise-control-metrics-config.yml
+  # Exporta el retraso (lag) de los grupos de consumo: la señal que más alerta en operación.
+  kafkaExporter:
+    topicRegex: ".*"
+    groupRegex: ".*"

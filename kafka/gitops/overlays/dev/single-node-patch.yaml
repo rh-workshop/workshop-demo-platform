@@ -1,0 +1,54 @@
+# Un solo broker y un solo controlador, con recursos reducidos y disco pequeño.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: broker
+  namespace: kafka
+spec:
+  replicas: 1
+  resources:
+    requests: { cpu: "250m", memory: 1Gi }
+    limits:   { cpu: "1", memory: 2Gi }
+  jvmOptions:
+    -Xms: 512m
+    -Xmx: 512m
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        deleteClaim: false
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: controller
+  namespace: kafka
+spec:
+  replicas: 1
+  resources:
+    requests: { cpu: "250m", memory: 512Mi }
+    limits:   { cpu: "500m", memory: 1Gi }
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 5Gi
+        deleteClaim: false
+---
+# Con un único broker la replicación por defecto debe ser 1, o ningún tópico interno llega a crearse.
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: demo-kafka
+  namespace: kafka
+spec:
+  kafka:
+    config:
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1

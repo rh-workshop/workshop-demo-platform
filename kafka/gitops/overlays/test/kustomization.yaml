@@ -1,0 +1,8 @@
+# Test replica la topología de producción (3 brokers, 3 controladores, replicación 3) con discos más pequeños:
+# es la única forma de que una prueba de resiliencia aquí signifique algo para producción.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: storage-patch.yaml

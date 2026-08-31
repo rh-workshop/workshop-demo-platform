@@ -42,6 +42,8 @@ spec:
             namespace: kuadrant-system
           - producto: cert-manager
             namespace: cert-manager
+          - producto: kafka
+            namespace: kafka
           # MetalLB solo aplica en BARE-METAL. En un cloud (AWS/Azure/GCP) el proveedor
           # ya provisiona un balanceador por cada Service LoadBalancer, y MetalLB en L2
           # no funciona: la red virtual no reenvia el ARP gratuito del que depende.

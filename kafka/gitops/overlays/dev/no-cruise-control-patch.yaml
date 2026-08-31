@@ -1,0 +1,9 @@
+# Cruise Control fuera de dev: con un solo broker no hay entre qué nodos rebalancear y su pod consume ~1Gi para nada.
+apiVersion: builtin
+kind: PatchTransformer
+metadata:
+  name: remove-cruise-control
+patch: '[{"op": "remove", "path": "/spec/cruiseControl"}]'
+target:
+  kind: Kafka
+  name: demo-kafka

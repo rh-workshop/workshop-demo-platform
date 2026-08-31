@@ -1,0 +1,26 @@
+# Controladores KRaft dedicados: mantienen los metadatos del cluster, no sirven datos.
+# Separar controladores de brokers es la práctica recomendada en producción: un broker saturado no arrastra al quórum.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: controller
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: demo-kafka
+spec:
+  # Tres nodos forman el quórum y toleran la caída de uno.
+  replicas: 3
+  roles:
+    - controller
+  resources:
+    requests: { cpu: "500m", memory: 1Gi }
+    limits:   { cpu: "1", memory: 2Gi }
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        # Solo guardan el registro de metadatos; 10Gi es holgado.
+        size: 10Gi
+        # Sin 'class': usa la StorageClass por defecto del cluster, así el manifiesto es portable.
+        deleteClaim: false

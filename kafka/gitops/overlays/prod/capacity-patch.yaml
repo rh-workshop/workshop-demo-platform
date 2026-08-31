@@ -1,0 +1,48 @@
+# Más CPU, memoria y disco que la base, y reparto obligatorio entre nodos.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: broker
+  namespace: kafka
+spec:
+  resources:
+    requests: { cpu: "2", memory: 4Gi }
+    limits:   { cpu: "4", memory: 6Gi }
+  jvmOptions:
+    -Xms: 2048m
+    -Xmx: 2048m
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        # Dimensionar con la volumetría real antes de desplegar; el volumen admite expansión posterior.
+        size: 100Gi
+        deleteClaim: false
+  template:
+    pod:
+      affinity:
+        podAntiAffinity:
+          # En producción el reparto es obligatorio, no preferente: dos brokers en el mismo nodo anulan la replicación.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  strimzi.io/pool-name: broker
+              topologyKey: kubernetes.io/hostname
+---
+# Los controladores también se reparten: si los tres caen en el mismo nodo, perder ese nodo tumba el quórum y con él todo el cluster.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: controller
+  namespace: kafka
+spec:
+  template:
+    pod:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  strimzi.io/pool-name: controller
+              topologyKey: kubernetes.io/hostname

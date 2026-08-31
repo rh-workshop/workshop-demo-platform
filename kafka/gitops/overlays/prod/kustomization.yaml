@@ -1,0 +1,7 @@
+# Producción: la topología de la base (3 brokers, 3 controladores, replicación 3) con capacidad y reparto reforzados.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: capacity-patch.yaml

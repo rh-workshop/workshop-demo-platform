@@ -1,0 +1,27 @@
+# Identidad del consumidor de la aplicación de demostración.
+# Lee demo.events y aparta a la cola de descarte lo que no puede procesar; no escribe en el tópico principal.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: demo-consumer
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: demo-kafka
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: demo.events, patternType: literal }
+        operations: [Describe, Read]
+      - resource: { type: topic, name: demo.events.dlq, patternType: literal }
+        operations: [Describe, Write]
+      # El permiso sobre el grupo es lo que permite confirmar el avance del consumo (commit de offsets).
+      - resource: { type: group, name: demo-consumer-group, patternType: literal }
+        operations: [Read]
+  quotas:
+    producerByteRate: 1048576
+    consumerByteRate: 5242880
+    requestPercentage: 30
+    controllerMutationRate: 5

@@ -1,0 +1,11 @@
+# En dev prima el coste sobre la capacidad: un broker y un controlador bastan para desarrollar contra el cluster.
+# La replicación baja a 1 en consecuencia: con un solo broker no hay dónde colocar tres réplicas.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: single-node-patch.yaml
+  - path: single-replica-topics-patch.yaml
+transformers:
+  - no-cruise-control-patch.yaml

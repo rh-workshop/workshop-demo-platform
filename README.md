@@ -34,7 +34,7 @@ Los productos se dividen en dos grupos según dónde viven:
 
 | Grupo | Productos | Dónde se despliega |
 |---|---|---|
-| **Workload** | keycloak, connectivity-link, cert-manager, metallb, service-mesh | A los spokes por ambiente, vía `ApplicationSet` |
+| **Workload** | keycloak, connectivity-link, cert-manager, kafka, metallb, service-mesh | A los spokes por ambiente, vía `ApplicationSet` |
 | **Hub** | acm, quay, acs, pipelines, developer-hub | Solo al hub, vía `Application` directa |
 
 > **Por qué pipelines es hub-only.** El CI construye la imagen y la publica en
@@ -173,7 +173,7 @@ elemento nuevo. Si el conjunto es uno y fijo, el generador sobra.
 | Qué se despliega | Qué varía | Cómo se declara |
 |---|---|---|
 | Servicios del workshop | el dev añade y quita apps (y cada servicio decide en qué ambientes vive creando su overlay) | AppSets `workshop-services-<ambiente>`, generador `git`: escanean `apps/*/overlays/<ambiente>` |
-| Operadores de workload (keycloak, connectivity-link, cert-manager, metallb) | ACM añade y quita clusters | AppSet `workload-<ambiente>` (uno por ambiente: dev/test/prod/contingencia), generador `matrix(clusterDecisionResource × list)` |
+| Operadores de workload (keycloak, connectivity-link, cert-manager, kafka, metallb) | ACM añade y quita clusters | AppSet `workload-<ambiente>` (uno por ambiente: dev/test/prod/contingencia), generador `matrix(clusterDecisionResource × list)` |
 | Configuración de monitorización | va a **todos** los clusters, hub incluido | AppSet `monitoring` sobre `clusters-all`; el overlay sale de la etiqueta `environment` |
 | Operadores solo del hub (acm, quay, acs, pipelines) | **nada**: un destino conocido | Application suelta en `apps/hub/` |
 

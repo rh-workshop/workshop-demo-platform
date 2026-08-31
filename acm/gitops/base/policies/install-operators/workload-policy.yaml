@@ -44,6 +44,12 @@ spec:
                 kind: Namespace
                 metadata:
                   name: kuadrant-system
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: kafka
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
@@ -112,6 +118,25 @@ spec:
           subscription:
             name: servicemeshoperator3
             namespace: openshift-operators
+            channel: stable
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: amq-streams-operator
+        spec:
+          # Streams for Apache Kafka: el operador reconcilia los CR Kafka, KafkaTopic y KafkaUser.
+          # Va en workload porque el cluster de mensajeria vive junto a las apps que lo usan.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - amqstreams.v3.2.1-10   # pin: solo esta CSV; el upgrade se decide por PR en Git
+          subscription:
+            name: amq-streams
+            namespace: kafka
             channel: stable
             source: redhat-operators
             sourceNamespace: openshift-marketplace

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - kafka-metrics-configmap.yaml
+  - kafka-podmonitor.yaml
+  - controller-kafkanodepool.yaml
+  - broker-kafkanodepool.yaml
+  - kafka.yaml
+  - demo-events-kafkatopic.yaml
+  - demo-events-dlq-kafkatopic.yaml
+  - demo-producer-kafkauser.yaml
+  - demo-consumer-kafkauser.yaml

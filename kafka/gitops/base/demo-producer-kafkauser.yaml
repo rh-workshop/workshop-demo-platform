@@ -1,0 +1,23 @@
+# Identidad del productor de la aplicación de demostración.
+# Solo puede ESCRIBIR en demo.events: no lee ese tópico ni accede a ningún otro (mínimo privilegio).
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaUser
+metadata:
+  name: demo-producer
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: demo-kafka
+spec:
+  # El User Operator genera un Secret con el certificado de cliente para el mTLS.
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: demo.events, patternType: literal }
+        operations: [Describe, Write]
+  # Las cuotas evitan que un cliente descontrolado agote los recursos del cluster.
+  quotas:
+    producerByteRate: 2097152
+    requestPercentage: 30
+    controllerMutationRate: 5

@@ -1,0 +1,41 @@
+# Brokers dedicados: reciben y sirven los mensajes; los metadatos los llevan los controladores.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: broker
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: demo-kafka
+spec:
+  # Tres brokers es el mínimo para sostener replicación de factor 3.
+  replicas: 3
+  roles:
+    - broker
+  resources:
+    requests: { cpu: "1", memory: 2Gi }
+    limits:   { cpu: "2", memory: 3Gi }
+  # Heap fijo: Kafka rinde mejor dejando memoria al cache de página del sistema operativo.
+  jvmOptions:
+    -Xms: 1024m
+    -Xmx: 1024m
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        # Tamaño base del taller; cada overlay lo ajusta al volumen real del ambiente.
+        size: 20Gi
+        # Sin 'class': usa la StorageClass por defecto, que debe ser de BLOQUE (RWO) — Kafka no opera sobre NFS.
+        deleteClaim: false
+  template:
+    pod:
+      # Reparte los brokers entre nodos distintos para que la caída de un nodo no se lleve dos réplicas.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    strimzi.io/pool-name: broker
+                topologyKey: kubernetes.io/hostname

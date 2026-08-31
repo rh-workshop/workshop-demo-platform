@@ -1,0 +1,7 @@
+# Contingencia: misma capacidad que producción, para que asumir la carga real no exija cambios.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: capacity-patch.yaml
