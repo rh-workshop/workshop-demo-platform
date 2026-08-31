@@ -25,11 +25,14 @@ spec:
         tls: true
         authentication:
           type: tls
-      # Listener externo por Route (passthrough): portable a cloud, no exige MetalLB ni bare-metal.
-      # En bare-metal con MetalLB se cambia a type loadbalancer en el overlay del ambiente.
+      # Listener externo por balanceador (MetalLB, que la plataforma ya despliega). Una Route no
+      # sirve aquí: enruta por nombre de host sobre HTTP, y el protocolo de Kafka es binario sobre
+      # TCP. Un balanceador entrega la conexión tal cual.
+      # Consume una direccion del pool por CADA broker mas una de arranque: con un broker en
+      # desarrollo son 2. El rango se ajusta al segmento real en el IPAddressPool de la plataforma.
       - name: external
         port: 9094
-        type: route
+        type: loadbalancer
         tls: true
         authentication:
           type: tls
