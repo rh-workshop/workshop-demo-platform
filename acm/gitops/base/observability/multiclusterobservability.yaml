@@ -34,6 +34,20 @@ spec:
   # memoria del querier; con el, el historico se consulta barato.
   enableDownsampling: true
 
+  # QUE ENVIA CADA CLUSTER GESTIONADO. Es un campo OBLIGATORIO del CR: sin el, la
+  # API rechaza el objeto con "spec.observabilityAddonSpec: Required value".
+  # Configura el addon `observability-controller` que el operador instala en cada
+  # ManagedCluster y que empuja las metricas hacia el hub.
+  observabilityAddonSpec:
+    # Sin esto no llega ninguna metrica: el resto del despliegue existiria pero
+    # los paneles quedarian vacios.
+    enableMetrics: true
+    # Cada cuantos segundos empuja cada spoke. 30s es el intervalo por defecto y
+    # el equilibrio razonable: bajarlo multiplica el volumen almacenado y el
+    # trafico entre clusters sin aportar precision util para tendencias.
+    interval: 30
+
+
   # RETENCION POR RESOLUCION. Cuanto mas antigua la muestra, menos detalle se
   # conserva: el detalle fino solo es util para diagnosticar incidentes
   # recientes, mientras que el historico se usa para tendencias y capacidad.
