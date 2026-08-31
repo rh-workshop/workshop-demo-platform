@@ -1,0 +1,80 @@
+---
+# Espejado de las herramientas del CI en la organizacion <org_prefix>-tooling.
+#
+# POR QUE EXISTE: el pipeline consume semgrep/syft/gitleaks SIEMPRE desde el
+# registro propio, nunca desde Docker Hub ni ghcr.io en tiempo de build: asi el
+# CI no depende de la disponibilidad (ni de los rate limits) de un registro
+# ajeno y lo que se ejecuta es exactamente lo que se espejo y escaneo. skopeo
+# conserva el digest del manifiesto: el espejo es la MISMA imagen, no un rebuild.
+#
+# Idempotente: se pregunta por el tag EXACTO fijado en platform-vars y solo se
+# copia si falta (primer arranque o subida de version). Requiere skopeo en el
+# host que ejecuta el playbook.
+#
+# CREDENCIALES: como el resto de playbooks de Quay, del entorno, nunca de Git.
+#
+#   export QUAY_HOST=<host-de-quay>
+#   export QUAY_TOKEN=<token-oauth>
+#   ansible-playbook quay/ansible/mirror-tooling.yml
+
+- name: Espejar las herramientas del CI en Quay
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  # El "qué" (prefijo, herramientas, versiones) vive en vars/platform-vars.yml:
+  # UN solo fichero de datos para todos los playbooks; aquí solo hay iteración.
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
+  vars:
+    quay_host: "{{ lookup('env', 'QUAY_HOST') }}"
+    quay_token: "{{ lookup('env', 'QUAY_TOKEN') }}"
+    quay_api: "https://{{ quay_host }}/api/v1"
+    validate_certs: "{{ lookup('env', 'QUAY_VALIDATE_CERTS') | default(true, true) }}"
+    tooling_org: "{{ org_prefix }}-tooling"
+
+  tasks:
+    - name: Comprobar que hay credenciales
+      ansible.builtin.assert:
+        that:
+          - quay_host | length > 0
+          - quay_token | length > 0
+        fail_msg: Faltan QUAY_HOST o QUAY_TOKEN en el entorno.
+
+    # Solo se acepta 200: un 404 significa que el repositorio no existe y hay que
+    # ejecutar antes organizations.yml. Fallar aqui es deliberado: si se dejara
+    # empujar, Quay autocrearia el repositorio con otra visibilidad y otro dueño
+    # que los declarados, y esa deriva pasaria desapercibida.
+    - name: Comprobar si el tag ya esta espejado
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/repository/{{ tooling_org }}/{{ item.name }}/tag/?specificTag={{ item.tag }}&onlyActiveTags=true"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: tags_existentes
+      loop: "{{ tooling_repositories }}"
+      loop_control:
+        label: "{{ tooling_org }}/{{ item.name }}:{{ item.tag }}"
+
+    # $oauthtoken es el usuario reservado de Quay para autenticar con un token
+    # OAuth; con argv no hay shell y el literal viaja intacto. no_log porque el
+    # token va en la linea de comandos.
+    - name: Espejar la herramienta cuyo tag falte
+      ansible.builtin.command:
+        argv:
+          - skopeo
+          - copy
+          - "--dest-creds=$oauthtoken:{{ quay_token }}"
+          - "--dest-tls-verify={{ validate_certs | bool | string | lower }}"
+          - "docker://{{ item.item.source }}:{{ item.item.tag }}"
+          - "docker://{{ quay_host }}/{{ tooling_org }}/{{ item.item.name }}:{{ item.item.tag }}"
+      changed_when: true
+      when: item.json.tags | length == 0
+      loop: "{{ tags_existentes.results }}"
+      loop_control:
+        label: "{{ item.item.source }}:{{ item.item.tag }}"
+      no_log: true

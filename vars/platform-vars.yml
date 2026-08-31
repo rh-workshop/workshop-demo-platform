@@ -56,18 +56,39 @@ image_repositories:
 
 # Herramientas de CI espejadas desde upstream (excepción documentada a la norma
 # "solo Red Hat": no existe imagen Red Hat de semgrep, syft ni gitleaks). El
-# espejado es un skopeo copy puntual; el pipeline las consume SIEMPRE desde la
-# organización <org_prefix>-tooling, nunca desde Docker Hub ni ghcr.io.
+# espejado lo hace quay/ansible/mirror-tooling.yml (skopeo) con el tag fijado
+# AQUÍ: subir de versión = cambiar el tag y reejecutar, nunca editar un playbook.
+# OJO: los defaults de workshop-pipelines/gitops llevan el tag literal (Tekton
+# no lee estas vars): al subir de versión hay que cambiarlos a la vez.
+#
+# PRIVADOS a propósito aunque sean OSS: con FEATURE_ANONYMOUS_ACCESS en false
+# (criterio de banca: nada de lectura anónima en el registro) la vía auditable
+# es el robot puller de tooling — solo lectura y solo esta organización —
+# fusionado en el pull secret del CI por quay/ansible/pull-secrets.yml.
 tooling_repositories:
   - name: semgrep
     description: SAST del CI, espejo de docker.io/semgrep/semgrep
     visibility: private
+    source: docker.io/semgrep/semgrep
+    tag: "1.79.0"
   - name: syft
     description: Generador de SBOM del CI, espejo de docker.io/anchore/syft
     visibility: private
+    source: docker.io/anchore/syft
+    tag: v1.19.0
   - name: gitleaks
     description: Detector de secretos del CI, espejo de ghcr.io/gitleaks/gitleaks
     visibility: private
+    source: ghcr.io/gitleaks/gitleaks
+    tag: v8.29.1
+
+# Namespaces donde corre el CI y el ambiente con cuyo robot publican. El pull
+# secret del ServiceAccount builder (quay-pull-credentials) lo genera
+# quay/ansible/pull-secrets.yml fusionando el pusher de ESE ambiente con el
+# puller de tooling: añadir un namespace de CI = añadir una entrada aquí.
+ci_namespaces:
+  - namespace: workshop-demo-dev
+    environment: dev
 
 # Cuota y retención de la organización tooling (pocos tags, poco volumen;
 # se referencian por tag fijado: conservar largo plazo).

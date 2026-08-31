@@ -198,6 +198,26 @@
       loop_control:
         label: "{{ item.item.0.name }}+{{ item.item.1.name }}"
 
+    # La visibilidad se converge tambien sobre repos EXISTENTES: cambiar
+    # 'visibility' en platform-vars.yml debe bastar con reejecutar, sin borrar
+    # el repositorio ni tocar la consola a mano.
+    - name: Converger la visibilidad de los repositorios existentes
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/repository/{{ item.item.0.name }}/{{ item.item.1.name }}/changevisibility"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        body_format: json
+        body:
+          visibility: "{{ item.item.1.visibility }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      when: item.status == 200 and (item.json.is_public | default(false) | bool) != (item.item.1.visibility == 'public')
+      loop: "{{ repos_existentes.results }}"
+      loop_control:
+        label: "{{ item.item.0.name }}/{{ item.item.1.name }} -> {{ item.item.1.visibility }}"
+
     # Da a cada robot su permiso sobre CADA repositorio de su organizacion. Se
     # recorre (org, repo) con subelements y, dentro, se itera cada robot de esa org
     # con include_tasks. Antes se usaba repositories[0] (solo el primer repo): con

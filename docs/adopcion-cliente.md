@@ -93,15 +93,11 @@ renómbralo en esos tres sitios y en `keycloak_realm` de `vars/platform-vars.yml
 ## 6. Espeja las herramientas del CI en TU registro
 
 Única excepción a "solo Red Hat" (no existe imagen Red Hat de estas tres);
-espejo puntual con skopeo, nunca Docker Hub/ghcr.io en tiempo de build:
-
-```bash
-skopeo copy docker://docker.io/semgrep/semgrep:1.79.0     docker://<QUAY>/<prefijo>-tooling/semgrep:1.79.0
-skopeo copy docker://docker.io/anchore/syft:v1.19.0       docker://<QUAY>/<prefijo>-tooling/syft:v1.19.0
-skopeo copy docker://ghcr.io/gitleaks/gitleaks:v8.29.1    docker://<QUAY>/<prefijo>-tooling/gitleaks:v8.29.1
-```
-
-(Las versiones exactas: las de los defaults de `pipeline-ci-build-image.yaml`.)
+espejo con skopeo, nunca Docker Hub/ghcr.io en tiempo de build. Lo hace el
+bootstrap (o `quay/ansible/mirror-tooling.yml` suelto) leyendo `source` y `tag`
+de `tooling_repositories` en `vars/platform-vars.yml`: subir de versión es
+cambiar el tag ahí (y en los defaults literales de
+`pipeline-ci-build-image.yaml`, que Tekton no lee de vars) y reejecutar.
 
 ## 7. Crea los secretos (NUNCA en Git)
 
@@ -116,15 +112,25 @@ faltan. Los del CI/CD se crean a mano — recetas completas en
 5. `quay-promotion-credentials` — robot de promoción (credencial SEPARADA).
 6. `argocd-env-configmap` + `argocd-env-secret` — cuenta técnica `pipeline`.
 
+El pull secret del kubelet (`quay-pull-credentials`, ligado al ServiceAccount
+`builder` de cada namespace de CI) ya NO se crea a mano: lo siembra
+`quay/ansible/pull-secrets.yml` fusionando el robot pusher del ambiente con el
+puller de tooling (lectura, solo esa organización), consultando sus tokens a la
+API de Quay.
+
 ## 8. Arranca
 
 ```bash
 export SPOKE_DEV_TOKEN=... SPOKE_TEST_TOKEN=... SPOKE_PROD_TOKEN=... SPOKE_CONTINGENCIA_TOKEN=...
-ansible-playbook bootstrap/ansible/bootstrap.yml     # hub + import de spokes + etiquetas
+ansible-playbook bootstrap/ansible/bootstrap.yml     # hub + spokes + Quay completo (orgs, gobierno, espejos, pull secrets)
 
+# Los playbooks de Quay también corren sueltos (p. ej. tras añadir un ambiente);
+# QUAY_TOKEN sale del secreto quay-enterprise/quay-admin-token que persiste el bootstrap.
 export QUAY_HOST=... QUAY_TOKEN=...
 ansible-playbook quay/ansible/organizations.yml      # orgs/robots por ambiente
 ansible-playbook quay/ansible/governance.yml         # cuotas y retención
+ansible-playbook quay/ansible/mirror-tooling.yml     # espejo de herramientas del CI
+ansible-playbook quay/ansible/pull-secrets.yml       # pull secret del builder (pusher + tooling puller)
 
 export KEYCLOAK_HOST=... KEYCLOAK_ADMIN=... KEYCLOAK_PASSWORD=...
 ansible-playbook keycloak/ansible/clients.yml        # clients M2M

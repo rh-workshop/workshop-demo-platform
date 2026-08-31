@@ -19,6 +19,13 @@
 #      rhdh-backend-secret): su contenido nunca se versiona, y sin ellos el
 #      operador se queda bloqueado sin que Argo pueda desatascarlo. Va al final
 #      porque sus namespaces los crea Argo. Si ya existen, NO se tocan.
+#  11. Resuelve el token admin de Quay (initialize del primer usuario en el
+#      arranque en frío; queda como secreto de día-0) y encadena los playbooks
+#      de quay/ansible: organizaciones/robots, gobierno, espejado de
+#      herramientas y pull secrets del CI. La API de Quay no es Kubernetes:
+#      Argo no puede reconciliarla, así que estos seeds van aquí.
+#      Si Quay se inicializó por fuera de este playbook, exportar QUAY_TOKEN
+#      la primera vez (después queda persistido como secreto y ya no hace falta).
 #
 # Uso:
 #   1. Copiar clusters.example.yml a clusters.yml (queda fuera de Git) y poner
@@ -39,7 +46,8 @@
 # Credenciales: SIEMPRE por variables de entorno (lookup('env', ...)) o vault.
 # Ningún token ni kubeconfig se escribe en Git ni en el inventario.
 #
-# Requiere: la colección kubernetes.core y un KUBECONFIG con cluster-admin del HUB.
+# Requiere: la colección kubernetes.core, un KUBECONFIG con cluster-admin del HUB
+# y skopeo (para el espejado de herramientas del CI).
 
 - name: Bootstrap del hub — plano de control de GitOps y ACM
   hosts: localhost
@@ -47,7 +55,9 @@
   gather_facts: false
 
   # El inventario real (clusters.yml) pisa estos defaults; -e pisa a ambos.
+  # platform-vars aporta el modelo compartido (org_email_domain para el admin de Quay).
   vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
     - "{{ lookup('first_found', ['clusters.yml', 'clusters.example.yml'], errors='ignore') }}"
 
   vars:
@@ -59,6 +69,8 @@
     quay_host: "company-quay-quay-quay-enterprise.{{ base_domain }}"
     # Hostname del SSO (overlay de Keycloak del ambiente).
     keycloak_host: "sso.{{ base_domain }}"
+    # Verificación TLS hacia la ruta de Quay; en labs con cert autofirmado se exporta QUAY_VALIDATE_CERTS=false.
+    quay_validate_certs: "{{ lookup('env', 'QUAY_VALIDATE_CERTS') | default(true, true) }}"
     # StorageClass para los volúmenes persistentes; vacío = la default del cluster.
     storage_class: ""
     # Manifiestos del plano de control: los aplica este playbook, no Argo.
@@ -90,6 +102,8 @@
             SECRET_KEY: "{{ lookup('password', '/dev/null length=64 chars=hexdigits') | lower }}"
             DATABASE_SECRET_KEY: "{{ lookup('password', '/dev/null length=64 chars=hexdigits') | lower }}"
             AUTHENTICATION_TYPE: Database
+            # Sin superusuario, las APIs de gobierno (cuotas, auto-prune) devuelven 403: es el usuario que inicializa este mismo playbook.
+            SUPER_USERS: [quayadmin]
             FEATURE_USER_INITIALIZE: true
             FEATURE_USER_CREATION: false
             FEATURE_ANONYMOUS_ACCESS: false
@@ -419,3 +433,127 @@
       loop_control:
         label: "{{ item.item.namespace }}/{{ item.item.name }}"
       no_log: true
+
+    # --- 11. Token admin de Quay (huevo-gallina: su API no es Kubernetes) ---
+    # Las organizaciones, robots y cuotas de Quay viven en SU base de datos, no
+    # en el cluster: Argo no tiene nada que reconciliar, y los siembran los
+    # playbooks de quay/ansible importados al final de este fichero. Aquí solo
+    # se resuelve su credencial: en un arranque en frío no existe ningún token,
+    # así que se inicializa el primer usuario (FEATURE_USER_INITIALIZE) y el
+    # resultado se persiste como secreto de día-0, con el mismo criterio que el
+    # config bundle: se crea una vez, nunca pasa por Git y no se regenera.
+    # El tag permite reaplicar SOLO esta parte: --tags quay.
+    - name: Esperar a que la API de Quay responda (el QuayRegistry lo despliega Argo)
+      ansible.builtin.uri:
+        url: "https://{{ quay_host }}/health/instance"
+        validate_certs: "{{ quay_validate_certs }}"
+      register: quay_salud
+      until: quay_salud.status | default(0) == 200
+      retries: 90
+      delay: 10
+      tags: [quay]
+
+    - name: Comprobar si el token admin de Quay ya existe como secreto de día-0
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        name: quay-admin-token
+        namespace: quay-enterprise
+      register: quay_token_secreto
+      tags: [quay]
+
+    # La contraseña se genera como fact para poder guardarla luego: un lookup
+    # inline daría un valor distinto en cada referencia.
+    - name: Generar las credenciales del admin de Quay (solo si hay que inicializar)
+      ansible.builtin.set_fact:
+        quay_admin_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+      when: quay_token_secreto.resources | length == 0
+      no_log: true
+      tags: [quay]
+
+    # Solo funciona UNA vez (base de usuarios vacía): en reejecuciones responde
+    # 400 y el token sale del secreto o, si Quay se inicializó por fuera, de QUAY_TOKEN.
+    - name: Inicializar el usuario admin de Quay (solo en el primer arranque)
+      ansible.builtin.uri:
+        url: "https://{{ quay_host }}/api/v1/user/initialize"
+        method: POST
+        body_format: json
+        body:
+          username: quayadmin
+          password: "{{ quay_admin_password | default('') }}"
+          email: "quayadmin@{{ org_email_domain }}"
+          access_token: true
+        status_code: [200, 400]
+        validate_certs: "{{ quay_validate_certs }}"
+      register: quay_init
+      when: quay_token_secreto.resources | length == 0
+      no_log: true
+      tags: [quay]
+
+    - name: Resolver el token admin de Quay (secreto > initialize > entorno)
+      ansible.builtin.set_fact:
+        quay_token: >-
+          {{ (quay_token_secreto.resources[0].data.token | b64decode | trim)
+             if quay_token_secreto.resources | length > 0
+             else (quay_init.json.access_token | default(lookup('env', 'QUAY_TOKEN'), true)) }}
+      no_log: true
+      tags: [quay]
+
+    - name: Comprobar que hay token admin de Quay
+      ansible.builtin.assert:
+        that: quay_token | trim | length > 0
+        fail_msg: >-
+          Quay ya está inicializado pero no hay token admin: expórtalo como
+          QUAY_TOKEN (consola de Quay -> Organization -> Applications ->
+          Generate token) o crea el secreto quay-enterprise/quay-admin-token con
+          la clave token; este playbook lo persiste y no vuelve a pedirlo.
+      tags: [quay]
+
+    - name: Guardar el token admin como secreto de día-0 (si faltaba)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: quay-admin-token
+            namespace: quay-enterprise
+          stringData:
+            username: quayadmin
+            password: "{{ quay_admin_password | default('') }}"
+            token: "{{ quay_token | trim }}"
+      when: quay_token_secreto.resources | length == 0
+      no_log: true
+      tags: [quay]
+
+    # Los playbooks de quay/ansible leen QUAY_HOST/QUAY_TOKEN del entorno para su
+    # uso autónomo; publicados como facts les llegan por precedencia (los facts
+    # pisan las vars de play) sin duplicar lógica ni exportar variables.
+    - name: Publicar host, token y TLS para los playbooks de Quay importados
+      ansible.builtin.set_fact:
+        quay_host: "{{ quay_host }}"
+        quay_token: "{{ quay_token | trim }}"
+        validate_certs: "{{ quay_validate_certs }}"
+      no_log: true
+      tags: [quay]
+
+# --- 12. Día-1 de Quay: se IMPORTAN los playbooks de producto en vez de
+# duplicar sus tareas — son los mismos que se ejecutan sueltos con
+# QUAY_HOST/QUAY_TOKEN en el entorno, y aquí heredan los facts de arriba.
+# El orden importa: sin organizaciones no hay robots que consultar ni
+# repositorios a los que espejar.
+- name: Organizaciones, repositorios y robots de Quay
+  ansible.builtin.import_playbook: ../../quay/ansible/organizations.yml
+  tags: [quay]
+
+- name: Gobierno de Quay (cuotas y auto-prune)
+  ansible.builtin.import_playbook: ../../quay/ansible/governance.yml
+  tags: [quay]
+
+- name: Espejar las herramientas del CI en la organización tooling
+  ansible.builtin.import_playbook: ../../quay/ansible/mirror-tooling.yml
+  tags: [quay]
+
+- name: Sembrar los pull secrets del CI (pusher del ambiente + puller de tooling)
+  ansible.builtin.import_playbook: ../../quay/ansible/pull-secrets.yml
+  tags: [quay]
