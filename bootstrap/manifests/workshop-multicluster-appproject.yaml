@@ -92,6 +92,13 @@ spec:
   # Cada producto declara su Namespace.
   - group: ''
     kind: Namespace
+  # CR de la observabilidad multi-cluster. Es CLUSTER-SCOPED pese a vivir
+  # asociado a un namespace fijo, asi que entra por esta lista y no por la de
+  # recursos namespaced — declararlo en la otra da "is not permitted in project"
+  # sin mas pista. El Secret con las llaves del object storage NO entra: lo
+  # siembra Ansible y sigue fuera del alcance de Argo.
+  - group: observability.open-cluster-management.io
+    kind: MultiClusterObservability
   # ClusterIssuer del overlay de cert-manager.
   - group: cert-manager.io
     kind: ClusterIssuer
@@ -128,10 +135,6 @@ spec:
   # CCO acuña, y el propio CCO decide si puede resolverla.
   - group: cloudcredential.openshift.io
     kind: CredentialsRequest
-  # CR de la observabilidad multi-cluster. El Secret con las llaves del object
-  # storage NO entra: lo siembra Ansible y sigue fuera del alcance de Argo.
-  - group: observability.open-cluster-management.io
-    kind: MultiClusterObservability
   # Configuración y servicios auxiliares de los productos.
   - group: ''
     kind: ConfigMap
