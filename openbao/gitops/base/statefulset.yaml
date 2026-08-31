@@ -77,16 +77,21 @@ spec:
                   key: token
             - name: BAO_ADDR
               value: http://127.0.0.1:8200
-            # El modo dev escribe un fichero de token en el HOME al arrancar. Con
-            # la SCC restringida de OpenShift el contenedor no puede escribir en
-            # `/` y muere con "open /.vault-token.tmp: permission denied", en
-            # bucle y DESPUES de decir "vault is unsealed" — lo que despista.
-            # Se le da un HOME sobre un volumen efimero escribible.
+            # El modo dev escribe un fichero de token en el HOME al arrancar.
+            # La imagen declara HOME=/home/openbao, pero OpenShift ejecuta el
+            # contenedor con un UID ALEATORIO que no tiene ese directorio: el
+            # binario cae entonces a `/`, que es de solo lectura, y muere con
+            # "open /.vault-token.tmp: permission denied" — en bucle y DESPUES de
+            # anunciar "vault is unsealed", lo que despista al diagnosticar.
+            #
+            # No basta con reapuntar HOME por variable: el proceso resuelve el
+            # home del usuario. Hay que MONTAR algo escribible justo en la ruta
+            # que la imagen espera.
             - name: HOME
-              value: /tmp/openbao
+              value: /home/openbao
           volumeMounts:
             - name: home
-              mountPath: /tmp/openbao
+              mountPath: /home/openbao
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: [ALL]}
