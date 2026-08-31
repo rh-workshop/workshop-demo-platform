@@ -7,3 +7,12 @@ namespace: workshop-demo-dev
 
 resources:
   - ../../base
+
+# El host del registro es un dato del ENTORNO: la base deja CHANGE_ME_QUAY_HOST
+# y el overlay lo resuelve. Argo no sustituye marcadores, asi que sin esto la
+# Task recibe el literal y falla con "couldn't parse image name".
+patches:
+  - path: pipeline-ci-tooling-images.yaml
+    target:
+      kind: Pipeline
+      name: ci-build-image

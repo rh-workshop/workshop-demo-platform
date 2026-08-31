@@ -22,6 +22,10 @@ metadata:
   name: sbom-generate
 spec:
   params:
+    # Generador de SBOM espejado en el registro corporativo. Es un PARÁMETRO y no
+    # una imagen cableada: el host del registro es un dato del entorno, y el
+    # overlay de cada ambiente lo resuelve al suyo.
+    - {name: scanner-image, type: string, default: "CHANGE_ME_QUAY_HOST/company-tooling/syft:v1.19.0"}
     # Repositorio de la imagen SIN tag, p. ej. quay.example.com/company-dev/app-workshop.
     - {name: image-repository, type: string}
     # Digest resuelto por el CI (sha256:...): el SBOM se genera y se atesta SIEMPRE contra el digest, nunca contra un tag.
@@ -45,7 +49,7 @@ spec:
   steps:
     # La imagen upstream de syft es FROM scratch (sin shell): se invoca el binario directamente con args, no con script.
     - name: syft-generate
-      image: docker.io/anchore/syft:v1.19.0
+      image: $(params.scanner-image)
       securityContext:
         allowPrivilegeEscalation: false
         capabilities: {drop: [ALL]}

@@ -1,0 +1,27 @@
+# Imágenes de las herramientas del CI, resueltas al registro de ESTE entorno.
+#
+# POR QUÉ AQUÍ Y NO EN LA BASE. La base deja `CHANGE_ME_QUAY_HOST` porque el
+# host del registro es un dato del entorno, no del pipeline. El playbook de
+# bootstrap sustituye ese marcador en los manifiestos que aplica ÉL, pero estos
+# los despliega Argo CD, que no hace sustitución: el marcador llegaba literal al
+# cluster y la Task fallaba con `couldn't parse image name "CHANGE_ME_QUAY_HOST/..."`.
+#
+# El overlay es el sitio correcto para resolverlo: es exactamente su papel —el
+# "dónde" de cada ambiente, frente al "qué" de la base.
+#
+# Las tres herramientas (semgrep, gitleaks y syft) se consumen SIEMPRE desde
+# `company-tooling`, la organización espejo, nunca desde Docker Hub en tiempo de
+# build: así entran en el mismo inventario, escaneo y control de cambios que
+# cualquier otra imagen. Ver la cabecera de code-scan-task.yaml.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ci-build-image
+spec:
+  params:
+    - name: sast-scanner-image
+      default: company-quay-quay-quay-enterprise.apps.ocp.hq2ss.sandbox3270.opentlc.com/company-tooling/semgrep:1.79.0
+    - name: secret-scanner-image
+      default: company-quay-quay-quay-enterprise.apps.ocp.hq2ss.sandbox3270.opentlc.com/company-tooling/gitleaks:v8.29.1
+    - name: sbom-scanner-image
+      default: company-quay-quay-quay-enterprise.apps.ocp.hq2ss.sandbox3270.opentlc.com/company-tooling/syft:v1.19.0

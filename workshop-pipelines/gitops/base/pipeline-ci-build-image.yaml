@@ -87,6 +87,8 @@ spec:
     # Detector de secretos espejado en el registro corporativo (tercera excepción a
     # "solo Red Hat", junto a semgrep y syft): ver la cabecera de secret-scan-task.yaml.
     - {name: secret-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/gitleaks:v8.29.1"}
+    # Generador de SBOM, tambien espejado en el registro corporativo.
+    - {name: sbom-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/syft:v1.19.0"}
     # "true" por defecto: un secreto filtrado corta SIEMPRE; no admite "informar y seguir".
     - {name: secrets-fail-on-violation, default: "true"}
     # Versión base para los tags GitFlow cuando el repo NO trae fichero VERSION en la raíz.
@@ -450,6 +452,7 @@ spec:
       runAfter: [resolve-digest]
       taskRef: {name: sbom-generate}
       params:
+        - {name: scanner-image, value: $(params.sbom-scanner-image)}
         - {name: image-repository, value: $(params.image-repository)}
         - {name: image-digest, value: $(tasks.resolve-digest.results.image-digest)}
       workspaces:
