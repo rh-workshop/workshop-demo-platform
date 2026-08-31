@@ -287,9 +287,24 @@ Es la excepción, no la norma. Solo dos categorías:
   pueden reconciliarlas: la API de Quay (organizaciones, robots, cuotas,
   auto-prune), la de ACS (integraciones, política de firma), la de Keycloak
   (clientes), la de AWS (crear el bucket de S3) y `skopeo` para el espejado.
-- **Secretos de día-0 y el bootstrap.** Lo que Argo necesita para existir
-  (`Subscription` de los operadores, CR `ArgoCD`, AppProjects) y los secretos que
-  se componen consultando una API externa.
+- **Secretos de día-0 y el bootstrap.** Lo que Argo necesita para existir (CR
+  `ArgoCD`, AppProjects) y los secretos que se componen consultando una API
+  externa.
+
+  **Ansible instala EXACTAMENTE DOS operadores, y no debe instalar ninguno más:**
+  OpenShift GitOps y ACM. Son los únicos que no pueden instalarse a sí mismos —
+  sin Argo no hay quien aplique lo declarativo, y sin ACM no existe el kind
+  `OperatorPolicy` con el que se instalan los demás.
+
+  **Los otros doce los instala ACM** con `OperatorPolicy`
+  (`acm/gitops/base/policies/install-operators/`): Quay, ACS, Keycloak,
+  Connectivity Link, cert-manager, Service Mesh, Pipelines, Developer Hub, MCG,
+  AMQ Streams y el resto. Añadir un operador nuevo es añadir una entrada a esa
+  Policy — nunca al bootstrap.
+
+  El motivo de fondo: una `OperatorPolicy` alcanza los cuatro clusters de carga
+  por su `Placement` y repone la instalación si alguien la retira. El bootstrap
+  solo actúa sobre el hub y solo cuando alguien lo ejecuta.
 
 ### La prueba para decidir
 
