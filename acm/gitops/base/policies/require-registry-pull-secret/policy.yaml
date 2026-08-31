@@ -43,12 +43,16 @@ spec:
           severity: high
           # El secreto se recrea si cambia el token del robot: musthave sobre un
           # contenido distinto lo actualiza, que es lo que se quiere al rotarlo.
+          # La credencial se resuelve con un HUB TEMPLATE (el delimitador con
+          # sufijo hub): se evalua EN EL HUB antes de enviar la Policy al cluster
+          # gestionado. Es obligatorio aqui — un fromSecret normal se evaluaria
+          # EN EL SPOKE, donde el secreto de origen no existe, y la Policy
+          # quedaria NonCompliant sin poder repararse nunca.
+          #
+          # OJO: el comentario va FUERA de object-templates-raw a proposito. Si
+          # se escribe dentro, el motor de plantillas intenta interpretar los
+          # delimitadores del propio texto explicativo y falla con template-error.
           object-templates-raw: |
-            {{- /* HUB TEMPLATE ({{hub ... hub}}): se resuelve EN EL HUB antes de
-                   enviar la Policy al cluster gestionado. Es obligatorio aqui:
-                   un `fromSecret` normal se evaluaria EN EL SPOKE, donde el
-                   secreto de origen no existe, y la Policy quedaria NonCompliant
-                   sin poder repararse nunca. */ -}}
             {{- $creds := "{{hub fromSecret "workshop-demo-dev" "quay-pull-credentials" ".dockerconfigjson" hub}}" }}
             {{- range (lookup "v1" "Namespace" "" "").items }}
             {{- $ns := .metadata.name }}
