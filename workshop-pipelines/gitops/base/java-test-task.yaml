@@ -23,7 +23,7 @@ metadata:
 spec:
   params:
     # JDK soportado por Red Hat, fijado por versión (nunca "latest").
-    - {name: test-image, type: string, default: "registry.access.redhat.com/ubi9/openjdk-21:1.23"}
+    - {name: test-image, type: string, default: "registry.access.redhat.com/ubi9/openjdk-25:1.24"}
     # Subdirectorio del monorepo a probar; "." usa la raíz del repositorio.
     - {name: context, type: string, default: "."}
     # "false": si no existe NINGÚN test se informa y se continúa.
@@ -78,8 +78,15 @@ spec:
 
         # Un test en rojo corta el pipeline SIEMPRE: aquí no hay modo "informar".
         if [ -f pom.xml ]; then
-          # Se prefiere el wrapper del repo (fija la versión de Maven); si no, el de la imagen.
-          if [ -x ./mvnw ]; then MVN=./mvnw; else MVN=mvn; fi
+          # Se prefiere el wrapper del repo (fija la versión de Maven), pero solo si la imagen
+          # puede descomprimir lo que descarga: las UBI de OpenJDK traen tar y NO gzip, así que el
+          # wrapper muere con "gzip: Cannot exec" al desempaquetar su distribución de Maven.
+          if [ -x ./mvnw ] && command -v gzip >/dev/null 2>&1; then
+            MVN=./mvnw
+          else
+            MVN=mvn
+            [ -x ./mvnw ] && echo "AVISO: hay ./mvnw pero la imagen no trae gzip; se usa el mvn de la imagen."
+          fi
           "${MVN}" -B -ntp test
         elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then
           if [ ! -x ./gradlew ]; then
