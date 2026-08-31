@@ -20,3 +20,8 @@ resources:
   - policies/require-limitrange/policy.yaml
   - policies/require-limitrange/placementbinding.yaml
   - policies/require-limitrange/workload-placementbinding.yaml
+  # Replica la credencial del registro a los namespaces de negocio de cada
+  # cluster: sin ella los pods no descargan de Quay desde un spoke.
+  - policies/require-registry-pull-secret/policy.yaml
+  - policies/require-registry-pull-secret/placementbinding.yaml
+  - policies/require-registry-pull-secret/workload-placementbinding.yaml

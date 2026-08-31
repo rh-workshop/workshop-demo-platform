@@ -96,6 +96,11 @@ tooling_repositories:
 # secret del ServiceAccount builder (quay-pull-credentials) lo genera
 # quay/ansible/pull-secrets.yml fusionando el pusher de ESE ambiente con el
 # puller de tooling: añadir un namespace de CI = añadir una entrada aquí.
+#
+# SOLO el namespace donde CORRE el pipeline, en el HUB. Los namespaces donde
+# únicamente se DESPLIEGA no se listan aquí: la Policy de ACM
+# require-registry-pull-secret los descubre sola y replica la credencial a cada
+# cluster. Añadir un servicio nuevo no exige tocar este fichero.
 ci_namespaces:
   - namespace: workshop-demo-dev
     environment: dev

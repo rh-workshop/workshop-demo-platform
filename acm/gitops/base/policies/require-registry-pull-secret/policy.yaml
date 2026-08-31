@@ -1,0 +1,80 @@
+# Policy de gobierno: garantiza que TODO namespace de negocio pueda descargar
+# imagenes del registro corporativo.
+#
+# EL PROBLEMA QUE RESUELVE. Las cargas corren en el cluster de su ambiente, pero
+# Quay vive en el hub: desde un spoke es un registro EXTERNO y hace falta
+# credencial. Sin ella el pod queda en ImagePullBackOff y la Application aparece
+# Degraded sin causa evidente en la UI de Argo. Sembrarlo con un playbook obliga
+# a reejecutarlo por cada cluster y cada namespace nuevo; una Policy en enforce
+# lo mantiene presente de forma CONTINUA y lo repone si alguien lo borra.
+#
+# POR QUE ACM Y NO ARGO. El secreto lleva el token del robot de Quay y no puede
+# versionarse en Git — que es de donde Argo saca todo. ACM sí puede: `fromSecret`
+# LEE el valor del secreto que vive en el hub y lo copia al cluster destino, sin
+# que el contenido pase nunca por el repositorio.
+#
+# DE DONDE SALE EL ORIGEN. `quay-pull-credentials` en el namespace de CI del hub
+# lo crea quay/ansible/pull-secrets.yml a partir de los robots de Quay (pusher
+# del ambiente + puller de tooling). Esta Policy solo lo PROPAGA: la fuente de
+# verdad sigue siendo el playbook, que es quien habla con la API del registro.
+#
+# object-templates-raw en vez de namespaceSelector: mismo motivo que
+# require-limitrange — cero namespaces coincidentes debe ser Compliant, para que
+# la Policy se extienda a cualquier spoke sin generar ruido de incumplimiento.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-registry-pull-secret
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: require-registry-pull-secret-config
+        spec:
+          remediationAction: enforce
+          severity: high
+          # El secreto se recrea si cambia el token del robot: musthave sobre un
+          # contenido distinto lo actualiza, que es lo que se quiere al rotarlo.
+          object-templates-raw: |
+            {{- /* HUB TEMPLATE ({{hub ... hub}}): se resuelve EN EL HUB antes de
+                   enviar la Policy al cluster gestionado. Es obligatorio aqui:
+                   un `fromSecret` normal se evaluaria EN EL SPOKE, donde el
+                   secreto de origen no existe, y la Policy quedaria NonCompliant
+                   sin poder repararse nunca. */ -}}
+            {{- $creds := "{{hub fromSecret "workshop-demo-dev" "quay-pull-credentials" ".dockerconfigjson" hub}}" }}
+            {{- range (lookup "v1" "Namespace" "" "").items }}
+            {{- $ns := .metadata.name }}
+            {{- /* Mismos namespaces de negocio que require-limitrange y require-resourcequota. */ -}}
+            {{- if and (or (hasPrefix "user" $ns) (hasSuffix "-demo-dev" $ns) (hasPrefix "workshop-demo-" $ns)) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                type: kubernetes.io/dockerconfigjson
+                metadata:
+                  name: quay-pull-credentials
+                  namespace: {{ $ns }}
+                data:
+                  .dockerconfigjson: {{ $creds }}
+            {{- /* El Secret no basta: hay que ENLAZARLO al ServiceAccount que
+                   descarga. `default` ejecuta los pods de la aplicacion y
+                   `builder` las TaskRun del pipeline; ambos lo necesitan. */ -}}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: default
+                  namespace: {{ $ns }}
+                imagePullSecrets:
+                  - name: quay-pull-credentials
+            {{- end }}
+            {{- end }}

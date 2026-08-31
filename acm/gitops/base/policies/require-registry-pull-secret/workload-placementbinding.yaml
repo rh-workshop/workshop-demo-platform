@@ -1,0 +1,25 @@
+# Extiende la Policy a los clusters de carga (dev, test, prod, contingencia).
+#
+# Es el binding que de verdad importa: ahi es donde Quay es un registro EXTERNO
+# y sin credencial los pods quedan en ImagePullBackOff. `fromSecret` lee el
+# secreto de origen en el hub y la Policy lo materializa en cada spoke, sin que
+# el token viaje por Git ni haya que ejecutar nada por cluster.
+#
+# Compliant en un spoke sin namespaces de negocio: el rango del template queda
+# vacio y no genera ruido de incumplimiento.
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-registry-pull-secret-workload-binding
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-workload
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: require-registry-pull-secret
