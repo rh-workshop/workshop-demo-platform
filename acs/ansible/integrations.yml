@@ -224,6 +224,44 @@
         label: "{{ item.nombre }}"
       tags: [firma]
 
+    # Si estos CR los aplicaba Argo antes, conservan su tracking-id: con el, la
+    # Application queda OutOfSync perpetua ("requires pruning") y, peor, el
+    # selfHeal revertiria el ID inyectado al literal viejo de Git. Retirar el
+    # tracking los convierte en huerfanos que Argo ignora. Solo si esta presente:
+    # asi la reejecucion no reporta cambios.
+    - name: Consultar el tracking de Argo en los CR de firma
+      kubernetes.core.k8s_info:
+        api_version: config.stackrox.io/v1alpha1
+        kind: SecurityPolicy
+        name: "{{ item.file | basename | regex_replace('-securitypolicy\\.yaml$', '') }}"
+        namespace: stackrox
+      register: crs_firma
+      loop: "{{ politicas_firma }}"
+      loop_control:
+        label: "{{ item.nombre }}"
+      tags: [firma]
+
+    - name: Retirar el tracking de Argo de los CR de firma adoptados
+      kubernetes.core.k8s:
+        state: patched
+        api_version: config.stackrox.io/v1alpha1
+        kind: SecurityPolicy
+        name: "{{ item.resources[0].metadata.name }}"
+        namespace: stackrox
+        definition:
+          metadata:
+            annotations:
+              argocd.argoproj.io/tracking-id: null
+              argocd.argoproj.io/sync-options: null
+              kubectl.kubernetes.io/last-applied-configuration: null
+      when: >-
+        item.resources | default([]) | length > 0 and
+        'argocd.argoproj.io/tracking-id' in (item.resources[0].metadata.annotations | default({}))
+      loop: "{{ crs_firma.results }}"
+      loop_control:
+        label: "{{ item.item.nombre }}"
+      tags: [firma]
+
     # VERIFICACION, no cortesia: el defecto que motivo este bloque era una
     # politica que "existia" apuntando a un ID de otra instalacion. Se espera a
     # que Central refleje el CR y luego se comprueba el criterio de verdad.
