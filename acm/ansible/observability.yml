@@ -33,8 +33,15 @@
   vars:
     # El namespace NO es elegible: el operador solo reconcilia el CR aqui.
     observability_namespace: open-cluster-management-observability
-    # Nombre que referencia el MultiClusterObservability en storageConfig.
+    # Nombre del Secret que referencia el MultiClusterObservability en
+    # storageConfig. NO lo crea este playbook: lo materializa el ExternalSecret.
     thanos_secret: thanos-object-storage
+    # Almacen de secretos: donde se deposita la conexion y de donde la lee ESO.
+    vault_namespace: openbao
+    vault_token_secret: openbao-dev-token
+    # Ruta dentro del almacen. Debe coincidir con el `remoteRef.key` del
+    # ExternalSecret, o este no encuentra nada que entregar.
+    vault_path: platform/observability
 
   tasks:
     # El nombre del bucket es global en S3: derivarlo del identificador de
@@ -111,44 +118,70 @@
 
     # El namespace lo crea Argo con la Application de acm: se espera en vez de
     # crearlo aqui para no disputarle la propiedad del objeto.
-    - name: Esperar al namespace de la observabilidad
+    # El almacen lo despliega Argo (openbao/gitops): se espera a que este listo
+    # en vez de crearlo aqui, para no disputarle la propiedad del objeto.
+    - name: Esperar a que el almacen de secretos responda
       kubernetes.core.k8s_info:
         api_version: v1
-        kind: Namespace
-        name: "{{ observability_namespace }}"
-      register: obs_ns
-      until: obs_ns.resources | default([]) | length > 0
+        kind: Pod
+        namespace: "{{ vault_namespace }}"
+        label_selectors:
+          - app.kubernetes.io/name=openbao
+        field_selectors:
+          - status.phase=Running
+      register: bao_pod
+      until: >-
+        bao_pod.resources | length > 0 and
+        (bao_pod.resources[0].status.containerStatuses | default([{}]))[0].ready | default(false)
       retries: 30
       delay: 10
 
+    - name: Recuperar el token del almacen
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ vault_namespace }}"
+        name: "{{ vault_token_secret }}"
+      register: token_info
+      no_log: true
+
+    - name: Comprobar que el almacen esta inicializado
+      ansible.builtin.assert:
+        that: token_info.resources | length > 0
+        fail_msg: >-
+          No existe {{ vault_namespace }}/{{ vault_token_secret }}. Ejecuta antes
+          openbao/ansible/bootstrap.yml, que arranca el almacen y genera su token.
+
+    # SE DEPOSITA EN EL ALMACEN, NO EN EL CLUSTER. Antes esta tarea escribia el
+    # Secret directamente; ahora quien lo materializa es el ExternalSecret que
+    # gobierna Argo (acm/gitops/base/observability/externalsecret-thanos.yaml).
+    # Escribir aqui ademas dejaria DOS duenos sobre el mismo objeto, peleandose
+    # en cada reconciliacion.
+    #
     # Formato que espera Thanos: un YAML con el tipo de backend y su config.
-    - name: Sembrar la conexion al object storage
-      kubernetes.core.k8s:
-        state: present
-        apply: true
-        server_side_apply:
-          field_manager: bootstrap-ansible
-          force_conflicts: true
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: "{{ thanos_secret }}"
-            namespace: "{{ observability_namespace }}"
-          stringData:
-            thanos.yaml: |
-              type: s3
-              config:
-                bucket: {{ obs_bucket }}
-                endpoint: s3.{{ obs_region }}.amazonaws.com
-                access_key: {{ s3_access_key }}
-                secret_key: {{ s3_secret_key }}
+    - name: Depositar la conexion al object storage en el almacen
+      kubernetes.core.k8s_exec:
+        namespace: "{{ vault_namespace }}"
+        pod: "{{ bao_pod.resources[0].metadata.name }}"
+        command: >-
+          env BAO_TOKEN={{ token_info.resources[0].data.token | b64decode }}
+          BAO_ADDR=http://127.0.0.1:8200
+          bao kv put -mount=secret {{ vault_path }}
+          thanos.yaml={{ conexion_thanos | quote }}
+      vars:
+        conexion_thanos: |
+          type: s3
+          config:
+            bucket: {{ obs_bucket }}
+            endpoint: s3.{{ obs_region }}.amazonaws.com
+            access_key: {{ s3_access_key }}
+            secret_key: {{ s3_secret_key }}
       no_log: true
 
     - name: Informar del backend configurado
       ansible.builtin.debug:
         msg: >-
           Observabilidad apuntando a s3://{{ obs_bucket }} ({{ obs_region }}).
-          Argo despliega el MultiClusterObservability, que referencia el secreto
-          {{ thanos_secret }}; el operador levanta Thanos y habilita el addon de
-          metricas en cada ManagedCluster.
+          La conexion queda en el almacen bajo {{ vault_path }}; el ExternalSecret
+          que gobierna Argo la materializa como Secret `{{ thanos_secret }}`, que
+          es el que referencia el MultiClusterObservability.

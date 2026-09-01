@@ -91,42 +91,14 @@
         bao_pod_name: "{{ bao_pod.resources[0].metadata.name }}"
       no_log: true
 
-    # LOS VALORES SE MIGRAN, NO SE INVENTAN. Se leen de los Secret que ya existen
-    # en el cluster —los que hoy siembran los playbooks de producto— y se
-    # depositan en el almacen. Asi la migracion no exige regenerar credenciales
-    # ni volver a pedirselas a la API de Quay o de AWS.
-    - name: Leer el secreto que se migra al almacen
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Secret
-        namespace: open-cluster-management-observability
-        name: thanos-object-storage
-      register: origen_obs
-      no_log: true
-
-    # Se escribe DENTRO del pod: el Service no se expone fuera del cluster a
-    # proposito, asi que no hay endpoint al que llamar desde aqui.
-    # `bao kv put` es idempotente: reescribir el mismo valor crea una version
-    # nueva en el historial de KV v2, no un error.
-    - name: Depositar la conexion del object storage en el almacen
-      kubernetes.core.k8s_exec:
-        namespace: "{{ openbao_namespace }}"
-        pod: "{{ bao_pod_name }}"
-        command: >-
-          env BAO_TOKEN={{ bao_token }} BAO_ADDR=http://127.0.0.1:8200
-          bao kv put -mount=secret platform/observability
-          thanos.yaml={{ (origen_obs.resources[0].data['thanos.yaml'] | b64decode) | quote }}
-      when: origen_obs.resources | length > 0
-      no_log: true
-
-    - name: Avisar si no habia nada que migrar
-      ansible.builtin.debug:
-        msg: >-
-          No existe el secreto thanos-object-storage: ejecuta antes
-          acm/ansible/observability.yml, que lo compone a partir de las
-          credenciales del object storage.
-      when: origen_obs.resources | length == 0
-
+    # AQUI NO SE CARGA NINGUN SECRETO, y es deliberado: cada playbook de producto
+    # deposita LO SUYO en el almacen, porque es quien sabe componer ese valor
+    # (acm/ansible/observability.yml consulta las credenciales del object storage,
+    # los de quay/ansible/ hablan con la API del registro). Centralizar la carga
+    # aqui obligaria a este playbook a conocer todos los productos, y a
+    # reejecutarlo entero para actualizar uno solo.
+    #
+    # Lo unico que hace este playbook es dejar el almacen LISTO para recibirlos.
     - name: Informar del estado del almacen
       ansible.builtin.debug:
         msg: >-

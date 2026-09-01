@@ -550,6 +550,13 @@
 # El orden importa: sin organizaciones no hay robots que consultar ni
 # repositorios a los que espejar.
 
+# El ALMACÉN DE SECRETOS va antes que todo lo que deposita en él: genera su
+# token y espera a que responda. El StatefulSet lo despliega Argo; esto solo lo
+# deja listo para recibir valores.
+- name: Almacén de secretos (token de acceso)
+  ansible.builtin.import_playbook: ../../openbao/ansible/bootstrap.yml
+  tags: [openbao, secrets]
+
 # El almacenamiento va PRIMERO: con quay_storage_backend=s3 el operador no
 # gestiona el object storage, y hasta que la conexión al bucket no está en el
 # config bundle el registro no sirve pushes — ni habría API a la que pedirle
