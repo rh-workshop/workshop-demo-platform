@@ -1,9 +1,0 @@
-# ESO en un cluster de CARGA: consume el almacen del hub, no despliega uno propio.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - namespace.yaml
-  - externalsecretsconfig.yaml
-  # El operador corta todo su egress: sin esta regla no alcanza el almacen del hub.
-  - networkpolicy-eso-egress.yaml
-  - clustersecretstore.yaml
