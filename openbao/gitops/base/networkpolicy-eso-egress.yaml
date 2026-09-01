@@ -31,3 +31,21 @@ spec:
       ports:
         - protocol: TCP
           port: 8200
+    # DNS, sin lo cual no hay salida posible: el controlador resuelve el nombre
+    # del Service antes de conectar. El operador ya abre DNS en su propia
+    # politica, pero las reglas de egress se evaluan por POLITICA: si esta solo
+    # listara el puerto 8200, la resolucion fallaria igual y el sintoma seria un
+    # timeout de red indistinguible de un almacen caido.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 5353
+        - protocol: TCP
+          port: 5353
