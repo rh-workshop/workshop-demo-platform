@@ -66,11 +66,28 @@ spec:
       # puede replicar un mensaje que el líder sí aceptó.
       message.max.bytes: 2500000
       replica.fetch.max.bytes: 2500000
+  # Limites explicitos, no {}: sin limite de memoria el operador arranca la JVM SIN -Xmx y el
+  # heap crece sin tope -- medido en dev, llegaba a ~2 GB. Los valores son los que Red Hat
+  # publica como referencia para estos dos contenedores.
   entityOperator:
-    topicOperator: {}
-    userOperator: {}
+    topicOperator:
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits:   { cpu: 500m, memory: 512Mi }
+    userOperator:
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits:   { cpu: 500m, memory: 512Mi }
   # Cruise Control permite rebalancear particiones entre brokers sin parar el servicio.
   cruiseControl:
+    # Es una JVM y sin limite su heap tampoco tiene tope. El heap se fija a la mitad del
+    # limite para dejar margen al resto del proceso.
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits:   { cpu: "1", memory: 1Gi }
+    jvmOptions:
+      -Xms: 512m
+      -Xmx: 512m
     metricsConfig:
       type: jmxPrometheusExporter
       valueFrom:
@@ -79,5 +96,10 @@ spec:
           key: cruise-control-metrics-config.yml
   # Exporta el retraso (lag) de los grupos de consumo: la señal que más alerta en operación.
   kafkaExporter:
+    # No es una JVM: solo lee metricas y las expone, asi que con poco basta. Lleva limites
+    # porque la recomendacion oficial es declararlos en TODOS los contenedores.
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 200m, memory: 256Mi }
     topicRegex: ".*"
     groupRegex: ".*"

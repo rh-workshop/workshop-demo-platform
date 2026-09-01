@@ -5,9 +5,17 @@ metadata:
   name: broker
   namespace: kafka
 spec:
+  # Memoria RESERVADA igual al limite: es lo que Red Hat pide para brokers. Con request menor
+  # que el limite, la diferencia no queda apartada y el nodo bajo presion puede terminar el
+  # proceso justo cuando mas trafico hay.
+  #
+  # CPU sin limite, tambien por recomendacion oficial: el broker aprovecha la CPU sobrante del
+  # nodo en los picos en vez de quedar estrangulado en el tope.
   resources:
-    requests: { cpu: "2", memory: 4Gi }
-    limits:   { cpu: "4", memory: 6Gi }
+    requests: { cpu: "2", memory: 6Gi }
+    limits:   { memory: 6Gi }
+  # Heap a un tercio del contenedor: el resto es cache de pagina del sistema, de la que Kafka
+  # depende para servir lecturas sin tocar disco.
   jvmOptions:
     -Xms: 2048m
     -Xmx: 2048m
@@ -37,6 +45,15 @@ metadata:
   name: controller
   namespace: kafka
 spec:
+  # El controlador guarda TODOS los metadatos del cluster en memoria y en disco, y Apache
+  # considera 5 GB lo adecuado para un cluster tipico. Los valores del base son la referencia
+  # de desarrollo de Red Hat; en produccion se suben, y crecen con el numero de particiones.
+  resources:
+    requests: { cpu: "1", memory: 5Gi }
+    limits:   { memory: 5Gi }
+  jvmOptions:
+    -Xms: 2048m
+    -Xmx: 2048m
   template:
     pod:
       affinity:

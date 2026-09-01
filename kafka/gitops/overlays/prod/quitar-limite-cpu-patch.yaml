@@ -1,0 +1,9 @@
+# Elimina el limite de CPU que el base declara para los brokers.
+#
+# Hace falta un parche JSON y no uno estrategico: el estrategico FUSIONA mapas, asi que el
+# `cpu` del base sobrevivia aunque el overlay no lo declarara. Solo `remove` lo quita.
+#
+# POR QUE SE QUITA. Red Hat recomienda para brokers peticion de CPU sin limite: asi el broker
+# aprovecha la CPU libre del nodo en los picos en vez de quedar estrangulado en su tope.
+- op: remove
+  path: /spec/resources/limits/cpu
