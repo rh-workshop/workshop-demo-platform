@@ -21,7 +21,6 @@ policyDefaults:
       - "*-demo-test"
       - "*-demo-prod"
       - "*-demo-contingencia"
-      - "user*"
       # Previews de PR (efimeros, en el hub): tambien deben nacer aislados.
       - "demo-service-pr-*"
     exclude:
@@ -52,7 +51,6 @@ policies:
         - "*-demo-test"
         - "*-demo-prod"
         - "*-demo-contingencia"
-        - "user*"
       exclude:
         - "openshift-*"
         - "kube-*"

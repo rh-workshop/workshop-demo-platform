@@ -39,7 +39,7 @@ spec:
           {{- /* Namespaces de NEGOCIO: user* y los *-demo-dev; nunca los de sistema. */ -}}
           {{- range (lookup "v1" "Namespace" "" "").items }}
           {{- $ns := .metadata.name }}
-          {{- if and (or (hasPrefix "user" $ns) (hasSuffix "-demo-dev" $ns) (hasSuffix "-demo-test" $ns) (hasSuffix "-demo-prod" $ns) (hasSuffix "-demo-contingencia" $ns)) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
+          {{- if and (or (hasSuffix "-demo-dev" $ns) (hasSuffix "-demo-test" $ns) (hasSuffix "-demo-prod" $ns) (hasSuffix "-demo-contingencia" $ns)) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
           - complianceType: musthave
             objectDefinition:
               apiVersion: v1
@@ -63,40 +63,5 @@ spec:
                   # sin causa aparente.
                   limits.cpu: '24'
                   limits.memory: 24Gi
-          {{- end }}
-          {{- end }}
-  # La cuota EFECTIVA de los alumnos es workshop-quota (mas restrictiva que
-  # platform-quota): antes no la vigilaba ninguna Policy y un valor alterado a
-  # mano quedaba invisible. musthave con los valores completos: enforce repara
-  # el drift y la crea en cualquier user* nuevo.
-  - objectDefinition:
-      apiVersion: policy.open-cluster-management.io/v1
-      kind: ConfigurationPolicy
-      metadata:
-        name: require-workshop-quota-config
-      spec:
-        remediationAction: enforce
-        severity: low
-        object-templates-raw: |
-          {{- /* Solo los namespaces de alumno user*. */ -}}
-          {{- range (lookup "v1" "Namespace" "" "").items }}
-          {{- $ns := .metadata.name }}
-          {{- if hasPrefix "user" $ns }}
-          - complianceType: musthave
-            objectDefinition:
-              apiVersion: v1
-              kind: ResourceQuota
-              metadata:
-                name: workshop-quota
-                namespace: {{ $ns }}
-              spec:
-                hard:
-                  requests.cpu: '2'
-                  requests.memory: 4Gi
-                  limits.cpu: '4'
-                  limits.memory: 8Gi
-                  pods: '20'
-                  persistentvolumeclaims: '4'
-                  requests.storage: 8Gi
           {{- end }}
           {{- end }}

@@ -38,7 +38,7 @@ spec:
           {{- /* Mismo conjunto de namespaces de negocio que require-resourcequota. */ -}}
           {{- range (lookup "v1" "Namespace" "" "").items }}
           {{- $ns := .metadata.name }}
-          {{- if and (or (hasPrefix "user" $ns) (hasSuffix "-demo-dev" $ns) (hasSuffix "-demo-test" $ns) (hasSuffix "-demo-prod" $ns) (hasSuffix "-demo-contingencia" $ns)) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
+          {{- if and (or (hasSuffix "-demo-dev" $ns) (hasSuffix "-demo-test" $ns) (hasSuffix "-demo-prod" $ns) (hasSuffix "-demo-contingencia" $ns)) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
           - complianceType: musthave
             objectDefinition:
               apiVersion: v1
