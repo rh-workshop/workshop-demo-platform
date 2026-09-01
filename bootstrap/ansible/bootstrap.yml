@@ -469,6 +469,38 @@
       register: quay_token_secreto
       tags: [quay]
 
+    # EXISTIR NO ES SERVIR. El token de Quay caduca, y el playbook solo miraba si el
+    # secreto estaba presente: con un token vencido seguia adelante y cada tarea posterior
+    # fallaba con un 401 sin decir por que. Aqui se comprueba de verdad contra la API.
+    - name: Comprobar que el token admin de Quay sigue siendo valido
+      ansible.builtin.uri:
+        url: "https://{{ quay_host }}/api/v1/user/"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token_secreto.resources[0].data.token | b64decode }}"
+        validate_certs: "{{ validate_certs | default(true) | bool }}"
+        status_code: [200, 401, 403]
+      register: quay_token_check
+      when: quay_token_secreto.resources | length > 0
+      failed_when: false
+      no_log: true
+      tags: [quay]
+
+    - name: Avisar si el token admin de Quay ha caducado
+      ansible.builtin.fail:
+        msg: >-
+          El secreto quay-admin-token existe pero la API lo rechaza
+          (HTTP {{ quay_token_check.status }}). Sin el no se pueden crear organizaciones,
+          robots ni credenciales de descarga. Genera uno nuevo en la consola de Quay
+          (organizacion -> Applications -> Create new application -> Generate token) y
+          reemplaza el secreto con:
+            oc create secret generic quay-admin-token -n quay-enterprise
+            --from-literal=token=<nuevo> --dry-run=client -o yaml | oc apply -f -
+      when:
+        - quay_token_secreto.resources | length > 0
+        - quay_token_check.status | default(200) != 200
+      tags: [quay]
+
     # La contraseña se genera como fact para poder guardarla luego: un lookup
     # inline daría un valor distinto en cada referencia.
     - name: Generar las credenciales del admin de Quay (solo si hay que inicializar)

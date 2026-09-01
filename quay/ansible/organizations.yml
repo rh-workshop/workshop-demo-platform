@@ -118,6 +118,28 @@
           Faltan QUAY_HOST o QUAY_TOKEN en el entorno. Exportalos antes de
           ejecutar; nunca los escribas en este fichero.
 
+    # EXISTIR NO ES SERVIR: el token de Quay caduca. Sin esta comprobacion, un token
+    # vencido hacia fallar cada tarea con un 401 suelto, sin decir cual era la causa.
+    - name: Comprobar que el token de Quay sigue siendo valido
+      ansible.builtin.uri:
+        url: "{{ quay_api }}/user/"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ quay_token }}"
+        validate_certs: "{{ validate_certs | bool }}"
+        status_code: [200, 401, 403]
+      register: token_check
+      failed_when: false
+      no_log: true
+
+    - name: Avisar si el token de Quay ha caducado
+      ansible.builtin.fail:
+        msg: >-
+          Quay rechaza el token (HTTP {{ token_check.status }}). Genera uno nuevo en la
+          consola (organizacion -> Applications -> Create new application -> Generate
+          token) y exportalo en QUAY_TOKEN.
+      when: token_check.status != 200
+
     # Se consulta antes de crear en lugar de aceptar el 400 de "ya existe": así el
     # playbook informa de lo que cambia de verdad, y un 400 por payload inválido
     # (nombre ilegal, email duplicado) falla en vez de pasar desapercibido.
