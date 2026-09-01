@@ -62,6 +62,23 @@ spec:
         # no aporta nada. Los spokes sí van por ahí, que es su único camino.
         server: '{{ if eq .name "local-cluster" }}https://kubernetes.default.svc{{ else }}{{ .server }}{{ end }}'
         namespace: openshift-monitoring
+      # DRIFT QUE INTRODUCE LA OBSERVABILIDAD DE ACM. Su addon
+      # (`endpoint-monitoring-operator`) escribe en el MISMO ConfigMap para
+      # apuntar el Alertmanager del cluster al hub y activar colectores de nodo.
+      # Argo ve esas lineas como deriva y la Application queda OutOfSync a
+      # perpetuidad, aunque el sync termine bien y la config sea correcta.
+      #
+      # Se ignora POR MANAGER, no por campo: ambos escriben dentro de la misma
+      # clave `config.yaml`, asi que no hay una ruta que separar — lo que las
+      # distingue es QUIEN las escribio. Lo que gestiona Argo se sigue
+      # reconciliando; solo se respeta lo que anade el addon.
+      ignoreDifferences:
+        - group: ""
+          kind: ConfigMap
+          name: cluster-monitoring-config
+          namespace: openshift-monitoring
+          managedFieldsManagers:
+            - endpoint-monitoring-operator
       syncPolicy:
         retry:
           # Arranque en frio: los CRDs (Kuadrant, producto) los instala ACM por su
