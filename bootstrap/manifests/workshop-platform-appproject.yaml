@@ -94,6 +94,9 @@ spec:
       kind: KafkaTopic
     - group: kafka.strimzi.io
       kind: KafkaUser
+    # La llave de cifrado llega del almacen corporativo, no se crea a mano en el cluster.
+    - group: external-secrets.io
+      kind: ExternalSecret
     # Núcleo de un microservicio: workload, servicio y su configuración.
     - group: ""
       kind: Service

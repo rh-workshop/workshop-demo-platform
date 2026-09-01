@@ -1,0 +1,7 @@
+# ESO en un cluster de CARGA: consume el almacen del hub, no despliega uno propio.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - externalsecretsconfig.yaml
+  - clustersecretstore.yaml

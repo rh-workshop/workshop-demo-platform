@@ -13,6 +13,8 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - service.yaml
+  # Entrada desde los clusters de carga: sus ExternalSecret viven fuera de este cluster.
+  - route.yaml
   # El operador de ESO corta todo su egress: sin estas reglas no alcanza el almacen.
   - networkpolicy.yaml
   - networkpolicy-eso-egress.yaml

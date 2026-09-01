@@ -1,0 +1,7 @@
+# Namespace que aloja el token del almacen. No corre nada aqui: el almacen vive en el hub.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbao
+  labels:
+    app.kubernetes.io/name: openbao
