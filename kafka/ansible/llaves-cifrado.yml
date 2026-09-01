@@ -10,6 +10,12 @@
 # ExternalSecret que gobierna Argo. Escribirlo aqui ademas dejaria DOS duenos sobre el
 # mismo objeto, peleandose en cada reconciliacion.
 #
+# POR QUE NO ES ARGO NI UNA POLICY. Argo sincroniza lo que esta en Git, y una llave de
+# cifrado no puede estar en Git. Una Policy de ACM tampoco sirve: sabe COPIAR un secreto
+# del hub, no GENERARLO. Alguien tiene que crear el material aleatorio una primera vez, y
+# ese es el unico papel de este playbook. A partir de ahi todo el reparto es declarativo:
+# el almacen -> ExternalSecret -> Secret en cada cluster.
+#
 # IDEMPOTENTE. Si una llave ya existe NO se regenera: rehacerla dejaria indescifrable todo
 # lo ya publicado en ese ambiente. Para rotarla de forma deliberada, ver la nota del final.
 #
