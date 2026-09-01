@@ -1,0 +1,67 @@
+# Guardrail de flota: un Kustomize solo alcanza los namespaces que alguien
+# enumeró; la Policy alcanza también los que se creen después.
+apiVersion: policy.open-cluster-management.io/v1
+kind: PolicyGenerator
+metadata:
+  name: require-namespace-isolation
+placementBindingDefaults:
+  name: require-namespace-isolation-binding
+policyDefaults:
+  # Namespace del HUB donde vive la Policy, no el destino de los manifiestos.
+  namespace: open-cluster-management
+  # enforce: si alguien borra una NetworkPolicy en un spoke, ACM la repone.
+  remediationAction: enforce
+  severity: high
+  policyAnnotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  namespaceSelector:
+    include:
+      - "*-demo-dev"
+      - "*-demo-test"
+      - "*-demo-prod"
+      - "*-demo-contingencia"
+      - "user*"
+      # Previews de PR (efimeros, en el hub): tambien deben nacer aislados.
+      - "demo-service-pr-*"
+    exclude:
+      # Un default-deny sobre los namespaces de sistema deja el cluster sin plano de control.
+      - "openshift-*"
+      - "kube-*"
+      - "default"
+      - "open-cluster-management*"
+  # Referencia el Placement de los 4 ambientes por nombre: con placementPath el
+  # generador lo reemitiria y colisionaria con el que ya declara `resources`.
+  # El hub va en hub-placementbinding.yaml (el generador solo emite un binding).
+  placement:
+    placementName: clusters-workload
+policies:
+  # Aislamiento de red: alcanza TODOS los namespaces de negocio, sin excepción.
+  - name: require-namespace-isolation
+    manifests:
+      - path: policies/require-namespace-isolation/manifests/allow-same-namespace-networkpolicy.yaml
+      - path: policies/require-namespace-isolation/manifests/allow-from-platform-gateway-networkpolicy.yaml
+      - path: policies/require-namespace-isolation/manifests/allow-from-monitoring-networkpolicy.yaml
+      - path: policies/require-namespace-isolation/manifests/allow-from-openshift-ingress-networkpolicy.yaml
+  # RBAC por grupo. Va aparte del aislamiento para poder excluir un namespace del
+  # `edit` sin dejarlo tambien sin NetworkPolicies.
+  - name: require-namespace-rbac
+    namespaceSelector:
+      include:
+        - "*-demo-dev"
+        - "*-demo-test"
+        - "*-demo-prod"
+        - "*-demo-contingencia"
+        - "user*"
+      exclude:
+        - "openshift-*"
+        - "kube-*"
+        - "default"
+        - "open-cluster-management*"
+        # Aqui viven los Secrets del CI: namespace-governance le da un Role sin
+        # acceso a ellos, y el `edit` de este perfil lo desharia.
+        - "workshop-demo-dev"
+    manifests:
+      - path: policies/require-namespace-isolation/manifests/platform-admins-rolebinding.yaml
+      - path: policies/require-namespace-isolation/manifests/app-developers-rolebinding.yaml
+      - path: policies/require-namespace-isolation/manifests/platform-viewers-rolebinding.yaml

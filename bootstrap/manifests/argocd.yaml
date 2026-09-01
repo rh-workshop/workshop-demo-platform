@@ -12,6 +12,9 @@ metadata:
   name: openshift-gitops
   namespace: openshift-gitops
 spec:
+  # Exigido por el Policy Generator de ACM: sin el flag, Kustomize ignora el bloque
+  # `generators:` y la app sincroniza de menos SIN error.
+  kustomizeBuildOptions: --enable-alpha-plugins
   # Servidor API/UI: el límite por defecto (256Mi) causaba OOMKilled con ~180Mi de uso real; se duplica a 512Mi.
   server:
     resources:
@@ -37,6 +40,28 @@ spec:
       requests:
         cpu: 250m
         memory: 3Gi
+  # El binario del Policy Generator no viene en la imagen de OpenShift GitOps: se
+  # copia desde la de ACM. El tag debe seguir a la versión de ACM del hub.
+  repo:
+    env:
+      - name: KUSTOMIZE_PLUGIN_HOME
+        value: /etc/kustomize/plugin
+    initContainers:
+      - name: policy-generator-install
+        image: registry.redhat.io/rhacm2/multicluster-operators-subscription-rhel9:v2.17
+        command: [/bin/bash, -c]
+        # Debe copiarse como 'PolicyGenerator': Kustomize localiza el plugin por el nombre del kind.
+        args: [cp /policy-generator/PolicyGenerator-not-fips-compliant /policy-generator-tmp/PolicyGenerator]
+        volumeMounts:
+          - name: policy-generator
+            mountPath: /policy-generator-tmp
+    volumeMounts:
+      # Ruta impuesta por Kustomize: <plugin-home>/<apiVersion>/<kind en minúscula>.
+      - name: policy-generator
+        mountPath: /etc/kustomize/plugin/policy.open-cluster-management.io/v1/policygenerator
+    volumes:
+      - name: policy-generator
+        emptyDir: {}
   # Namespaces de usuario del workshop autorizados a declarar sus propias Applications.
   sourceNamespaces:
     - user*

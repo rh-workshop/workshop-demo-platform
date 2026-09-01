@@ -33,7 +33,15 @@ resources:
   # su ClusterSecretStore no puede autenticarse contra el almacen del hub.
   - policies/require-vault-token/policy.yaml
   - policies/require-vault-token/workload-placementbinding.yaml
+  # Aislamiento de red y RBAC de los namespaces de negocio. El binding al hub va
+  # suelto; la Policy la genera el Policy Generator (ver generators: abajo).
+  - policies/require-namespace-isolation/hub-placementbinding.yaml
   # Observabilidad multi-cluster: metricas de todos los clusters gestionados,
   # centralizadas en el hub. Tambien es de lo que se alimenta el analisis del
   # canary de Argo Rollouts.
   - observability
+
+# Plugin del Policy Generator: envuelve manifiestos Kubernetes normales en
+# Policies de ACM. Requiere --enable-alpha-plugins (ver bootstrap/manifests/argocd.yaml).
+generators:
+  - policies/require-namespace-isolation/policy-generator-config.yaml

@@ -1,0 +1,57 @@
+# Permisos del controlador de Argo CD sobre el gobierno de ACM: sin esto la
+# Application queda OutOfSync con "forbidden: cannot create policies".
+#
+# Es plano de control: amplía los permisos del propio controller, así que lo
+# aplica el bootstrap y NO una Application de Argo — un componente no debe poder
+# ampliarse sus propios permisos desde un repositorio que él mismo sincroniza.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openshift-gitops-policy-admin
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  - apiGroups:
+      - policy.open-cluster-management.io
+    resources:
+      - policies
+      - policysets
+      - placementbindings
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  # El generador emite el Placement junto a la Policy y su binding: sin permiso
+  # sobre él, la Policy se crea pero nunca llega a ningún cluster.
+  - apiGroups:
+      - cluster.open-cluster-management.io
+    resources:
+      - placements
+      - placementdecisions
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-gitops-policy-admin
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openshift-gitops-policy-admin

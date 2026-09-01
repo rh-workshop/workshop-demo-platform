@@ -1,12 +1,8 @@
-# Gobierno de canary-demo-dev: el perfil estándar de aplicación más la identidad
-# de solo lectura con la que el análisis del canary consulta las métricas.
-# El Namespace lo declara su repo de aplicaciones; aquí solo cuota, límites,
-# RBAC y red (recursos nuevos, sin conflicto de ownership).
+# Desviación de canary-demo-dev: la identidad de solo lectura con la que el
+# análisis del canary consulta las métricas. El perfil común (red y RBAC) lo
+# aplica la Policy require-namespace-isolation.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: canary-demo-dev
 resources:
-  - ../../profiles/app-namespace
-  # ServiceAccount + ClusterRoleBinding + Secret del análisis del canary: RBAC de
-  # ámbito de cluster, gobierno de plataforma, nunca del repo de aplicaciones.
   - serviceaccount-thanos-reader.yaml
