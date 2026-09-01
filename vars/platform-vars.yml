@@ -92,10 +92,9 @@ tooling_repositories:
     source: ghcr.io/gitleaks/gitleaks
     tag: v8.29.1
 
-# Namespaces donde corre el CI y el ambiente con cuyo robot publican. El pull
-# secret del ServiceAccount builder (quay-pull-credentials) lo genera
-# quay/ansible/pull-secrets.yml fusionando el pusher de ESE ambiente con el
-# puller de tooling: añadir un namespace de CI = añadir una entrada aquí.
+# Namespaces donde corre el CI y el ambiente con cuyo robot publican. Publican
+# con quay-push-credentials; el pull secret se lo entrega la Policy de ACM como a
+# cualquier namespace de negocio.
 #
 # SOLO el namespace donde CORRE el pipeline, en el HUB. Los namespaces donde
 # únicamente se DESPLIEGA no se listan aquí: la Policy de ACM

@@ -13,11 +13,11 @@
 # LEE el valor del secreto que vive en el hub y lo copia al cluster destino, sin
 # que el contenido pase nunca por el repositorio.
 #
-# DE DONDE SALE EL ORIGEN. `quay-pull-credentials` en el namespace
-# `open-cluster-management` del hub lo crea quay/ansible/pull-secrets.yml a
-# partir de los robots de Quay (pusher del ambiente + puller de tooling). Esta
-# Policy solo lo PROPAGA: la fuente de verdad sigue siendo el playbook, que es
-# quien habla con la API del registro.
+# DE DONDE SALE EL ORIGEN. `quay-pull-credentials-<ambiente>` en el namespace
+# `open-cluster-management` del hub lo entrega ESO desde el almacen
+# (acm/gitops/base/quay-pull-credentials), donde lo deposita
+# quay/ansible/pull-secrets.yml: los tokens de los robots se consultan a la API
+# de Quay, que no es Kubernetes. Esta Policy solo los PROPAGA.
 #
 # El namespace del origen NO es elegible: los hub templates solo pueden leer
 # secretos de `open-cluster-management`. Apuntar a otro falla con
@@ -78,7 +78,7 @@ spec:
                    'kafka': sus cargas (processor, sink y los emisores) descargan del mismo registro
                    privado, pero el namespace no sigue la convencion de nombre de los de negocio y
                    quedaba fuera del patron, con los pods en ImagePullBackOff. */ -}}
-            {{- if and (or (hasPrefix "user" $ns) (hasSuffix "-demo-dev" $ns) (hasPrefix "workshop-demo-" $ns) (eq $ns "kafka")) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
+            {{- if and (or (hasPrefix "user" $ns) (hasSuffix "-demo-dev" $ns) (hasSuffix "-demo-test" $ns) (hasSuffix "-demo-prod" $ns) (hasSuffix "-demo-contingencia" $ns) (hasPrefix "workshop-demo-" $ns) (eq $ns "kafka")) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
