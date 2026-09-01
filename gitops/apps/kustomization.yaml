@@ -18,6 +18,8 @@ resources:
   - hub/connectivity-link-application.yaml
   # Almacen de secretos: va antes que los productos que leen de el.
   - hub/openbao-application.yaml
+  # El puente con ESO: va en cada cluster, aqui el del hub.
+  - hub/openbao-store-application.yaml
   # Argo Rollouts NO va aquí: es un componente de CARGA, no de gestión. Su
   # controlador tiene que estar en el mismo cluster que los pods que sustituye,
   # así que lo despliegan los ApplicationSets workload-<ambiente> (dev, test,

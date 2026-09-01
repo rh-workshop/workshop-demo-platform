@@ -1,0 +1,18 @@
+# Solo a los clusters de CARGA: en el hub el token ya lo genera el playbook junto
+# al almacen, y replicarlo ahi crearia dos duenos sobre el mismo objeto.
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-vault-token-workload-binding
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-workload
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: require-vault-token

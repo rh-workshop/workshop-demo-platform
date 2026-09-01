@@ -1,0 +1,31 @@
+# Expone el almacen para los clusters de carga.
+#
+# POR QUE HACE FALTA. El ClusterSecretStore de cada spoke lee del almacen que
+# vive en el hub, y un Service solo es visible dentro de su propio cluster: sin
+# esta Route, los ExternalSecret de dev/test/prod fallan con un timeout de red.
+#
+# TLS DE EXTREMO A EXTREMO, no negociable: por aqui viaja el token de acceso al
+# almacen y los propios secretos. `edge` termina el TLS en el router y reenvia en
+# claro dentro del cluster; se usa `edge` y no `passthrough` porque el modo dev
+# de OpenBao no sirve TLS propio — es una de las razones por las que esta
+# instancia esta marcada como NO-PRODUCCION.
+#
+# EN PRODUCCION el almacen es EXTERNO al cluster (el Key Vault corporativo del
+# cliente) y esta Route no existe: los clusters salen hacia el, no al reves.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: openbao
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  to:
+    kind: Service
+    name: openbao
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    # Nadie debe hablar con el almacen en claro, ni siquiera por error.
+    insecureEdgeTerminationPolicy: Redirect

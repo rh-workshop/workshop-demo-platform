@@ -1,0 +1,14 @@
+# El PUENTE con External Secrets, que se despliega en TODOS los clusters.
+#
+# Separado del almacen a proposito: el almacen existe UNA vez (en el hub) y esto
+# va en cada cluster que necesite leer de el. Sin el ClusterSecretStore local,
+# los ExternalSecret de un spoke no tienen contra que resolver.
+#
+# El overlay de cada ambiente resuelve el endpoint del almacen: dentro del hub es
+# el Service, y desde un cluster de carga es la Route.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Primero el controlador: sin el, nadie atiende el store.
+  - externalsecretsconfig.yaml
+  - clustersecretstore.yaml

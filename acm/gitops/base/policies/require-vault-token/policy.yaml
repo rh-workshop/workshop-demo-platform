@@ -1,0 +1,55 @@
+# Replica el token del almacen a los clusters de carga.
+#
+# EL PROBLEMA QUE RESUELVE. El ClusterSecretStore de cada spoke se autentica
+# contra el almacen del hub con un token, y ese token vive en el hub. Sin
+# replicarlo, el store queda en InvalidProviderConfig y todos los ExternalSecret
+# del cluster fallan.
+#
+# POR QUE ACM Y NO ARGO. Es un token: no puede versionarse. `fromSecret` de un
+# hub template lo LEE en el hub y lo materializa en el destino sin que su valor
+# pase por Git — el mismo mecanismo que require-registry-pull-secret.
+#
+# El namespace del origen NO es elegible: los hub templates solo pueden leer
+# secretos de `open-cluster-management`. De ahi que el playbook deposite ahi una
+# copia ademas de la del namespace del almacen.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-vault-token
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: require-vault-token-config
+        spec:
+          remediationAction: enforce
+          severity: high
+          # El namespace se crea aqui: en un spoke no existe el almacen, solo su
+          # token, asi que nadie mas lo declara.
+          #
+          # OJO CON LOS COMENTARIOS DENTRO DE LA PLANTILLA: van FUERA a
+          # proposito — dentro rompen el YAML resuelto o los interpreta el motor.
+          object-templates-raw: |
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: openbao
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: openbao-dev-token
+                  namespace: openbao
+                data:
+                  token: "{{hub fromSecret "open-cluster-management" "openbao-dev-token" "token" hub}}"

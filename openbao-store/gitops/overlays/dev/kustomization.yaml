@@ -1,0 +1,14 @@
+# Desde un cluster de CARGA el almacen es remoto: se alcanza por la Route del
+# hub, con TLS. El endpoint es un dato del entorno — al adoptar el material se
+# sustituye por el del hub propio, o directamente por el del vault corporativo.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+
+patches:
+  - target: {kind: ClusterSecretStore, name: platform-vault}
+    patch: |
+      - op: replace
+        path: /spec/provider/vault/server
+        value: https://openbao-openbao.apps.ocp.hq2ss.sandbox3270.opentlc.com

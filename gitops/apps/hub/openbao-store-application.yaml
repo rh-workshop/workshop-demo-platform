@@ -1,0 +1,36 @@
+# ClusterSecretStore del HUB: el puente entre el almacen y los ExternalSecret.
+#
+# Va en una Application aparte del almacen porque su ciclo es distinto: el
+# almacen existe UNA vez, y el store se despliega en CADA cluster (aqui el del
+# hub; los de carga los generan los ApplicationSets workload-<ambiente>).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: config-openbao-store
+  labels:
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: openbao-store
+    workshop.redhat.com/environment: hub
+  namespace: openshift-gitops
+  annotations:
+    # Onda 2: despues del almacen (onda 1), que es a quien apunta.
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: workshop-multicluster
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: openbao-store/gitops/overlays/hub
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-secrets
+  syncPolicy:
+    retry:
+      limit: 20
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+    automated:
+      prune: false
+      selfHeal: true

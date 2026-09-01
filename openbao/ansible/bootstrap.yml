@@ -91,6 +91,27 @@
         bao_pod_name: "{{ bao_pod.resources[0].metadata.name }}"
       no_log: true
 
+    # COPIA PARA ACM. Los hub templates de una Policy solo pueden leer secretos
+    # del namespace `open-cluster-management`; sin esta copia, la Policy
+    # require-vault-token no puede replicar el token a los clusters de carga y
+    # falla con "the namespace argument is restricted to open-cluster-management".
+    - name: Publicar el token donde ACM puede leerlo
+      kubernetes.core.k8s:
+        state: present
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ token_secret }}"
+            namespace: open-cluster-management
+          stringData:
+            token: "{{ bao_token }}"
+      no_log: true
+
     # AQUI NO SE CARGA NINGUN SECRETO, y es deliberado: cada playbook de producto
     # deposita LO SUYO en el almacen, porque es quien sabe componer ese valor
     # (acm/ansible/observability.yml consulta las credenciales del object storage,

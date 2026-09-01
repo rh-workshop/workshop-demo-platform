@@ -1,0 +1,12 @@
+# En el HUB el almacen es local: se habla con su Service, sin salir del cluster.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+
+patches:
+  - target: {kind: ClusterSecretStore, name: platform-vault}
+    patch: |
+      - op: replace
+        path: /spec/provider/vault/server
+        value: http://openbao.openbao.svc:8200

@@ -1,6 +1,10 @@
 # OpenBao: almacen de secretos de la plataforma + su puente con External Secrets.
 #
-# El Secret `openbao-dev-token` NO esta aqui: aunque en modo dev no custodia nada
+# El ClusterSecretStore y el controlador de ESO NO estan aqui: viven en
+# openbao-store/gitops/, que se despliega en TODOS los clusters (el hub y los de
+# carga). Este directorio es solo el ALMACEN, que existe una unica vez.
+#
+# El Secret `openbao-dev-token` tampoco esta aqui: aunque en modo dev no custodia nada
 # sensible, versionar un token sienta un precedente que no debe existir en este
 # repo. Lo genera el playbook openbao/ansible/bootstrap.yml junto con la carga
 # inicial de secretos.
@@ -13,8 +17,5 @@ resources:
   - networkpolicy.yaml
   - networkpolicy-eso-egress.yaml
   - statefulset.yaml
-  # La instancia del controlador de ESO: sin ella nadie atiende los
-  # ClusterSecretStore ni los ExternalSecret.
-  - externalsecretsconfig.yaml
-  # El store va despues del almacen: apunta a su Service.
-  - clustersecretstore.yaml
+  # Expone el almacen para que los clusters de carga lo alcancen.
+  - route.yaml
