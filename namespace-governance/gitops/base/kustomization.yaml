@@ -7,7 +7,6 @@ resources:
   # El perfil común lo aplica ahora la Policy require-namespace-isolation; aquí
   # solo quedan las desviaciones propias de un namespace.
   - namespaces/workshop-demo-dev
-  - namespaces/canary-demo-dev
   # Namespaces de plataforma (perfil platform-namespace + desviaciones).
   - namespaces/quay-enterprise
   - namespaces/stackrox

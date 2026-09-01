@@ -1,8 +1,0 @@
-# Desviación de canary-demo-dev: la identidad de solo lectura con la que el
-# análisis del canary consulta las métricas. El perfil común (red y RBAC) lo
-# aplica la Policy require-namespace-isolation.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: canary-demo-dev
-resources:
-  - serviceaccount-thanos-reader.yaml
