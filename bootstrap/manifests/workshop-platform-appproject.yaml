@@ -31,6 +31,10 @@ spec:
   # Solo se admite el repositorio de configuración del workshop.
   sourceRepos:
     - https://github.com/rh-workshop/workshop-demo-app-config.git
+    # Servicios del pipeline de auditoria: viven en su propio repo de configuracion, que
+    # descubren los AppSet kafka-services-*. El proyecto falla cerrado, asi que sin esta
+    # entrada sus Applications quedan en InvalidSpecError sin desplegar nada.
+    - https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config.git
 
   # Destinos permitidos: SOLO los namespaces de aplicación de este repo.
   # platform-gateway y kuadrant-system se retiraron a propósito: el destination
@@ -42,6 +46,11 @@ spec:
   # decide el Placement del ambiente); la barandilla real es la allow-list de
   # NAMESPACES + el whitelist de kinds, que siguen fallando cerrado.
   destinations:
+    # Servicios del pipeline de auditoria: van al namespace del cluster de Kafka, no a uno
+    # propio, porque consumen los Secret que genera el operador (certificado del KafkaUser y
+    # CA del cluster), que son locales a ese namespace.
+    - server: '*'
+      namespace: kafka
     - server: '*'
       namespace: workshop-demo-dev
     - server: '*'
@@ -79,6 +88,12 @@ spec:
   # Quedan FUERA a propósito los recursos de plataforma: Kuadrant, Gateway,
   # Keycloak, QuayRegistry, Subscription de operador, Secret, etc.
   namespaceResourceWhitelist:
+    # Topicos e identidades del pipeline de auditoria. El cluster Kafka en si lo gobierna el
+    # proyecto de plataforma; aqui solo entran los recursos que declara cada servicio.
+    - group: kafka.strimzi.io
+      kind: KafkaTopic
+    - group: kafka.strimzi.io
+      kind: KafkaUser
     # Núcleo de un microservicio: workload, servicio y su configuración.
     - group: ""
       kind: Service
