@@ -12,3 +12,15 @@ patches:
       - op: replace
         path: /spec/provider/vault/server
         value: https://openbao-openbao.apps.ocp.hq2ss.sandbox3270.opentlc.com
+  # LA SALIDA TAMBIEN CAMBIA. La base apunta al namespace `openbao`, que solo
+  # existe en el hub; desde un cluster de carga el almacen esta FUERA y se
+  # alcanza por su Route, asi que hay que permitir salida al 443. Sin esto el
+  # ClusterSecretStore queda en "unable to validate store" por un timeout de red.
+  - target: {kind: NetworkPolicy, name: allow-egress-to-openbao}
+    patch: |
+      - op: replace
+        path: /spec/egress/0
+        value:
+          ports:
+            - protocol: TCP
+              port: 443
