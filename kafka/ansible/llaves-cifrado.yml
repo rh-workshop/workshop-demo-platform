@@ -1,0 +1,99 @@
+---
+# Deposita en el almacen la llave de cifrado del pipeline de auditoria, UNA POR AMBIENTE.
+#
+# POR QUE UNA POR AMBIENTE. Con una llave compartida, quien accede al ambiente menos
+# protegido puede descifrar los eventos de produccion. Cada ambiente lee su propia ruta
+# (`platform/kafka-audit/<ambiente>`), que fija el overlay correspondiente del repo de
+# configuracion.
+#
+# QUE NO HACE. No escribe ningun Secret en el cluster: eso lo materializa el
+# ExternalSecret que gobierna Argo. Escribirlo aqui ademas dejaria DOS duenos sobre el
+# mismo objeto, peleandose en cada reconciliacion.
+#
+# IDEMPOTENTE. Si una llave ya existe NO se regenera: rehacerla dejaria indescifrable todo
+# lo ya publicado en ese ambiente. Para rotarla de forma deliberada, ver la nota del final.
+#
+#   ansible-playbook kafka/ansible/llaves-cifrado.yml
+- name: Depositar las llaves de cifrado del pipeline de auditoria
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [kafka, secretos]
+
+  vars:
+    vault_namespace: openbao
+    vault_token_secret: openbao-dev-token
+    # Prefijo comun; a cada ambiente se le añade su nombre.
+    vault_path_base: platform/kafka-audit
+    ambientes: [dev, test, prod, contingencia]
+
+  tasks:
+    - name: Localizar el almacen
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ vault_namespace }}"
+        label_selectors:
+          - app.kubernetes.io/name=openbao
+      register: bao_pod
+
+    - name: Comprobar que el almacen esta desplegado
+      ansible.builtin.assert:
+        that: bao_pod.resources | length > 0
+        fail_msg: >-
+          No hay ningun pod del almacen en {{ vault_namespace }}. Ejecuta antes
+          openbao/ansible/bootstrap.yml, que lo arranca y genera su token.
+
+    - name: Recuperar el token del almacen
+      kubernetes.core.k8s_info:
+        kind: Secret
+        namespace: "{{ vault_namespace }}"
+        name: "{{ vault_token_secret }}"
+      register: token_info
+
+    - name: Comprobar que el token existe
+      ansible.builtin.assert:
+        that: token_info.resources | length > 0
+        fail_msg: >-
+          No existe {{ vault_namespace }}/{{ vault_token_secret }}. Ejecuta antes
+          openbao/ansible/bootstrap.yml.
+
+    - name: Fijar los datos de acceso
+      ansible.builtin.set_fact:
+        bao_env: >-
+          env BAO_TOKEN={{ token_info.resources[0].data.token | b64decode }}
+          BAO_ADDR=http://127.0.0.1:8200
+
+    # Se consulta ANTES de escribir: una llave que ya existe no se toca.
+    - name: Comprobar que llaves hay ya depositadas
+      kubernetes.core.k8s_exec:
+        namespace: "{{ vault_namespace }}"
+        pod: "{{ bao_pod.resources[0].metadata.name }}"
+        command: >-
+          {{ bao_env }}
+          bao kv get -mount=secret -field=aes-key {{ vault_path_base }}/{{ item }}
+      loop: "{{ ambientes }}"
+      register: llaves_existentes
+      failed_when: false
+      changed_when: false
+
+    - name: Depositar la llave de los ambientes que aun no la tienen
+      kubernetes.core.k8s_exec:
+        namespace: "{{ vault_namespace }}"
+        pod: "{{ bao_pod.resources[0].metadata.name }}"
+        command: >-
+          {{ bao_env }}
+          bao kv put -mount=secret {{ vault_path_base }}/{{ item.item }}
+          aes-key={{ lookup('community.general.random_string',
+                            length=32, base64=true) | quote }}
+      loop: "{{ llaves_existentes.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.rc | default(1) != 0
+
+    - name: Informar del resultado
+      ansible.builtin.debug:
+        msg:
+          - "Llaves de cifrado en {{ vault_path_base }}/<ambiente>: {{ ambientes | join(', ') }}"
+          - "Las ya existentes NO se han tocado: regenerarlas dejaria indescifrable lo ya publicado."
+          - "ROTACION deliberada: depositar la llave nueva y montar la anterior como PREVIOUS_KEY"
+          - "hasta que la retencion del topico supere el momento del cambio."

@@ -109,6 +109,23 @@ es un trabajo aparte, fuera de este alcance.
 **Dev sin Cruise Control.** Con un solo broker no hay entre qué nodos rebalancear, así
 que el overlay lo retira para no gastar memoria en un pod sin función.
 
+## La llave de cifrado
+
+No es un manifiesto: es material sensible que no puede vivir en Git. Se deposita en el
+almacen de la plataforma con
+
+```bash
+ansible-playbook kafka/ansible/llaves-cifrado.yml
+```
+
+**Una llave por ambiente**, en `platform/kafka-audit/<ambiente>`. Compartirla entre
+ambientes significaria que quien accede al menos protegido puede descifrar los eventos de
+produccion.
+
+El playbook es idempotente y **no regenera una llave existente**: rehacerla dejaria
+indescifrable todo lo ya publicado en ese ambiente. Quien materializa el Secret en el
+cluster es el `ExternalSecret` del repo de configuracion, no este playbook.
+
 ## Verificar el despliegue
 
 ```bash
