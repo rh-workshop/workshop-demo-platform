@@ -10,5 +10,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   # Primero el controlador: sin el, nadie atiende el store.
+  # El operador de ESO niega TODO su egress: sin esta excepcion no alcanza el
+  # almacen. Va aqui y no junto al almacen porque hace falta en CADA cluster.
+  - networkpolicy-eso-egress.yaml
   - externalsecretsconfig.yaml
   - clustersecretstore.yaml

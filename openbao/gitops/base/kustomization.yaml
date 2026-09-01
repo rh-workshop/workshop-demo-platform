@@ -15,9 +15,7 @@ resources:
   - service.yaml
   # Entrada desde los clusters de carga: sus ExternalSecret viven fuera de este cluster.
   - route.yaml
-  # El operador de ESO corta todo su egress: sin estas reglas no alcanza el almacen.
+  # Permite la ENTRADA desde el namespace de ESO. La regla de SALIDA vive en
+  # openbao-store, porque hace falta en CADA cluster y no solo aqui.
   - networkpolicy.yaml
-  - networkpolicy-eso-egress.yaml
   - statefulset.yaml
-  # Expone el almacen para que los clusters de carga lo alcancen.
-  - route.yaml
