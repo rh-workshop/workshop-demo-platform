@@ -4,4 +4,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - externalsecretsconfig.yaml
+  # El operador corta todo su egress: sin esta regla no alcanza el almacen del hub.
+  - networkpolicy-eso-egress.yaml
   - clustersecretstore.yaml

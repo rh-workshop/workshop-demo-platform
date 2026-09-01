@@ -25,9 +25,18 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # El router de OpenShift: atiende la Route por la que entran los ExternalSecret de los
+    # clusters de carga, que no pueden alcanzar el Service interno desde fuera.
     - from:
-        # Solo el namespace del controlador de ESO: nadie mas necesita hablar
-        # con el almacen, y el Service no esta expuesto por Route a proposito.
+        - namespaceSelector:
+            matchLabels:
+              policy-group.network.openshift.io/ingress: ""
+      ports:
+        - protocol: TCP
+          port: 8200
+    - from:
+        # El namespace del controlador de ESO local. Nadie mas habla con el almacen:
+        # el resto del trafico sigue denegado.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: external-secrets
