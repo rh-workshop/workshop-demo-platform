@@ -145,6 +145,11 @@ spec:
   # CCO acuña, y el propio CCO decide si puede resolverla.
   - group: cloudcredential.openshift.io
     kind: CredentialsRequest
+  # Declara DE DONDE leer un secreto; nunca contiene su valor. Es NAMESPACED
+  # (vive junto al Secret que materializa), a diferencia del ClusterSecretStore,
+  # que es cluster-scoped y va en la otra lista.
+  - group: external-secrets.io
+    kind: ExternalSecret
   # OpenBao: el almacen corre como StatefulSet con su Service e identidad.
   - group: apps
     kind: StatefulSet
