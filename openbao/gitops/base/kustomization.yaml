@@ -9,6 +9,9 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - service.yaml
+  # El operador de ESO corta todo su egress: sin estas reglas no alcanza el almacen.
+  - networkpolicy.yaml
+  - networkpolicy-eso-egress.yaml
   - statefulset.yaml
   # La instancia del controlador de ESO: sin ella nadie atiende los
   # ClusterSecretStore ni los ExternalSecret.

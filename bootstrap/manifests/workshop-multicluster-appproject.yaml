@@ -45,6 +45,9 @@ spec:
   # Almacen de secretos de la plataforma.
   - server: '*'
     namespace: openbao
+  # Namespace del controlador de ESO: solo para declarar su regla de egress.
+  - server: '*'
+    namespace: external-secrets
   - server: '*'
     namespace: stackrox
   - server: '*'

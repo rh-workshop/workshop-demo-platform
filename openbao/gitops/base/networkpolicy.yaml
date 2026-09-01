@@ -1,0 +1,36 @@
+# Permite que External Secrets alcance el almacen.
+#
+# POR QUE HACE FALTA. El operador de ESO aplica en su namespace una politica
+# `eso-sys-deny-all-traffic` que corta TODO el egress, y solo abre DNS y el API
+# server. Con eso el controlador no puede hablar con ningun almacen: el
+# ClusterSecretStore queda en `InvalidProviderConfig: unable to validate store` y
+# los ExternalSecret en `could not get secret data from provider` — mensajes que
+# no mencionan la red y despistan al diagnosticar.
+#
+# Es un endurecimiento deliberado del operador, no un defecto: obliga a declarar
+# explicitamente hacia donde puede salir. Esta politica es esa declaracion.
+#
+# ALCANCE MINIMO: se abre la ENTRADA al almacen desde el namespace de ESO y solo
+# al puerto 8200. No se toca el deny-all de ESO —que sigue protegiendo su
+# egress— porque en OpenShift con OVN basta con que el destino admita la entrada.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-secrets-ingress
+  namespace: openbao
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Solo el namespace del controlador de ESO: nadie mas necesita hablar
+        # con el almacen, y el Service no esta expuesto por Route a proposito.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: external-secrets
+      ports:
+        - protocol: TCP
+          port: 8200

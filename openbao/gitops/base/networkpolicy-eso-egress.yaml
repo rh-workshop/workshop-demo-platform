@@ -1,0 +1,33 @@
+# Abre la SALIDA de External Secrets hacia el almacen.
+#
+# Esta es la politica que de verdad desbloquea el flujo. El operador de ESO
+# instala `eso-sys-deny-all-traffic` en su propio namespace, que corta todo el
+# egress salvo DNS y el API server; sin una regla que permita salir al almacen,
+# el controlador no llega a el aunque el destino acepte la entrada.
+#
+# Las NetworkPolicy son ADITIVAS: esta no modifica ni sustituye la del operador
+# —que sigue vigente y sigue negando todo lo demas— - solo anade una excepcion
+# acotada. Por eso se declara aqui, junto al almacen al que da acceso, y no
+# tocando los objetos que gestiona el operador de ESO.
+#
+# EN PRODUCCION el destino sera el vault corporativo, fuera del cluster: la regla
+# equivalente abre hacia su CIDR o su endpoint privado, no hacia un namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-openbao
+  namespace: external-secrets
+spec:
+  # Todos los pods de ESO: el controlador principal es quien lee del almacen,
+  # pero el webhook tambien valida stores.
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openbao
+      ports:
+        - protocol: TCP
+          port: 8200
