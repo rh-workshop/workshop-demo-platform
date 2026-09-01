@@ -1,5 +1,9 @@
-# Extiende las policies al hub, donde viven los previews de PR y canary-demo-dev.
+# Extiende al hub el aislamiento de red, por los previews de PR y canary-demo-dev.
 # Va suelto porque el generador emite un unico binding (el de clusters-workload).
+#
+# La policy de RBAC NO se enlaza aqui: el unico namespace de negocio permanente
+# del hub es workshop-demo-dev, que esta excluido de ella a proposito, asi que
+# quedaria siempre NonCompliant por no encontrar ningun namespace destino.
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
@@ -16,6 +20,3 @@ subjects:
   - apiGroup: policy.open-cluster-management.io
     kind: Policy
     name: require-namespace-isolation
-  - apiGroup: policy.open-cluster-management.io
-    kind: Policy
-    name: require-namespace-rbac
