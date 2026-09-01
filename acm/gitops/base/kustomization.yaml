@@ -20,6 +20,10 @@ resources:
   - policies/require-limitrange/policy.yaml
   - policies/require-limitrange/placementbinding.yaml
   - policies/require-limitrange/workload-placementbinding.yaml
+  # Las credenciales del registro que la politica de abajo reparte: una por
+  # ambiente, entregadas por ESO desde el almacen. Van ANTES que la politica
+  # porque son su entrada: sin ellas queda NonCompliant por "secrets not found".
+  - quay-pull-credentials
   # Replica la credencial del registro a los namespaces de negocio de cada
   # cluster: sin ella los pods no descargan de Quay desde un spoke.
   - policies/require-registry-pull-secret/policy.yaml
