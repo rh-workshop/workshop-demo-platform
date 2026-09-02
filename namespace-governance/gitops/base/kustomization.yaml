@@ -4,6 +4,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # Grupos de la plataforma y el acceso que dan al cluster. Solo en el hub: es
+  # donde están la consola de gestión y Argo. En los spokes se escribe vía
+  # GitOps, no con una sesión de consola.
+  - identity
   # El perfil común lo aplica ahora la Policy require-namespace-isolation; aquí
   # solo quedan las desviaciones propias de un namespace.
   - namespaces/workshop-demo-dev

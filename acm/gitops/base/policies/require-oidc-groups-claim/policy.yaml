@@ -1,0 +1,66 @@
+# Policy de gobierno: el proveedor OIDC de cada cluster debe pedir el claim
+# `groups`.
+#
+# QUE PROBLEMA RESUELVE. La autenticacion en OpenShift es por cluster: cada uno
+# resuelve la pertenencia contra sus propios objetos Group, que crea su servidor
+# OAuth al iniciar sesion a partir de este claim. Sin el, un usuario entra en el
+# spoke sin ningun grupo, y los ClusterRoleBinding que reparte ACM
+# (gitops/clusters/human-access/) no encuentran a nadie a quien aplicar: el
+# acceso queda concedido sobre el papel y vacio en la practica.
+#
+# POR QUE inform Y NO enforce. El proveedor `rhbk` lleva un `clientSecret` que
+# referencia un Secret distinto en cada cluster. Una Policy en enforce sobre el
+# objeto OAuth completo lo reescribiria con el nombre de otro cluster y dejaria
+# el cluster SIN NINGUN acceso por Keycloak -- incluido el de quien fuera a
+# arreglarlo. El claim se anade a mano, una vez por cluster; esta Policy verifica
+# que sigue ahi y avisa si alguien lo quita.
+#
+# COMO SE CORRIGE cuando reporta NonCompliant, en el cluster afectado:
+#
+#   oc patch oauth cluster --type=json -p \
+#     '[{"op":"add","path":"/spec/identityProviders/0/openID/claims/groups","value":["groups"]}]'
+#
+# Requiere ademas que el cliente de Keycloak emita el claim: un mapper de tipo
+# "Group Membership" con full.path=false, o los nombres llegan como /grupo y no
+# coinciden con los Group ni con la politica de Argo.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    policy.open-cluster-management.io/categories: AC Access Control
+    policy.open-cluster-management.io/controls: AC-2 Account Management
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+  name: require-oidc-groups-claim
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  # inform: reporta la desviacion, no la corrige. Ver la cabecera.
+  remediationAction: inform
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: require-oidc-groups-claim
+        spec:
+          remediationAction: inform
+          severity: high
+          object-templates:
+            # musthave sobre un fragmento: exige que el claim figure, sin tocar
+            # el resto del proveedor (issuer, clientID, clientSecret).
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: config.openshift.io/v1
+                kind: OAuth
+                metadata:
+                  name: cluster
+                spec:
+                  identityProviders:
+                    - name: rhbk
+                      type: OpenID
+                      openID:
+                        claims:
+                          groups:
+                            - groups

@@ -1,0 +1,43 @@
+# Acceso de PERSONAS a los clusters gestionados.
+#
+# POR QUE HACE FALTA. La autenticacion en OpenShift es por cluster: cada uno
+# resuelve los grupos contra sus propios objetos Group y sus propios bindings.
+# El hub no los federa. Sin esto, alguien de platform-operators inicia sesion en
+# un spoke y entra solo como system:authenticated, sin ver nada.
+#
+# POR QUE ClusterPermission Y NO ARGO. Conceder un rol exige el verbo `bind`
+# sobre el; darselo a Argo para roles de cluster convertiria un commit en una via
+# de escalada. ClusterPermission la aplica el agente de ACM en el spoke, fuera del
+# alcance del repositorio que Argo sincroniza. Es el mecanismo documentado de ACM
+# para RBAC en clusters gestionados.
+#
+# LOS OBJETOS Group NO SE DECLARAN AQUI: los crea el servidor OAuth del propio
+# spoke en el primer login, a partir del claim `groups` de Keycloak. Requisito:
+# el OAuth de cada spoke debe declarar `claims.groups: [groups]` en el proveedor
+# rhbk, o los grupos nunca llegan y estos bindings no encuentran a nadie.
+#
+# SOLO LECTURA. Escribir en un spoke se hace por GitOps, para que el cambio quede
+# en Git. cluster-reader no incluye Secrets, y es agregado: ve nodos, CRDs y el
+# resto de recursos de cluster que hacen falta para diagnosticar.
+#
+# platform-admins no aparece: cluster-admin en un cluster gestionado se concede a
+# mano y por excepcion, no de forma permanente desde el hub.
+apiVersion: rbac.open-cluster-management.io/v1alpha1
+kind: ClusterPermission
+metadata:
+  name: human-read-access
+  namespace: CHANGE_ME_CLUSTER_NAMESPACE
+spec:
+  clusterRoleBinding:
+    # Referencia un ClusterRole que YA existe en el spoke; no lo crea.
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-reader
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: platform-operators
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: platform-viewers

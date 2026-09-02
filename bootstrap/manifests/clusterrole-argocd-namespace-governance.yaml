@@ -27,6 +27,40 @@ rules:
     resources:
       - networkpolicies
     verbs: [get, list, watch, create, update, patch, delete]
+  # Los objetos Group. Un grupo no concede nada por si mismo: lo que da acceso es
+  # el binding que lo referencia, y esos NO los gestiona Argo (ver abajo).
+  #
+  # Borrar un Group no rompe el binding -- los sujetos de RBAC son cadenas, no
+  # referencias -- pero deja a sus miembros sin acceso. La proteccion contra un
+  # borrado accidental es `Prune=false` en cada Group, no negarle `delete` al
+  # controlador: sin el verbo, un prune legitimo falla con 403 y la Application
+  # queda en Sync Failed.
+  - apiGroups:
+      - user.openshift.io
+    resources:
+      - groups
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Conceder un rol exige tenerlo o poder hacer `bind` sobre el: Kubernetes
+  # impide otorgar permisos que uno no posee. Los RoleBinding por namespace
+  # referencian `view` y `admin`, que incluyen verbos que este controlador no
+  # tiene, y sin esto el sync falla con "attempting to grant RBAC permissions
+  # not currently held".
+  #
+  # Acotado por resourceNames a los tres roles que se reparten. Un `bind` sin
+  # lista, o `escalate`, permitiria conceder cluster-admin desde un commit.
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - clusterroles
+    resourceNames:
+      - view
+      - admin
+      - app-developer-no-secrets
+    verbs: [bind]
+  # NO se concede clusterrolebindings ni `escalate`. Argo sincroniza un
+  # repositorio Git: con esos permisos, quien pudiera mezclar un commit se haria
+  # cluster-admin, que es exactamente lo que se quito al enumerar estos roles.
+  # Los ClusterRoleBinding de los grupos los aplica el bootstrap, una vez.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

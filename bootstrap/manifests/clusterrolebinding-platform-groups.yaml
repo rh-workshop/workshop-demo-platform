@@ -1,0 +1,72 @@
+# Qué ve cada grupo en la CONSOLA de OpenShift. Es una decisión distinta de la
+# del fichero de política de Argo (`argocd.yaml`): un rol en Argo permite
+# sincronizar una Application; esto permite mirar el cluster con `oc`.
+#
+# CRITERIO: lectura a nivel de cluster para quien opera o audita, ningún permiso
+# de escritura global. Escribir es siempre a través de Argo, para que el cambio
+# quede en Git y no dependa de quién tenía la sesión abierta.
+#
+# `cluster-reader` en lugar de `view`: `view` no incluye recursos cluster-scoped
+# como Node, PV o CRD, que es justo lo que se mira al diagnosticar.
+#
+# app-developers y release-managers no aparecen aquí: su acceso es a namespaces
+# concretos y lo concede el RoleBinding del propio namespace, no un binding
+# global. Dárselo a nivel de cluster les daría lectura de TODOS los namespaces,
+# incluidos los de plataforma con sus secretos.
+#
+# POR QUE ESTA EN bootstrap/ Y NO LO SINCRONIZA ARGO. Conceder un ClusterRole
+# exige el verbo `bind` sobre ese rol; dárselo a Argo para `cluster-admin`
+# significaría que quien pueda mezclar un commit se convierte en administrador
+# del cluster. Los grupos sí los declara Argo (namespace-governance/, objetos
+# vacíos que no conceden nada); el binding que los hace efectivos se aplica a
+# mano, una vez, y se revisa como cambio de control de acceso.
+#
+#   oc apply -f bootstrap/manifests/clusterrolebinding-platform-groups.yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-admins-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: platform-admins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-operators-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-reader
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: platform-operators
+---
+# La auditoría necesita ver el estado, nunca cambiarlo. Mismo rol de lectura que
+# los operadores, y es deliberado: en el cluster ambos solo miran. La diferencia
+# está en Argo, donde platform-operator sincroniza y ejecuta acciones y auditor
+# no puede ni ver logs. Que coincidan aquí no los hace redundantes; separar los
+# grupos permite darles roles distintos en el cluster sin tocar la política.
+#
+# cluster-reader es agregado y NO incluye Secrets, verificado con `oc auth
+# can-i`. Sí alcanza ConfigMaps y `pods/log` de toda la flota: si alguna
+# aplicación escribe credenciales en su log, quedan a la vista de estos grupos.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-viewers-cluster-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-reader
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: platform-viewers

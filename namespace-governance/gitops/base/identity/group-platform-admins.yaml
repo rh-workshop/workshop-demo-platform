@@ -1,0 +1,29 @@
+# Grupos de la plataforma: el OBJETO se declara aquí, la PERTENENCIA la escribe
+# el servidor OAuth en cada login desde el claim `groups` de Keycloak.
+#
+# Por qué existir vacío sirve de algo: un RoleBinding a un grupo inexistente se
+# aplica sin error y no concede nada. Declararlos hace que el binding y el grupo
+# lleguen juntos, y que `oc get groups` liste los cinco aunque nadie haya
+# iniciado sesión todavía.
+#
+# EL CAMPO `users` NO APARECE, Y ES DELIBERADO. No basta con dejarlo vacío:
+# `users: []` se lo apropia Argo como field manager y cada sincronización borra
+# la pertenencia -- se comprobó, y vació un grupo real. Omitir el campo hace que
+# Argo nunca lo posea, así que el apiserver conserva lo que escribió OAuth.
+# Añadir `users:` aquí, aunque sea vacío, rompe el acceso de quien esté dentro.
+#
+# La pertenencia tampoco debe versionarse: sería una segunda fuente de verdad
+# frente al IdP y las bajas llegarían tarde.
+#
+# Tampoco se declaran las anotaciones: el servidor OAuth escribe
+# `oauth.openshift.io/generated` y `oauth.openshift.io/idp.<idp>` y es su dueño.
+# Declarar `generated: "true"` seria contraproducente -- con ella el servidor
+# borra el grupo cuando queda sin miembros, y Argo volveria a crearlo.
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  annotations:
+    # Retirar el grupo de Git no lo borra: dejaria sin acceso a sus miembros.
+    # El borrado se hace a mano, quitando antes el binding que lo referencia.
+    argocd.argoproj.io/sync-options: Prune=false
+  name: platform-admins

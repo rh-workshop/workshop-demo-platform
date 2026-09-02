@@ -39,6 +39,12 @@ spec:
     kind: Namespace
   - group: observability.open-cluster-management.io
     kind: MultiClusterObservability
+  # Los grupos de la plataforma y el acceso que dan al cluster. El objeto Group
+  # se declara vacio; la pertenencia la escribe el servidor OAuth.
+  - group: user.openshift.io
+    kind: Group
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
   namespaceResourceWhitelist:
   - group: ''
     kind: ResourceQuota

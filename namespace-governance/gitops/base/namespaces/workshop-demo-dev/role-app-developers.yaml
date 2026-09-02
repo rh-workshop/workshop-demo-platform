@@ -4,6 +4,11 @@
 # acs-pipeline-credentials) y con ClusterRole `edit` cualquier miembro de
 # app-developers los leía — escalada directa al GitOps de los 3 clusters.
 # Los demás namespaces de aplicación conservan `edit`: no albergan secretos de CI.
+#
+# Los verbos van enumerados y no como `*`: un comodín concede también los verbos
+# que el grupo de API gane en versiones futuras, sin que nadie los revise. Además
+# Argo no puede crear un Role con verbos que él mismo no tiene, así que un `*`
+# aquí bloquea la sincronización.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -12,44 +17,44 @@ rules:
   # Workloads: despliegue y ciclo de vida completo.
   - apiGroups: ["apps"]
     resources: ["deployments", "replicasets", "statefulsets", "daemonsets", "deployments/scale", "statefulsets/scale"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Núcleo del namespace SIN secrets ni serviceaccounts (identidades del CI).
   - apiGroups: [""]
     resources: ["pods", "pods/log", "pods/exec", "pods/portforward", "services", "configmaps", "endpoints", "persistentvolumeclaims", "replicationcontrollers"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["events", "resourcequotas", "limitranges"]
     verbs: ["get", "list", "watch"]
   # Jobs y CronJobs.
   - apiGroups: ["batch"]
     resources: ["jobs", "cronjobs"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Autoescalado.
   - apiGroups: ["autoscaling"]
     resources: ["horizontalpodautoscalers"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Exposición: Route clásica y Gateway API.
   - apiGroups: ["route.openshift.io"]
     resources: ["routes"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Políticas de Connectivity Link a nivel de ruta (ámbito de app).
   - apiGroups: ["kuadrant.io"]
     resources: ["authpolicies", "ratelimitpolicies"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Circuit breaker del servicio (DestinationRule de Istio).
   - apiGroups: ["networking.istio.io"]
     resources: ["destinationrules"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Builds e imágenes del flujo S2I del workshop.
   - apiGroups: ["build.openshift.io"]
     resources: ["buildconfigs", "builds", "buildconfigs/instantiate", "builds/log"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["image.openshift.io"]
     resources: ["imagestreams", "imagestreamtags", "imagestreamimages"]
-    verbs: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # CI en SOLO LECTURA. Crear un PipelineRun o un TaskRun equivale a leer los
   # Secrets del namespace: quien puede crearlos declara un `taskSpec` propio que
   # monta cualquier Secret como workspace y lo imprime en el log — la llave cosign

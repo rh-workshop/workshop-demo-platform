@@ -1,0 +1,11 @@
+# Operan la plataforma: sincronizan productos y gobierno, sin crear Applications.
+# Sin campo `users`: ver group-platform-admins.yaml, declararlo borra la
+# pertenencia en cada sincronización.
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  annotations:
+    # Retirar el grupo de Git no lo borra: dejaria sin acceso a sus miembros.
+    # El borrado se hace a mano, quitando antes el binding que lo referencia.
+    argocd.argoproj.io/sync-options: Prune=false
+  name: platform-operators

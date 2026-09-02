@@ -22,8 +22,28 @@ Keycloak (realm sso)          OpenShift                    Argo CD
 
 Consecuencia operativa que conviene tener presente: **la pertenencia se refresca
 al iniciar sesión**. Sacar a alguien de un grupo en Keycloak no le retira el acceso
-hasta su siguiente login. Para una baja, deshabilitar el usuario en Keycloak —
-eso sí corta el flujo OAuth de inmediato.
+hasta su siguiente login.
+
+### Dar de baja a una persona
+
+Deshabilitarla en Keycloak **no basta**, y es el error más fácil de cometer:
+
+- El token de OpenShift ya emitido **sigue siendo válido hasta que expire** (24 h
+  por defecto). Keycloak solo interviene en el próximo inicio de sesión, que ya
+  no ocurrirá.
+- El usuario **permanece en `Group.users`** indefinidamente: el servidor OAuth
+  solo retira a alguien de un grupo *durante un login exitoso* con menos claims.
+
+El procedimiento correcto, **en cada cluster donde haya entrado** — el hub y los
+spokes tienen bases de identidad independientes:
+
+```bash
+oc delete oauthaccesstoken --field-selector=userName=<usuario>   # corta las sesiones vivas
+oc adm groups remove-users <grupo> <usuario>
+oc delete identity rhbk:<sub> ; oc delete user <usuario>
+```
+
+Y deshabilitar la cuenta en Keycloak, que es lo que impide volver a entrar.
 
 ## Los grupos y lo que pueden hacer
 
@@ -68,9 +88,42 @@ argocd admin settings rbac can role:auditor         get  logs         apps-prod/
 2. Que inicie sesión una vez en la consola de OpenShift.
 3. Comprobar: `oc get group <grupo> -o jsonpath='{.users}'`.
 
-No hay paso 4: no se declara nada en Git. La pertenencia vive en el IdP a
-propósito — versionarla crearía una segunda fuente de verdad y las bajas llegarían
-tarde.
+No hay paso 4: **la pertenencia** no se declara en Git. Vive en el IdP a
+propósito — versionarla crearía una segunda fuente de verdad y las bajas
+llegarían tarde.
+
+## Qué sí está en Git, y qué no
+
+| Pieza | Dónde | Por qué |
+|---|---|---|
+| Los objetos `Group` (vacíos) | `namespace-governance/.../identity/` | Un binding a un grupo inexistente se aplica sin error y no concede nada |
+| La pertenencia (`users`) | En ningún sitio | La escribe el servidor OAuth en cada login |
+| `RoleBinding` por namespace | `namespace-governance/` | Acceso acotado; Argo puede concederlo |
+| `ClusterRoleBinding` del hub | `bootstrap/manifests/` | Conceder `cluster-admin` desde un commit sería una vía de escalada |
+| Acceso a los spokes | `gitops/clusters/human-access/` (`ClusterPermission`) | Lo aplica el agente de ACM, fuera del alcance de Argo |
+
+Los manifiestos de `Group` **omiten el campo `users`**, no lo declaran vacío. La
+diferencia no es cosmética: con `users: []` Argo se apropia del campo y cada
+sincronización borra la pertenencia. Se comprobó en el cluster, y vació un grupo
+real. Omitirlo hace que Argo nunca lo posea.
+
+## Los spokes tienen su propia identidad
+
+La autenticación es **por cluster**: cada uno resuelve los grupos contra sus
+propios objetos y sus propios bindings, y el hub no los federa. Entrar en el hub
+no da acceso a un spoke.
+
+El acceso de lectura a los spokes lo reparte ACM con una `ClusterPermission` por
+cluster (`cluster-reader` para `platform-operators` y `platform-viewers`). Los
+`Group` no hacen falta allí: los crea el servidor OAuth del spoke en el primer
+login.
+
+Para eso el OAuth de cada spoke debe pedir el claim `groups`, cosa que hoy **no
+hace** — lo vigila la Policy `require-oidc-groups-claim`, que los reporta
+`NonCompliant`. Va en modo `inform` a propósito: el proveedor `rhbk` referencia
+un `clientSecret` distinto en cada cluster, y una Policy en `enforce` sobre el
+objeto `OAuth` completo lo reescribiría dejando el cluster sin acceso por
+Keycloak. Se corrige con un patch por cluster, documentado en la Policy.
 
 ## Acceso de emergencia
 

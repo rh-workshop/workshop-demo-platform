@@ -1,0 +1,11 @@
+# Aprueban y ejecutan los despliegues a producción. Separado de app-developers a
+# propósito: quien desarrolla no promueve.
+# Sin campo `users`: ver group-platform-admins.yaml.
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  annotations:
+    # Retirar el grupo de Git no lo borra: dejaria sin acceso a sus miembros.
+    # El borrado se hace a mano, quitando antes el binding que lo referencia.
+    argocd.argoproj.io/sync-options: Prune=false
+  name: release-managers

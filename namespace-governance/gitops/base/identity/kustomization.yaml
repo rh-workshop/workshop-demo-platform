@@ -1,0 +1,15 @@
+# Identidad de la plataforma: los grupos y el acceso que da cada uno al cluster.
+# Separado de namespaces/ porque son objetos cluster-scoped de personas, no de
+# cargas de trabajo.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - group-platform-admins.yaml
+  - group-platform-operators.yaml
+  - group-app-developers.yaml
+  - group-release-managers.yaml
+  - group-platform-viewers.yaml
+# Los ClusterRoleBinding que dan acceso a estos grupos NO estan aqui: viven en
+# bootstrap/manifests/clusterrolebinding-platform-groups.yaml y se aplican a
+# mano. Argo no tiene permiso para crearlos a proposito -- si lo tuviera, un
+# commit podria conceder cluster-admin.
