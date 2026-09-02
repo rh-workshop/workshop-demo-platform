@@ -179,7 +179,7 @@ devuelve `breakglass1` y `auth can-i '*' '*'` responde `yes`.
 Si Keycloak no responde, el servidor OAuth devuelve 500 y **nadie entra**, ni para
 arreglarlo. Por eso existe el proveedor `break-glass` (htpasswd, dos cuentas),
 independiente de cualquier servicio externo. Procedimiento y custodia en
-`bootstrap/manifests/oauth-break-glass.reference.yaml`.
+`bootstrap/manifests/oauth-hub.reference.yaml`.
 
 Su uso debería disparar una alerta: el audit log registra `breakglass1` como
 usuario, así que una regla sobre ese nombre en el SIEM avisa de cada acceso.

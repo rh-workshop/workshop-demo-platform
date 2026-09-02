@@ -366,12 +366,53 @@ Consecuencia directa de F.2, y confirmada en vivo: el cluster tenía **un solo**
 proveedor de identidad (Keycloak) y `kubeadmin` ya estaba retirado, así que un
 fallo del IdP dejaba el cluster inaccesible justo cuando había que arreglarlo.
 
-Añadido un proveedor htpasswd con dos cuentas — una sola persona de guardia es un
-punto único de fallo — conservando el proveedor OIDC. Probado: ambos caminos
-inician sesión. El procedimiento, incluido cómo rotar y por qué su uso debería
-disparar una alerta en el SIEM, está en
-`bootstrap/manifests/oauth-break-glass.reference.yaml`. Las contraseñas se
-custodian fuera del cluster; el fichero htpasswd no se versiona.
+Resuelto de forma distinta en el hub y en los spokes, porque el problema no es el
+mismo:
+
+**El hub usa htpasswd como único proveedor.** El hub *despliega* Keycloak: si
+además autenticara contra él, arreglar un Keycloak caído exigiría entrar al
+cluster y entrar al cluster exigiría Keycloak. Se retiró el proveedor `rhbk`. La
+pertenencia a grupos pasa a asignarse con `oc adm groups add-users` — es un
+cluster de operación con pocas cuentas nominales, no una plataforma de
+autoservicio. Ver `bootstrap/manifests/oauth-hub.reference.yaml`.
+
+**Los spokes conservan Keycloak y añaden htpasswd.** Allí no hay circularidad. Se
+entrega en tres piezas: el Secret por `ManifestWork` (es un secreto, no puede ir
+a Git), el proveedor por la Policy `require-break-glass-idp` (`musthave` sobre la
+lista, así que **añade** sin tocar `rhbk`) y `cluster-admin` por
+`ClusterPermission` — autenticar sin autorizar no sirve en una emergencia.
+
+Probado de extremo a extremo en los cuatro spokes: login correcto, `whoami`
+devuelve la cuenta y `auth can-i '*' '*'` responde `yes`.
+
+**La cuenta no puede llamarse `admin`.** Con `mappingMethod: claim` OpenShift
+rechaza que dos identidades reclamen el mismo usuario: si ya existe un `admin`
+que entró por Keycloak, el login htpasswd falla con HTTP 500 y
+`cannot be claimed by identity ... already mapped to [rhbk:...]`.
+
+### F.6 Réplicas incompletas que no se notan — HECHO
+Keycloak llevaba tres días a **1/2 réplicas** en prod y contingencia sin que
+saltara nada. No era un rollout lento: el pod `keycloak-0` conservaba en memoria
+la credencial anterior de PostgreSQL y fallaba su probe con
+`password authentication failed for user "keycloak"`. El StatefulSet actualiza en
+orden inverso y espera a que esa réplica esté lista, así que el rollout no
+avanzaba nunca.
+
+Se corrigió recreando el pod — la contraseña del Secret ya era la correcta, sólo
+el proceso arrancado seguía con la vieja.
+
+Lo que hacía el fallo invisible es que **no hay caída**: la réplica sana atiende y
+Keycloak responde 200. La Application queda `Synced/Progressing`, que en un panel
+con decenas de aplicaciones se confunde con un despliegue en curso.
+
+Añadida la Policy `require-workloads-fully-available`, que compara
+`status.readyReplicas` con las pedidas en los StatefulSet de plataforma. En
+`inform`: la corrección depende del caso y una Policy que reiniciara pods por su
+cuenta convertiría un problema de disponibilidad en una caída.
+
+Documentado además en `externalsecret-keycloak-pgsql-user.yaml` que rotar la
+contraseña exige **tres** pasos —almacén, `ALTER USER` en la base de datos y
+reinicio del StatefulSet—; omitir el tercero reproduce exactamente este fallo.
 
 ### F.4 Backup y cifrado de etcd — ALTO
 Los Secrets que ESO materializa están **en claro** en etcd y en sus snapshots.
