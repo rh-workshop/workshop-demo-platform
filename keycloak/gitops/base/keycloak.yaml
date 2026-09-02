@@ -28,14 +28,10 @@ spec:
     httpEnabled: false
     tlsSecret: keycloak-tls
   hostname:
-    # El hostname cambia por ambiente: cada overlay lo pisa con el suyo. El
-    # valor de la base es solo un marcador; nunca se despliega tal cual porque
-    # el ApplicationSet siempre aplica el overlay del ambiente correspondiente.
-    hostname: sso.apps.cluster.ejemplo.com
-    # strict false es atajo de DEV; en prod se pone true (evita host spoofing) en
-    # overlays/prod.
+    # Cada overlay lo sustituye con el dominio de su cluster (ver `replacements`).
+    hostname: CHANGE_ME_SSO_HOSTNAME
+    # strict false es atajo de DEV; prod y contingencia lo ponen a true.
     strict: false
-    strictBackchannel: false
   ingress:
     enabled: false
   transaction:

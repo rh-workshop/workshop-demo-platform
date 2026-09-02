@@ -1,0 +1,121 @@
+# Previews EFÍMEROS por Pull Request sobre el repo de aplicaciones.
+#
+# Problema que resuelve: overlays/dev es ÚNICO, así que dos features en paralelo
+# se pisan el mismo namespace. El generador `pullRequest` consulta los PR
+# ABIERTOS de workshop-demo-app-config y crea UNA Application por PR, desplegando
+# el overlay de dev TAL COMO LO DEJA la rama del PR ({{.head_sha}}) en un
+# namespace propio (demo-service-pr-<n>). Al cerrarse el PR, el generador deja de
+# devolverlo y el controlador BORRA la Application; el finalizer de la plantilla
+# hace ese borrado en cascada, así que el Namespace (que es un recurso RASTREADO
+# del overlay, no solo un CreateNamespace) se va con ella: cero huérfanos.
+#
+# Aislamiento del preview, tres piezas (todas por Kustomize, sin tocar el repo):
+#   · namespace: renombra el Namespace del overlay y re-ubica todos los recursos.
+#     El Namespace renombrado CONSERVA las dos etiquetas que Connectivity Link
+#     exige (shared-gateway-access + istio-discovery): sin ellas el Gateway no ve
+#     el namespace y la ruta queda con attachedRoutes en 0.
+#   · patch del HTTPRoute: el path pasa de /demo a /pr-<n> para no chocar con la
+#     ruta de dev en el dominio compartido (mismo hostname, paths distintos).
+#   · patch del Namespace: etiquetas de gobierno del preview (identificar y
+#     limpiar de un vistazo qué namespaces son efímeros y de qué PR salen).
+#
+# CREDENCIAL (nunca en Git): el generador lee un token de GitHub de un Secret en
+# el namespace del ApplicationSet. Alcanza con un token de SOLO LECTURA sobre el
+# repo (fine-grained: Pull requests read / Contents read). Se crea así:
+#   oc create secret generic github-pr-token -n openshift-gitops \
+#     --from-literal=token=<PAT-solo-lectura>
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  annotations:
+    # Wave 4, como el resto de ApplicationSets: después del plano de control de ACM/Argo.
+    argocd.argoproj.io/sync-wave: "4"
+  name: workshop-previews-pr
+  labels:
+    workshop.redhat.com/layer: application
+    workshop.redhat.com/component: workshop-previews
+    workshop.redhat.com/environment: preview
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - pullRequest:
+        github:
+          owner: rh-workshop
+          repo: workshop-demo-app-config
+          # El token vive en un Secret del namespace de Argo, jamás en Git.
+          tokenRef:
+            secretName: github-pr-token
+            key: token
+          # FILTRO OBLIGATORIO, no opcional: workshop-demo-app-config es un repo
+          # PÚBLICO, así que sin él cualquier persona de internet abre un PR (o un
+          # PR desde un fork) y este ApplicationSet despliega su contenido en el
+          # cluster HUB. El manifiesto del PR controla la imagen (`newName`), de
+          # modo que un PR no revisado equivale a ejecución de código arbitrario en
+          # la plataforma. La etiqueta `preview` solo la puede poner quien tiene
+          # permiso de escritura en el repo: ese es el punto de revisión humana.
+          labels:
+            - preview
+        # Sondeo cada 2 minutos: el ciclo de vida del preview sigue al del PR sin webhook.
+        requeueAfterSeconds: 120
+  template:
+    metadata:
+      name: 'preview-demo-service-pr-{{.number}}'
+      labels:
+        workshop.redhat.com/layer: application
+        workshop.redhat.com/component: demo-preview
+        workshop.redhat.com/environment: preview
+      # El finalizer garantiza el borrado EN CASCADA al cerrar el PR: sin él, Argo eliminaría la Application pero dejaría namespace y workloads huérfanos.
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      # Proyecto propio (bootstrap/manifests/appproject-workshop-preview.yaml): acota los previews a namespaces demo-service-pr-* y a los kinds del servicio.
+      project: workshop-preview
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
+        # Se despliega el commit EXACTO de la cabeza del PR, no una rama que pueda moverse durante el sync.
+        targetRevision: '{{.head_sha}}'
+        path: apps/demo-service/overlays/dev
+        kustomize:
+          # Re-ubica TODO el overlay (incluido el propio Namespace, que Kustomize renombra) al namespace efímero del PR.
+          namespace: 'demo-service-pr-{{.number}}'
+          patches:
+            # El preview convive con dev en el MISMO hostname del gateway: se distingue por path.
+            - target:
+                kind: HTTPRoute
+                name: demo-service
+              patch: |-
+                - op: replace
+                  path: /spec/rules/0/matches/0/path/value
+                  value: /pr-{{.number}}
+            # Etiquetas de gobierno del namespace efímero (por kind, sin nombre: el Namespace ya viene renombrado por el transformador).
+            - target:
+                kind: Namespace
+              patch: |-
+                - op: add
+                  path: /metadata/labels/workshop.redhat.com~1preview
+                  value: "true"
+                - op: add
+                  path: /metadata/labels/workshop.redhat.com~1pr-number
+                  value: "{{.number}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'demo-service-pr-{{.number}}'
+      syncPolicy:
+        retry:
+          # Arranque en frio: los CRDs (Kuadrant, Gateway API) los instala ACM por su cuenta y pueden tardar; sin backoff Argo agota 5 intentos y se rinde.
+          limit: 20
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  # A DIFERENCIA de los demás ApplicationSets, aquí NO se preservan las Applications: el borrado al cerrar el PR es el ciclo de vida deseado.
+  syncPolicy:
+    preserveResourcesOnDeletion: false

@@ -1,9 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# SIN transformador global de namespace: cada recurso de la base ya declara el
-# suyo, y NooBaa —cuando se usa— DEBE quedarse en openshift-storage (el operador
-# MCG solo reconcilia ahi); el transformador lo reubicaba a quay-enterprise y lo
-# dejaba huerfano e inerte.
+# Sin transformador global de namespace: cada recurso de la base declara el suyo, y
+# NooBaa —cuando se usa— debe quedarse en openshift-storage, que es donde el
+# operador MCG lo reconcilia.
 resources:
   - ../../base
 

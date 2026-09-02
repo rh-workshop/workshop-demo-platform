@@ -168,7 +168,7 @@ La barrera hacia prod es RBAC, en dos capas complementarias:
    del namespace**, porque el run puede declarar su propio `taskSpec` y montar
    cualquier Secret como workspace. Por eso `app-developers` pasó a tener Tekton
    en SOLO LECTURA en `workshop-demo-dev` (ver
-   `namespace-governance/.../workshop-demo-dev/app-developers-role.yaml`): sin
+   `namespace-governance/.../workshop-demo-dev/role-app-developers.yaml`): sin
    ese cambio, retirar `secrets` del Role no protegía nada. En el workshop CI y
    promoción conviven en `workshop-demo-dev` por simplicidad; en producción la
    promoción a prod va en un namespace propio con su Role y sus credenciales, y

@@ -5,31 +5,26 @@ kind: Kustomization
 resources:
   # Primero el gobierno de namespaces (sync-wave -1): inventario, cuotas,
   # RBAC por grupo y aislamiento de red, antes de que nada despliegue dentro.
-  - hub/namespace-governance-application.yaml
-  - hub/acm-application.yaml
-  - hub/quay-application.yaml
-  - hub/acs-application.yaml
-  - hub/pipelines-application.yaml
-  - hub/developer-hub-application.yaml
+  - hub/application-namespace-governance.yaml
+  - hub/application-acm.yaml
+  - hub/application-quay.yaml
+  - hub/application-acs.yaml
+  - hub/application-pipelines.yaml
+  - hub/application-developer-hub.yaml
   # Istio (Sail) en el hub: provee el gatewayClass 'istio' del que depende connectivity-link.
-  - hub/service-mesh-hub-application.yaml
+  - hub/application-service-mesh-hub.yaml
   # ClusterIssuers en el hub: el TLSPolicy del gateway compartido depende de ellos.
-  - hub/cert-manager-hub-application.yaml
-  - hub/connectivity-link-application.yaml
+  - hub/application-cert-manager-hub.yaml
+  - hub/application-connectivity-link.yaml
   # Almacen de secretos: va antes que los productos que leen de el.
-  - hub/openbao-application.yaml
+  - hub/application-openbao.yaml
   # El puente con ESO: va en cada cluster, aqui el del hub.
-  - hub/openbao-store-application.yaml
-  # Argo Rollouts NO va aquí: es un componente de CARGA, no de gestión. Su
-  # controlador tiene que estar en el mismo cluster que los pods que sustituye,
-  # así que lo despliegan los ApplicationSets workload-<ambiente> (dev, test,
-  # prod y contingencia). El hub aloja el plano de control —ACM, Quay, ACS,
-  # Argo CD— y no ejecuta despliegues progresivos de negocio.
+  - hub/application-openbao-store.yaml
   # Gobierno del workshop de aplicaciones: la única Application que no genera
   # ningún ApplicationSet (los servicios sí — ver gitops/appsets/workshop-*).
   # Las políticas del demo-service viven en apps/demo-service/overlays/dev (las
   # despliega el ApplicationSet de servicios) y el permiso de descarga de imagen
   # va DENTRO de cada servicio (apps/<servicio>/base): ninguno amerita Application propia.
-  - hub/workshop-pipelines-application.yaml
+  - hub/application-workshop-pipelines.yaml
   - ../clusters
   - ../appsets

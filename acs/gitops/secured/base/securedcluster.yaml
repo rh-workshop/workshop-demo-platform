@@ -26,12 +26,13 @@ metadata:
   namespace: stackrox
 spec:
   admissionControl:
-    listenOnCreates: true
-    listenOnUpdates: true
-    # timeout explicito, no el default implicito del operador. El bloqueo real lo
-    # decide enforcementActions de cada SecurityPolicy (ver policies/), aqui solo
-    # se garantiza que el admission controller escucha y responde a tiempo.
-    timeoutSeconds: 10
+    # Habilita el admission controller: sin el, ninguna SecurityPolicy llega a
+    # evaluarse en admision. El bloqueo lo decide enforcementActions de cada
+    # politica (ver policies/).
+    enforcement: Enabled
+    # Fail-open: si el controller no responde, el despliegue pasa. Evita que un ACS
+    # caido bloquee la formacion. Prod y contingencia lo cambian a Fail.
+    failurePolicy: Ignore
   perNode:
     collector:
       # CORE_BPF es el unico modo soportado (EBPF retirado).

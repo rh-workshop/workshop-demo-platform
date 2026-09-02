@@ -1,0 +1,12 @@
+# Endpoint del Central de ACS, en un unico sitio por overlay.
+#
+# Es el dominio del hub: al adoptar el material solo se edita este fichero por
+# overlay, en vez de repetirlo en cada uno.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acs-central
+  namespace: stackrox
+data:
+  # Route publica del Central del hub: central-stackrox.apps.<cluster-hub>.<dominio-base>:443
+  endpoint: central-stackrox.apps.ocp.hq2ss.sandbox3270.opentlc.com:443

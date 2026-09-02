@@ -2,7 +2,11 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
+  - externalsecret-keycloak-pgsql-user.yaml
+  - persistentvolumeclaim-keycloak-pgsql-data.yaml
+  - deployment-keycloak-pgsql.yaml
+  - service-keycloak-pgsql.yaml
   - keycloak.yaml
-  - keycloak-service.yaml
-  - keycloak-route.yaml
+  - service-keycloak.yaml
+  - route-keycloak.yaml
   - keycloakrealmimport-workshop.yaml

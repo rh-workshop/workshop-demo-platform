@@ -1,6 +1,9 @@
 # HA de Authorino en prod: 2 replicas. Authorino esta en la ruta de datos (external
 # authz del gateway); con 1 replica un drain de nodo corta la auth de TODO el
 # trafico. Lo crea el operador Kuadrant, por eso puede requerir ignoreDifferences.
+#
+# El CR no admite `resources`: los limites del pod los aporta el LimitRange de
+# kuadrant-system (ver namespace-governance).
 apiVersion: operator.authorino.kuadrant.io/v1beta1
 kind: Authorino
 metadata:

@@ -7,7 +7,7 @@ namespace: workshop-demo-dev
 
 resources:
   - ../../base
-  - tooling-registry-configmap.yaml
+  - configmap-tooling-registry.yaml
 
 # EL HOST DEL REGISTRO ES UN DATO DEL ENTORNO. La base deja CHANGE_ME_QUAY_HOST
 # porque el "que" (el pipeline) no debe saber en que cluster corre; el overlay

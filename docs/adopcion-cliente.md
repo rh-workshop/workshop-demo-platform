@@ -84,7 +84,7 @@ nunca en la base**. Ficheros a editar (por ambiente `dev/test/prod/contingencia`
 | Keycloak | `keycloak/gitops/overlays/<amb>/keycloak-*.yaml` + patch del Route en `kustomization.yaml` |
 | Gateway (Connectivity Link) | `connectivity-link/gitops/overlays/<amb>/gateway-hostname.yaml`, `route-apis-host.yaml`, `authpolicy-default-issuer.yaml` (issuer = el Keycloak del MISMO ambiente) |
 | Servicios (app-config) | `apps/<servicio>/overlays/<amb>/httproute-*.yaml` (hostname) y `authpolicy-*.yaml` (issuer) |
-| Monitorización | `monitoring/gitops/overlays/{prod,contingencia}/prometheus-retention.yaml` (la `storageClassName` de TU cluster) |
+| Monitorización | `monitoring/gitops/overlays/{prod,contingencia}/configmap-prometheus-retention.yaml` (la `storageClassName` de TU cluster) |
 
 El realm (`workshop`) aparece en los `issuerUrl` y en el `KeycloakRealmImport`
 (`keycloak/gitops/base/keycloakrealmimport-workshop.yaml`): si usas otro realm,

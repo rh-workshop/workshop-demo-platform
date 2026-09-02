@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - app-config-configmap.yaml
-  - dynamic-plugins-configmap.yaml
-  - rbac-policy-configmap.yaml
+  - configmap-app-config.yaml
+  - configmap-dynamic-plugins.yaml
+  - configmap-rbac-policy.yaml
   - backstage.yaml

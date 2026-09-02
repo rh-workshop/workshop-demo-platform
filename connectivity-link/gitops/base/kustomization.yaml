@@ -5,8 +5,8 @@ resources:
   - namespace-gateway.yaml
   - kuadrant.yaml
   - gateway.yaml
-  - shared-gateway-tlspolicy.yaml
-  - shared-gateway-default-authpolicy.yaml
+  - tlspolicy-shared-gateway.yaml
+  - authpolicy-shared-gateway-default.yaml
   # Puerta de entrada del router al gateway; una sola para todos los servicios.
   - route-shared-gateway.yaml
   # Activa el plugin de Kuadrant en la consola web de OpenShift.

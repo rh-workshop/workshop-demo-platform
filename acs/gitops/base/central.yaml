@@ -78,16 +78,11 @@ spec:
         limits:
           cpu: "1"
           memory: 3Gi
-    # LA BASE DEL SCANNER ES LA EXCEPCION AL RECORTE DE ARRIBA. Con 2 cores y 4Gi
-    # se quedaba CLAVADA en su techo (2002m de 2 CPU, 4094Mi de 4Gi) en cuanto los
-    # cinco clusters empezaron a reportar a la vez: el `-- ping` de sanidad pasaba
-    # de milisegundos a 63 SEGUNDOS, el indexer no lograba conectar
-    # ("connection refused") y el scanner entero quedaba UNHEALTHY.
-    #
-    # No es una carga a rafagas como el indexer: es una base de datos que sostiene
-    # conexiones de todos los indexers de la flota, y su demanda crece con el
-    # numero de clusters vigilados. El request sigue bajo —lo que reserva de
-    # verdad—; lo que sube es el TECHO, que solo se consume si hace falta.
+    # La base del scanner es la excepcion al recorte de arriba: sostiene las
+    # conexiones de todos los indexers de la flota y su demanda crece con el numero
+    # de clusters vigilados. Con 2 cores y 4Gi se satura cuando los cinco reportan a
+    # la vez (el `-- ping` de sanidad sube a 63 s y el scanner queda UNHEALTHY).
+    # El request sigue bajo —es lo que reserva—; lo que sube es el techo.
     db:
       resources:
         requests:

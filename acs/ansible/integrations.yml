@@ -53,9 +53,9 @@
     firma_nombre: "{{ org_prefix }}-pipeline-cosign"
     # Las dos políticas que referencian esa integración y su nombre en Central (para verificarlas).
     politicas_firma:
-      - file: "{{ repo_root }}/acs/ansible/policies/require-image-signature-securitypolicy.yaml"
+      - file: "{{ repo_root }}/acs/ansible/policies/securitypolicy-require-image-signature.yaml"
         nombre: Exigir firma cosign verificada
-      - file: "{{ repo_root }}/acs/ansible/policies/require-image-signature-deploy-securitypolicy.yaml"
+      - file: "{{ repo_root }}/acs/ansible/policies/securitypolicy-require-image-signature-deploy.yaml"
         nombre: Exigir firma cosign verificada en el despliegue
     acs_host: "{{ lookup('env', 'ACS_HOST') }}"
     acs_token: "{{ lookup('env', 'ACS_TOKEN') }}"

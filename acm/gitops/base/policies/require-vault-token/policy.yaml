@@ -49,7 +49,10 @@ spec:
                 apiVersion: v1
                 kind: Secret
                 metadata:
-                  name: openbao-dev-token
+                  name: openbao-eso-token
                   namespace: openbao
                 data:
-                  token: "{{hub fromSecret "open-cluster-management" "openbao-dev-token" "token" hub}}"
+                  # Un token por ambiente, elegido con el label del ManagedCluster:
+                  # con uno solo, comprometer dev daria acceso al almacen de prod.
+                  # Los tokens llevan la politica eso-read (solo lectura).
+                  token: "{{hub fromSecret "open-cluster-management" (printf "openbao-token-%s" (index .ManagedClusterLabels "environment")) "token" hub}}"

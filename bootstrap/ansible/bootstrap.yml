@@ -76,16 +76,16 @@
     # Manifiestos del plano de control: los aplica este playbook, no Argo.
     manifiestos_bootstrap:
       - "{{ repo_root }}/bootstrap/manifests/argocd.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/argocd-gateway-api-clusterrole.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/argocd-operators-clusterrole.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/argocd-namespace-governance-clusterrole.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/argocd-policy-clusterrole.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/gitops-control-appproject.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/workshop-platform-appproject.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/workshop-preview-appproject.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/workshop-multicluster-appproject.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/workshop-appproject.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/default-appproject.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-gateway-api.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-operators.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-namespace-governance.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-policy.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-gitops-control.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-platform.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-preview.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-multicluster.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-workshop.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-default.yaml"
     # Inventario de clusters por defecto: SOLO el hub. El inventario real, con
     # los spokes y su acceso, vive en clusters.yml (copiar de clusters.example.yml).
     managed_clusters:
@@ -123,7 +123,7 @@
           BACKEND_SECRET: "{{ lookup('password', '/dev/null length=32') }}"
     # Root Applications: la entrega a Argo; a partir de aquí gobierna GitOps.
     root_applications:
-      - "{{ repo_root }}/gitops/apps/root-application.yaml"
+      - "{{ repo_root }}/gitops/apps/application-root.yaml"
     # Spokes a importar: todo cluster del inventario que declare api_url.
     spokes: "{{ managed_clusters | selectattr('api_url', 'defined') | list }}"
 
@@ -135,7 +135,7 @@
         # El lookup permite archivos multi-documento (Namespace + OperatorGroup + Subscription).
         definition: "{{ lookup('file', item) }}"
       loop:
-        - "{{ repo_root }}/bootstrap/manifests/openshift-gitops-subscription.yaml"
+        - "{{ repo_root }}/bootstrap/manifests/subscription-openshift-gitops.yaml"
         - "{{ repo_root }}/bootstrap/manifests/acm-subscription.yaml"
       # Etiqueta propia para reaplicar SOLO las Subscription sin repetir la
       # instalacion entera: su `config.env` cambia (p. ej. al autorizar el

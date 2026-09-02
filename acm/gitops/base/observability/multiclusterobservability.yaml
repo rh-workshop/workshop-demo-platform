@@ -7,11 +7,6 @@
 # storage y las expone en Grafana. Es lo que permite responder "como esta la
 # plataforma" sin entrar cluster por cluster.
 #
-# POR QUE IMPORTA AQUI, mas alla del panel: el analisis del canary de Argo
-# Rollouts consulta el Thanos Querier del cluster. Sin observabilidad, la
-# AnalysisTemplate no tiene contra que medir y el despliegue progresivo no puede
-# decidir si promociona o revierte.
-#
 # ALMACENAMIENTO. Se apoya en el mismo object storage nativo de la nube que usa
 # Quay (ver quay_storage_backend en vars/platform-vars.yml). La conexion viaja en
 # el Secret `thanos-object-storage`, que NO se versiona: lo siembra

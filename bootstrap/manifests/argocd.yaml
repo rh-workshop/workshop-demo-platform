@@ -15,7 +15,12 @@ spec:
   # Exigido por el Policy Generator de ACM: sin el flag, Kustomize ignora el bloque
   # `generators:` y la app sincroniza de menos SIN error.
   kustomizeBuildOptions: --enable-alpha-plugins
-  # Servidor API/UI: el límite por defecto (256Mi) causaba OOMKilled con ~180Mi de uso real; se duplica a 512Mi.
+  # Desactiva el ClusterRole comodin que el operador crea por defecto (da acceso a
+  # operator.openshift.io, config.openshift.io, machineconfiguration y rbac). Los
+  # permisos se declaran enumerados en bootstrap/manifests/argocd-*-clusterrole.yaml.
+  # Con false, el operador recrea ese rol.
+  defaultClusterScopedRoleDisabled: true
+  # Servidor API/UI: 512Mi de límite (el default de 256Mi queda justo frente a los ~180Mi de uso real).
   server:
     resources:
       limits:

@@ -35,3 +35,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: cert-manager-operator
+---
+# El operador MCG (NooBaa) solo reconcilia en openshift-storage. Una OperatorPolicy
+# no crea el namespace donde instala, asi que sin esto queda NonCompliant.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-storage

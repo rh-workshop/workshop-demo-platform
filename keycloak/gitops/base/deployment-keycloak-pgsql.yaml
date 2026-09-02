@@ -1,0 +1,99 @@
+# PostgreSQL que respalda a Keycloak.
+#
+# NO-PRODUCCION: 1 pod, sin HA ni backup. En produccion se sustituye por una base
+# gestionada externa (Azure Database for PostgreSQL / RDS Multi-AZ) y este
+# Deployment se excluye del overlay. Ver docs/production-outside-the-lab.md.
+#
+# Las credenciales NO se versionan: llegan al Secret keycloak-pgsql-user por
+# ExternalSecret (externalsecret-keycloak-pgsql-user.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak-pgsql
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak-pgsql
+    app.kubernetes.io/part-of: keycloak
+  annotations:
+    # Reinicia el pod cuando ESO rota la credencial en el Secret.
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  # El PVC es RWO: Recreate evita que el pod nuevo se quede Pending esperando el volumen.
+  strategy:
+    type: Recreate
+  # El selector es inmutable: cambiarlo obliga a recrear el Deployment.
+  selector:
+    matchLabels:
+      app: keycloak-pgsql
+  template:
+    metadata:
+      labels:
+        app: keycloak-pgsql
+        app.kubernetes.io/name: keycloak-pgsql
+        app.kubernetes.io/part-of: keycloak
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # El nombre identifica al contenedor en la lista: cambiarlo anade uno nuevo
+        # en vez de reemplazar este.
+        - name: pgsql
+          image: registry.redhat.io/rhel9/postgresql-16:1-1754433677
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRESQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-pgsql-user
+                  key: user
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-pgsql-user
+                  key: password
+            - name: POSTGRESQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-pgsql-user
+                  key: dbname
+          # pg_isready comprueba que el motor acepta conexiones, no solo que el proceso vive.
+          readinessProbe:
+            exec:
+              command: ["/usr/libexec/check-container"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # La liveness usa --live: no falla por una consulta lenta, solo si el motor murio.
+          livenessProbe:
+            exec:
+              command: ["/usr/libexec/check-container", "--live"]
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: pgsql-storage
+              mountPath: /var/lib/pgsql/data
+      volumes:
+        - name: pgsql-storage
+          persistentVolumeClaim:
+            claimName: keycloak-pgsql-data

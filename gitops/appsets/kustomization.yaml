@@ -1,34 +1,34 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - acm-placement-configmap.yaml
+  - configmap-acm-placement.yaml
   # Un ApplicationSet de workload por ambiente: los CUATRO (dev/test/prod/contingencia).
-  - workload-dev-applicationset.yaml
-  - workload-test-applicationset.yaml
-  - workload-prod-applicationset.yaml
-  - workload-contingencia-applicationset.yaml
+  - applicationset-workload-dev.yaml
+  - applicationset-workload-test.yaml
+  - applicationset-workload-prod.yaml
+  - applicationset-workload-contingencia.yaml
   - service-mesh-dev-applicationset.yaml
   - service-mesh-test-applicationset.yaml
   - service-mesh-prod-applicationset.yaml
   - service-mesh-contingencia-applicationset.yaml
   # A todos los clusters (hub incluido): derivan el overlay de 'environment'.
-  - monitoring-applicationset.yaml
+  - applicationset-monitoring.yaml
   # El agente de ACS. Central va aparte y solo en el hub (gitops/apps/hub/).
-  - acs-secured-applicationset.yaml
+  - applicationset-acs-secured.yaml
   # Descubrimiento de los servicios del workshop en el repo de aplicaciones:
   # dev en el hub (modelo original del taller) y test/prod/contingencia en el
   # cluster de su ambiente (matrix con el Placement del ambiente). Un servicio
   # entra en un ambiente creando apps/<servicio>/overlays/<ambiente>.
-  - workshop-services-dev-applicationset.yaml
-  - workshop-services-test-applicationset.yaml
-  - workshop-services-prod-applicationset.yaml
-  - workshop-services-contingencia-applicationset.yaml
+  - applicationset-workshop-services-dev.yaml
+  - applicationset-workshop-services-test.yaml
+  - applicationset-workshop-services-prod.yaml
+  - applicationset-workshop-services-contingencia.yaml
   # Los servicios del pipeline de auditoría viven en su propio repo de configuración, así
   # que necesitan su propio juego de ApplicationSets: el generador 'git' apunta a UN
   # repositorio y no admite una lista.
-  - kafka-services-dev-applicationset.yaml
-  - kafka-services-test-applicationset.yaml
-  - kafka-services-prod-applicationset.yaml
-  - kafka-services-contingencia-applicationset.yaml
+  - applicationset-kafka-services-dev.yaml
+  - applicationset-kafka-services-test.yaml
+  - applicationset-kafka-services-prod.yaml
+  - applicationset-kafka-services-contingencia.yaml
   # Previews efímeros: una Application por Pull Request abierto en el repo de aplicaciones.
-  - workshop-previews-pr-applicationset.yaml
+  - applicationset-workshop-previews-pr.yaml

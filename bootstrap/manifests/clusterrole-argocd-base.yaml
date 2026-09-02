@@ -1,0 +1,94 @@
+# Permisos BASE del controlador de Argo CD sobre recursos estandar de Kubernetes
+# y OpenShift.
+#
+# Sustituye al ClusterRole que el operador de OpenShift GitOps crea por defecto
+# (`openshift-gitops-openshift-gitops-argocd-application-controller`), desactivado
+# con `defaultClusterScopedRoleDisabled: true` en el CR ArgoCD.
+#
+# El rol por defecto concede comodines sobre grupos que dan control del cluster
+# (`operator.openshift.io`, `config.openshift.io`, `machineconfiguration`,
+# `rbac.authorization.k8s.io`). Aqui la ESCRITURA se enumera; la LECTURA sigue
+# siendo global porque Argo la necesita para calcular el diff y detectar drift.
+#
+# Argo no puede crear ClusterRole ni ClusterRoleBinding: los de este repo viven en
+# bootstrap/manifests/ y los aplica el playbook, de modo que un componente no
+# amplia sus propios permisos desde el repositorio que sincroniza. Role y
+# RoleBinding namespaced si, porque el gobierno los reparte por namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-base
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  # LECTURA global: necesaria para el calculo de diferencias y la deteccion de drift.
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: [get, list, watch]
+
+  # Recursos de cluster que el repo declara de verdad.
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - configmaps
+      - persistentvolumeclaims
+      - services
+      - serviceaccounts
+    verbs: [create, update, patch, delete]
+
+  # Cargas de trabajo desplegadas directamente (OpenBao, PostgreSQL de Keycloak).
+  - apiGroups: ["apps"]
+    resources: [deployments, statefulsets]
+    verbs: [create, update, patch, delete]
+
+  # Gobierno por namespace: cuotas, limites y aislamiento de red.
+  - apiGroups: [""]
+    resources: [resourcequotas, limitranges]
+    verbs: [create, update, patch, delete]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [networkpolicies]
+    verbs: [create, update, patch, delete]
+  - apiGroups: ["policy"]
+    resources: [poddisruptionbudgets]
+    verbs: [create, update, patch, delete]
+
+  # RBAC namespaced unicamente (ver cabecera).
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [roles, rolebindings]
+    verbs: [create, update, patch, delete]
+
+  # OLM: Subscription y OperatorGroup. Sin ClusterServiceVersion ni InstallPlan:
+  # aprobar la instalacion de un operador es ejecutar codigo con permisos de cluster.
+  - apiGroups: ["operators.coreos.com"]
+    resources: [subscriptions, operatorgroups]
+    verbs: [create, update, patch, delete]
+
+  # Rutas de OpenShift (consolas de Keycloak, Quay, OpenBao y el gateway).
+  - apiGroups: ["route.openshift.io"]
+    resources: [routes, routes/custom-host]
+    verbs: [create, update, patch, delete]
+
+  # Monitorizacion de las cargas propias.
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: [servicemonitors, podmonitors, prometheusrules]
+    verbs: [create, update, patch, delete]
+
+  # Argo gestiona sus propios objetos de aplicacion (patron app-of-apps).
+  - apiGroups: ["argoproj.io"]
+    resources: [applications, applicationsets, appprojects]
+    verbs: [create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-base
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-base

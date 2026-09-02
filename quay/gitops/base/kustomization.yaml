@@ -6,7 +6,6 @@ resources:
   # nativo de la nube) o components/storage-noobaa (MCG sobre un PVC, para
   # clusters sin object storage). Ver quay_storage_backend en vars/platform-vars.yml.
   #
-  # Antes NooBaa estaba aqui, en la base, lo que obligaba a desplegarlo SIEMPRE
-  # —incluso en un cluster de nube donde sobra, y donde ademas rompia el push del
-  # CI: NOT_ENOUGH_SPACE con el disco al 1% de uso.
+  # NooBaa no vive en la base: en un cluster de nube sobra, y su cuota hace que el
+  # push del CI falle con NOT_ENOUGH_SPACE aunque el disco este casi vacio.
   - quayregistry.yaml

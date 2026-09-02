@@ -1,0 +1,21 @@
+# Volumen de datos del PostgreSQL de Keycloak.
+#
+# Sin storageClassName: usa la clase por defecto del cluster. Fijarla aqui ataria
+# el manifiesto a un proveedor concreto (gp3-csi solo existe en AWS).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: keycloak-pgsql-data
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak-pgsql
+    app.kubernetes.io/part-of: keycloak
+  annotations:
+    # El PVC lo conserva Argo al eliminar la Application: borrarlo perderia el realm.
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi

@@ -1,0 +1,15 @@
+# Datos de ESTE cluster y ambiente, en un unico sitio.
+#
+# Kustomize los inyecta en el Route, el CR Keycloak y la ruta del almacen de
+# secretos (ver `replacements` en kustomization.yaml): al adoptar el material solo
+# se edita este fichero por overlay.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-values
+  namespace: keycloak
+data:
+  # Host publico del SSO de este cluster: sso.apps.<cluster>.<dominio-base>
+  ssoHostname: sso.apps.ocp.krzn5.sandbox3491.opentlc.com
+  # Ambiente: selecciona la ruta de credenciales en el almacen (una por ambiente).
+  environment: contingencia

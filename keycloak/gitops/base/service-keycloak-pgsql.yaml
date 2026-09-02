@@ -1,0 +1,19 @@
+# Service del PostgreSQL de Keycloak. El CR Keycloak lo referencia por este nombre
+# (spec.db.host: keycloak-pgsql).
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-pgsql
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak-pgsql
+    app.kubernetes.io/part-of: keycloak
+spec:
+  type: ClusterIP
+  selector:
+    app: keycloak-pgsql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+      protocol: TCP

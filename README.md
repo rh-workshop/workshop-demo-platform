@@ -220,7 +220,6 @@ workshop-platform/
 ├── cert-manager/gitops/    # ClusterIssuer
 ├── connectivity-link/gitops/    # Kuadrant, Gateway
 ├── pipelines/gitops/       # TektonConfig (+ firma con Chains)
-├── rollouts/gitops/        # RolloutManager (Argo Rollouts): canary automático del workshop
 ├── workshop-pipelines/     # gitops/: CI, CD y promoción entre orgs de Quay · runs/: PipelineRun de ejemplo
 └── acs/{gitops,ansible}/        # Central/SecuredCluster → Argo · políticas → API
 ```
@@ -248,7 +247,6 @@ se fija en el overlay del ambiente, nunca en la base.
 | **cert-manager** | `ClusterIssuer` | — |
 | **Connectivity Link** | `Kuadrant`, `Gateway` | — |
 | **Pipelines** | `TektonConfig` (con Chains) | claves de firma cosign *(fuera de Git)* |
-| **Argo Rollouts** | `RolloutManager` (el operador GitOps ya lo gestiona; ningún operador nuevo) | — |
 | **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** |
 | **ACM** | `MultiClusterHub`, `Policy`/`Placement`/`PlacementBinding` | — |
 | **Developer Hub** | CR `Backstage` + ConfigMaps (app-config, plugins, RBAC csv), Software Templates | — *(todo declarativo)* |

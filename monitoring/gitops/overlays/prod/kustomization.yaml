@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
   - ../../base
 patches:
-  - path: prometheus-retention.yaml
+  - path: configmap-prometheus-retention.yaml
     target:
       kind: ConfigMap
       name: cluster-monitoring-config

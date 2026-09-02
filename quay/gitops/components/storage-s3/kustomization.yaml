@@ -17,7 +17,7 @@ kind: Component
 resources:
   # Pide al Cloud Credential Operator una identidad PROPIA para el bucket, en
   # vez de reutilizar las credenciales de otro componente del cluster.
-  - quay-s3-credentialsrequest.yaml
+  - credentialsrequest-quay-s3.yaml
 
 patches:
   - target:

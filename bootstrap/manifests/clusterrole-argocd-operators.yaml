@@ -1,0 +1,193 @@
+# Permisos adicionales del controlador de Argo CD sobre los CRs de los operadores
+# de plataforma (ACM, ACS, Quay, RHDH, Tekton, Keycloak, MetalLB, Service Mesh).
+#
+# Mismo razonamiento que argocd-gateway-api: el rol del operador de GitOps da
+# lectura global pero escritura acotada; los grupos de API de estos productos no
+# están en ese conjunto y la sincronización falla con "forbidden: cannot create/patch".
+#
+# Es plano de control: amplía los permisos del propio controller, así que lo
+# aplica el bootstrap y NO una Application de Argo — un componente no debe poder
+# ampliarse sus propios permisos desde un repositorio que él mismo sincroniza.
+#
+# Los recursos se enumeran, nunca "*": un comodín por grupo de API concede también
+# los recursos sensibles que ese grupo contenga (p. ej. `operator.openshift.io`
+# incluye kubeapiservers, etcds e ingresscontrollers). Cada entrada corresponde a
+# un CR que el repo declara; al añadir un componente, añadir aquí su recurso.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-platform-operators
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  # ACM: el hub y la observabilidad multi-cluster. Sin ManagedCluster:
+  # importar y desimportar clusters no sale de un sync de Git.
+  - apiGroups:
+      - operator.open-cluster-management.io
+    resources:
+      - multiclusterhubs
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - observability.open-cluster-management.io
+    resources:
+      - multiclusterobservabilities
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ACM: destinos de despliegue. Solo los objetos de placement y el registro de
+  # clusters en Argo.
+  - apiGroups:
+      - cluster.open-cluster-management.io
+    resources:
+      - placements
+      - placementdecisions
+      - managedclustersetbindings
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - apps.open-cluster-management.io
+    resources:
+      - gitopsclusters
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # External Secrets: los objetos que declaran DE DONDE leer, no los secretos.
+  - apiGroups:
+      - external-secrets.io
+    resources:
+      - externalsecrets
+      - clustersecretstores
+      - secretstores
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # Instancia del controlador de ESO y el plugin de consola de Kuadrant. Solo estos
+  # dos: el grupo contiene además kubeapiservers, etcds, networks e ingresscontrollers.
+  - apiGroups:
+      - operator.openshift.io
+    resources:
+      - externalsecretsconfigs
+      - consoles
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ACS: Central, SecuredCluster y las políticas declarativas.
+  - apiGroups:
+      - platform.stackrox.io
+    resources:
+      - centrals
+      - securedclusters
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - config.stackrox.io
+    resources:
+      - securitypolicies
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # Quay y su object storage (NooBaa/MCG standalone, para entornos sin ODF).
+  - apiGroups:
+      - quay.redhat.com
+    resources:
+      - quayregistries
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - noobaa.io
+    resources:
+      - noobaas
+      - backingstores
+      - bucketclasses
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # cert-manager en el HUB: los ClusterIssuer/Certificate del gateway compartido
+  # (en los spokes aplica el token del cluster secret).
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+      - clusterissuers
+      - issuers
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # Developer Hub y Pipelines.
+  - apiGroups:
+      - rhdh.redhat.com
+    resources:
+      - backstages
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - operator.tekton.dev
+    resources:
+      - tektonconfigs
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - tekton.dev
+    resources:
+      - pipelines
+      - tasks
+      - pipelineruns
+      - taskruns
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - pipelinesascode.tekton.dev
+    resources:
+      - repositories
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # Keycloak, MetalLB y Service Mesh (para el hub; en los spokes aplica el token
+  # del cluster secret).
+  - apiGroups:
+      - k8s.keycloak.org
+    resources:
+      - keycloaks
+      - keycloakrealmimports
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - metallb.io
+    resources:
+      - metallbs
+      - ipaddresspools
+      - l2advertisements
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - sailoperator.io
+    resources:
+      - istios
+      - istiocnis
+      - istiorevisions
+      - istiorevisiontags
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - security.istio.io
+    resources:
+      - peerauthentications
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # Cargas que Argo despliega directamente, sin operador de por medio (OpenBao).
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - serviceaccounts
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # Cloud Credential Operator: solo el CredentialsRequest del bucket de Quay (s3).
+  - apiGroups:
+      - cloudcredential.openshift.io
+    resources:
+      - credentialsrequests
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-platform-operators
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-platform-operators

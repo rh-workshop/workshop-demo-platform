@@ -9,6 +9,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+  - configmap-acs-central.yaml
 patches:
   - target:
       kind: SecuredCluster
@@ -19,4 +20,18 @@ patches:
         value: cluster-dev
       - op: add
         path: /spec/centralEndpoint
-        value: central-stackrox.apps.ocp.hq2ss.sandbox3270.opentlc.com:443
+        value: CHANGE_ME_CENTRAL_ENDPOINT
+
+# El endpoint del hub es un dato del entorno: se inyecta desde el ConfigMap para
+# que viva en un solo sitio.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: acs-central
+      fieldPath: data.endpoint
+    targets:
+      - select:
+          kind: SecuredCluster
+          name: stackrox-secured-cluster-services
+        fieldPaths:
+          - spec.centralEndpoint

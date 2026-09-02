@@ -198,7 +198,7 @@ rm /tmp/quay-config.yaml
 
 ### `rhdh-backend-secret` (namespace `developer-hub`)
 
-Lo referencia `developer-hub/gitops/base/app-config-configmap.yaml`
+Lo referencia `developer-hub/gitops/base/configmap-app-config.yaml`
 (`${BACKEND_SECRET}`, el token de servicio del backend de Backstage); sin él el
 pod de Developer Hub arranca en CrashLoop por variable sin resolver:
 
@@ -259,7 +259,7 @@ defecto: el estado deseado vive en Git, se revisa por Pull Request y Argo lo
 reconcilia de forma continua.
 
 Entra aquí: `QuayRegistry`, `MultiClusterObservability`, `Keycloak`, `Kuadrant`,
-`Gateway`, `RolloutManager`, `Deployment`, `Namespace`, `Pipeline`, `Task`,
+`Gateway`, `Deployment`, `Namespace`, `Pipeline`, `Task`,
 `AppProject` (vía bootstrap), `CredentialsRequest`…
 
 ### 2. Policy de ACM — lo que Argo no alcanza o no debe versionar

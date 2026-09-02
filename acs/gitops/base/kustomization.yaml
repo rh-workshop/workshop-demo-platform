@@ -6,7 +6,7 @@ kind: Kustomization
 # existe una sola vez y solo en el hub.
 resources:
   - central.yaml
-  - policies/disallow-latest-tag-securitypolicy.yaml
+  - policies/securitypolicy-disallow-latest-tag.yaml
   # Las dos politicas de firma (BUILD y DEPLOY) NO van por Argo: referencian el
   # ID de la SignatureIntegration, que lo genera Central en cada instalacion.
   # Las aplica acs/ansible/integrations.yml con el ID real — ver acs/ansible/policies/.

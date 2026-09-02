@@ -7,7 +7,7 @@ hub (`MultiClusterHub`) y las políticas de gobierno (`Policy` + `Placement` +
 ## Se despliega por app-of-apps, como producto hub
 
 ACM vive solo en el cluster hub, así que su Application está en
-`gitops/apps/hub/acm-application.yaml` y apunta a `in-cluster`. No forma parte del
+`gitops/apps/hub/application-acm.yaml` y apunta a `in-cluster`. No forma parte del
 fan-out por ApplicationSet (eso es para los productos workload que van a spokes).
 
 Verificado en vivo sobre **ACM 2.17 / MCE 2.17.1 + OpenShift GitOps 1.21.3**: Argo
@@ -30,8 +30,8 @@ resuelto.)
 ```
 gitops/base/
 ├── placements/            # los Placement, COMPARTIDOS entre políticas
-│   ├── clusters-hub.yaml       # role=hub (el cluster de management)
-│   └── clusters-workload.yaml  # environment in [dev, prod]
+│   ├── placement-clusters-hub.yaml       # role=hub (el cluster de management)
+│   └── placement-clusters-workload.yaml  # environment in [dev, prod]
 └── policies/              # una carpeta por política
     └── <política>/
         ├── policy.yaml           # la política (o <ámbito>-policy.yaml si tiene varias)

@@ -1,0 +1,25 @@
+# Los routers de OpenShift sirven las Route auxiliares (webhooks de Pipelines
+# as Code) que apuntan a estos namespaces.
+#
+# Se aceptan los tres selectores porque el label depende del CNI y de como se
+# publique el router: `network.openshift.io/policy-group: ingress` es el de
+# OpenShift SDN, `policy-group.network.openshift.io/ingress` el de OVN-Kubernetes,
+# y con el router en HostNetwork (lo habitual on-premise) el trafico llega con IP
+# de host y solo lo cubre el selector host-network. Los tres se combinan con O.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-openshift-ingress
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+        - namespaceSelector:
+            matchLabels:
+              policy-group.network.openshift.io/ingress: ""
+        - namespaceSelector:
+            matchLabels:
+              policy-group.network.openshift.io/host-network: ""

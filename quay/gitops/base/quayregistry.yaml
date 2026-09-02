@@ -52,6 +52,6 @@ spec:
       # cluster-wide y poner managed: true, o crear el ServiceMonitor aparte.
       managed: false
     # HPA ON: el registro sirve pulls de todo el cluster + spokes; debe escalar
-    # ante picos. Antes estaba desactivado y sin réplicas declaradas.
+    # ante picos.
     - kind: horizontalpodautoscaler
       managed: true

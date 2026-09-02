@@ -13,7 +13,7 @@ ambiente lo recibe solo, sin tocar estos manifiestos.
 
 | Pieza | Dónde |
 |---|---|
-| Instalación del operador | `acm/gitops/base/policies/install-operators/workload-policy.yaml` (`OperatorPolicy` de ACM) |
+| Instalación del operador | `acm/gitops/base/policies/install-operators/policy-workload.yaml` (`OperatorPolicy` de ACM) |
 | Configuración (los CR) | `kafka/gitops/base` + `overlays/<ambiente>` |
 
 ## Qué se despliega
@@ -21,14 +21,14 @@ ambiente lo recibe solo, sin tocar estos manifiestos.
 | Manifiesto | Para qué |
 |---|---|
 | `kafka.yaml` | El cluster: modo KRaft, listeners con mTLS, autorización por ACL y métricas |
-| `controller-kafkanodepool.yaml` | Controladores dedicados: sostienen el quórum de metadatos |
-| `broker-kafkanodepool.yaml` | Brokers dedicados: reciben y sirven los mensajes |
-| `kafka-metrics-configmap.yaml` | Reglas de exposición de métricas de los brokers |
+| `kafkanodepool-controller.yaml` | Controladores dedicados: sostienen el quórum de metadatos |
+| `kafkanodepool-broker.yaml` | Brokers dedicados: reciben y sirven los mensajes |
+| `configmap-kafka-metrics.yaml` | Reglas de exposición de métricas de los brokers |
 | `kafka-podmonitor.yaml` | Recolección de esas métricas: brokers, Cruise Control y el exportador de retraso |
-| `demo-events-kafkatopic.yaml` | Tópico de eventos de la aplicación de demostración |
-| `demo-events-dlq-kafkatopic.yaml` | Cola de descarte de los mensajes no procesables |
-| `demo-producer-kafkauser.yaml` | Identidad del productor: solo escribe |
-| `demo-consumer-kafkauser.yaml` | Identidad del consumidor: lee y aparta a la cola de descarte |
+| `kafkatopic-demo-events.yaml` | Tópico de eventos de la aplicación de demostración |
+| `kafkatopic-demo-events-dlq.yaml` | Cola de descarte de los mensajes no procesables |
+| `kafkauser-demo-producer.yaml` | Identidad del productor: solo escribe |
+| `kafkauser-demo-consumer.yaml` | Identidad del consumidor: lee y aparta a la cola de descarte |
 
 > **Los cuatro recursos `demo.*` son un ejemplo de referencia, no una carga en uso.**
 > Muestran el patrón mínimo —un tópico, su cola de descarte y una identidad por

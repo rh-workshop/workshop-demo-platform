@@ -4,7 +4,7 @@ resources:
   - ../../base
   # El valor vive en un ConfigMap y no suelto para que quede VISIBLE en el
   # cluster como documentacion del origen del dato.
-  - cluster-storage-configmap.yaml
+  - configmap-cluster-storage.yaml
 
 # LA STORAGECLASS ES UN DATO DEL CLUSTER, no del modelo: la base deja el marcador
 # y el overlay lo resuelve. Argo CD no sustituye marcadores, asi que sin esto el

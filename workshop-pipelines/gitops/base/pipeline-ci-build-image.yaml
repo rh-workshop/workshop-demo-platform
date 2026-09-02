@@ -72,7 +72,7 @@ spec:
     # Endpoint de ACS Central; por defecto el Service interno del cluster.
     - {name: rox-central-endpoint, default: "central.stackrox.svc:443"}
     # Analizador SAST espejado en el registro corporativo (nunca desde Docker Hub en
-    # tiempo de build): ver la cabecera de code-scan-task.yaml para el skopeo copy.
+    # tiempo de build): ver la cabecera de task-code-scan.yaml para el skopeo copy.
     - {name: sast-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/semgrep:1.79.0"}
     # "false" informa de los hallazgos y sigue; "true" corta. En producción va en "true".
     - {name: sast-fail-on-violation, default: "false"}

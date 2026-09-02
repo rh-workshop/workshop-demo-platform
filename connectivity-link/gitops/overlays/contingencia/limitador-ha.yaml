@@ -1,17 +1,27 @@
-# HA de Limitador en prod: 2 replicas + PDB. Limitador cuenta el rate-limit; con 1
-# replica un drain corta el rate-limit del gateway.
-# NO-PRODUCCION: con counters en memoria, escalar Limitador MULTIPLICA el limite
-# efectivo (cada replica cuenta por su lado). En prod hace falta Redis compartido
-# (ver docs/production-outside-the-lab.md) ANTES de subir replicas.
+# Limitador con UNA replica.
+#
+# Los contadores del rate-limit viven en memoria y no se comparten entre replicas:
+# con 2, cada una cuenta por su lado y el limite efectivo se DUPLICA. Una replica
+# aplica el limite correcto, a costa de que un drain corte el rate-limit unos
+# segundos -- preferible a que el gateway deje pasar el doble de trafico del
+# declarado en las RateLimitPolicy.
+#
+# Para HA real hace falta almacenamiento compartido (Redis) en spec.storage; con el
+# se puede subir replicas y anadir un PDB. Ver docs/production-outside-the-lab.md.
 apiVersion: limitador.kuadrant.io/v1alpha1
 kind: Limitador
 metadata:
   name: limitador
   namespace: kuadrant-system
   annotations:
-    # Mismo criterio que Authorino: el CR lo crea el operador Kuadrant; aqui solo se aportan replicas/pdb via SSA para no reemplazar el CR entero.
+    # El CR lo crea el operador Kuadrant: se aportan solo estos campos via SSA para no reemplazar el CR entero.
     argocd.argoproj.io/sync-options: ServerSideApply=true,SkipDryRunOnMissingResource=true
 spec:
-  replicas: 2
-  pdb:
-    maxUnavailable: 1
+  replicas: 1
+  # Sin resources el pod corre BestEffort y es el primero en morir bajo presion.
+  resourceRequirements:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi

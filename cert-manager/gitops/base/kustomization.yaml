@@ -3,5 +3,5 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - clusterissuer-selfsigned.yaml
-  - bootstrap-ca.yaml
+  - certificate-workshop-ca.yaml
   - clusterissuer-acme.yaml

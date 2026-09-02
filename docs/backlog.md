@@ -60,7 +60,7 @@ de barrera hacia `prod`/`contingencia`. **Sin validar en vivo** (clusters apagad
 
 ## 1-ter. SBOM en el pipeline de CI — HECHO
 
-**Implementado** en `workshop-pipelines/gitops/base/sbom-generate-task.yaml`,
+**Implementado** en `workshop-pipelines/gitops/base/task-sbom-generate.yaml`,
 enganchado en el CI tras `resolve-digest` (en paralelo con firma y escaneo; la
 promoción del digest lo espera): `syft` genera el SPDX y `cosign attest` lo
 publica como atestación con la misma llave de firma. No existe imagen Red Hat de
@@ -107,11 +107,11 @@ y haya un ServiceMonitor).
 
 No estaba en el backlog original; se añadió al detectar que `overlays/dev` es
 único y dos features en paralelo se pisan. **Implementado** en
-`gitops/appsets/workshop-previews-pr-applicationset.yaml` (generador
+`gitops/appsets/applicationset-workshop-previews-pr.yaml` (generador
 `pullRequest` de GitHub sobre `workshop-demo-app-config`): una Application por
 PR abierto en su namespace efímero `demo-service-pr-<n>` (path `/pr-<n>` del
 gateway), borrada EN CASCADA al cerrar el PR. Barandilla propia:
-`bootstrap/manifests/workshop-preview-appproject.yaml`. El token de GitHub va en
+`bootstrap/manifests/appproject-workshop-preview.yaml`. El token de GitHub va en
 el Secret `github-pr-token` de `openshift-gitops`, nunca en Git.
 
 **Filtro por etiqueta: obligatorio, no opcional (corregido en la auditoría).**
@@ -131,7 +131,7 @@ Pendiente: cuotas/NetworkPolicy de `namespace-governance` para los namespaces
 piezas entran en los tres existentes, porque lo que cambia entre ambientes son
 datos, no responsabilidades):
 
-- **Tests unitarios** (`go-test-task.yaml`): `go test ./... -coverprofile` con
+- **Tests unitarios** (`task-go-test.yaml`): `go test ./... -coverprofile` con
   imagen Red Hat (`ubi9/go-toolset`), cobertura como result. El monorepo hoy NO
   tiene tests: la task lo detecta y lo informa sin romper
   (`fail-on-no-tests: "false"`); ponerlo en `"true"` los hará obligatorios.
@@ -401,6 +401,6 @@ sobreescribible por cluster en `clusters.yml`):
 **Coordinación pendiente.** El cambio implica migrar los blobs existentes
 (re-push/re-espejado: `mirror-tooling.yml` y el CI lo repueblan, pero las
 imágenes firmadas viejas se pierden — asumible en el lab) y retirar el
-`ignoreDifferences` de NooBaa añadido en `gitops/apps/hub/quay-application.yaml`
+`ignoreDifferences` de NooBaa añadido en `gitops/apps/hub/application-quay.yaml`
 (commit 04e8ce6) cuando NooBaa deje de desplegarse. No se implementó en esta
 pasada para no romper el CI en curso ni tocar ficheros con dueño en paralelo.

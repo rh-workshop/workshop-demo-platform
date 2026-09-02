@@ -6,20 +6,20 @@ resources:
   - multiclusterhub.yaml
   - managedclustersetbinding.yaml
   # Los Placement, centralizados: cada uno lo comparten varias políticas.
-  - placements/clusters-hub.yaml
-  - placements/clusters-workload.yaml
+  - placements/placement-clusters-hub.yaml
+  - placements/placement-clusters-workload.yaml
   # Una carpeta por política, con el binding que la une a su Placement.
-  - policies/install-operators/hub-policy.yaml
-  - policies/install-operators/hub-placementbinding.yaml
-  - policies/install-operators/workload-policy.yaml
-  - policies/install-operators/workload-placementbinding.yaml
+  - policies/install-operators/policy-hub.yaml
+  - policies/install-operators/placementbinding-hub.yaml
+  - policies/install-operators/policy-workload.yaml
+  - policies/install-operators/placementbinding-workload.yaml
   - policies/require-resourcequota/policy.yaml
   - policies/require-resourcequota/placementbinding.yaml
-  - policies/require-resourcequota/workload-placementbinding.yaml
+  - policies/require-resourcequota/placementbinding-workload.yaml
   # Pareja inseparable de la anterior: la cuota sin defaults bloquea despliegues.
   - policies/require-limitrange/policy.yaml
   - policies/require-limitrange/placementbinding.yaml
-  - policies/require-limitrange/workload-placementbinding.yaml
+  - policies/require-limitrange/placementbinding-workload.yaml
   # Las credenciales del registro que la politica de abajo reparte: una por
   # ambiente, entregadas por ESO desde el almacen. Van ANTES que la politica
   # porque son su entrada: sin ellas queda NonCompliant por "secrets not found".
@@ -28,20 +28,19 @@ resources:
   # cluster: sin ella los pods no descargan de Quay desde un spoke.
   - policies/require-registry-pull-secret/policy.yaml
   - policies/require-registry-pull-secret/placementbinding.yaml
-  - policies/require-registry-pull-secret/workload-placementbinding.yaml
+  - policies/require-registry-pull-secret/placementbinding-workload.yaml
   # Replica el token del almacen de secretos a los clusters de carga: sin el,
   # su ClusterSecretStore no puede autenticarse contra el almacen del hub.
   - policies/require-vault-token/policy.yaml
-  - policies/require-vault-token/workload-placementbinding.yaml
+  - policies/require-vault-token/placementbinding-workload.yaml
   # Aislamiento de red y RBAC de los namespaces de negocio. El binding al hub va
   # suelto; la Policy la genera el Policy Generator (ver generators: abajo).
-  - policies/require-namespace-isolation/hub-placementbinding.yaml
+  - policies/require-namespace-isolation/placementbinding-hub.yaml
   # Certificados del agente de ACS: sin ellos ningun SecuredCluster arranca.
   - policies/require-acs-init-bundle/policy.yaml
   - policies/require-acs-init-bundle/placementbinding.yaml
   # Observabilidad multi-cluster: metricas de todos los clusters gestionados,
-  # centralizadas en el hub. Tambien es de lo que se alimenta el analisis del
-  # canary de Argo Rollouts.
+  # centralizadas en el hub.
   - observability
 
 # Plugin del Policy Generator: envuelve manifiestos Kubernetes normales en

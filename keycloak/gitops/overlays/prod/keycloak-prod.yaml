@@ -1,5 +1,11 @@
-# Ajustes de PRODUCCION de Keycloak: HA (2 instancias), hostname del cluster prod
-# y hostname strict (evita host spoofing sobre URLs de tokens/redirects).
+# Ajustes de PRODUCCION de Keycloak: HA (2 instancias) y hostname strict (evita
+# host spoofing sobre URLs de tokens/redirects). El hostname lo inyecta el overlay
+# desde configmap-cluster-values.yaml.
+#
+# NO se usa strictBackchannel: es un campo de Hostname v1, DEPRECADO en el CRD de
+# Keycloak 26 (que usa Hostname v2) y por tanto ignorado en silencio. El
+# equivalente vigente es backchannelDynamic: false, que ademas es el valor por
+# defecto -- se declara explicito para dejar la intencion por escrito.
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: Keycloak
 metadata:
@@ -8,7 +14,5 @@ metadata:
 spec:
   instances: 2
   hostname:
-    # Sustituir por el dominio del cluster de PRODUCCIÓN: sso.apps.<cluster-prod>.<dominio-base>
-    hostname: sso.apps.ocp.2rndh.sandbox213.opentlc.com
     strict: true
-    strictBackchannel: true
+    backchannelDynamic: false

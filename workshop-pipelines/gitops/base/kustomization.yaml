@@ -7,23 +7,23 @@ resources:
   - rolebinding-builder-pipelines-scc.yaml
   # Pruebas unitarias ANTES de construir, una task POR LENGUAJE con contrato común
   # (el pipeline elige por el parámetro language); todas manejan el caso "sin tests".
-  - dotnet-test-task.yaml
-  - java-test-task.yaml
-  - python-test-task.yaml
-  - go-test-task.yaml
+  - task-dotnet-test.yaml
+  - task-java-test.yaml
+  - task-python-test.yaml
+  - task-go-test.yaml
   # Deteccion de secretos en arbol e historial de Git (gitleaks); falla cerrado.
   - secret-scan-task.yaml
   # Analisis estatico del CODIGO, antes de construir: encuentra lo que el escaneo
   # de imagen no ve (defectos escritos por el equipo, no CVEs de dependencias).
-  - code-scan-task.yaml
+  - task-code-scan.yaml
   # Politicas DEPLOY de ACS sobre el overlay renderizado, antes de promocionar el digest.
   - deployment-check-task.yaml
-  - image-sign-task.yaml
-  - image-scan-task.yaml
-  - sbom-generate-task.yaml
+  - task-image-sign.yaml
+  - task-image-scan.yaml
+  - task-sbom-generate.yaml
   # Comprueba que lo desplegado RESPONDE: Healthy en Argo no implica alcanzable.
-  - smoke-test-task.yaml
-  - argocd-sync-task.yaml
+  - task-smoke-test.yaml
+  - task-argocd-sync.yaml
   - pipeline-ci-build-image.yaml
   - pipeline-cd-deploy-application.yaml
   - pipeline-promote-image.yaml

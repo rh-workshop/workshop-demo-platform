@@ -7,6 +7,6 @@ kind: Kustomization
 namespace: platform-gateway
 resources:
   - ../../profiles/platform-namespace
-  - app-developers-rolebinding.yaml
+  - rolebinding-app-developers.yaml
 patches:
   - path: limitrange-patch.yaml

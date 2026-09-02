@@ -3,16 +3,44 @@ kind: Kustomization
 namespace: keycloak
 resources:
   - ../../base
-patches:
-  - path: keycloak-hostname.yaml
-  - target:
-      kind: Route
-      name: keycloak
-    patch: |-
-      - op: replace
-        path: /spec/host
-        # Sustituir por el dominio del cluster de PRUEBAS: sso.apps.<cluster-test>.<dominio-base>
-        value: sso.apps.ocp.zrnk2.sandbox1444.opentlc.com
+  # El valor vive en un ConfigMap y no suelto para que quede VISIBLE en el
+  # cluster como documentacion del origen del dato.
+  - configmap-cluster-values.yaml
+
+# El dominio y el ambiente son datos del cluster: la base deja el marcador y el
+# overlay lo resuelve. Se usa `replacements` y no un patch porque el mismo dato
+# alimenta tres sitios (Route, CR Keycloak y la ruta del almacen).
+replacements:
+  - source:
+      kind: ConfigMap
+      name: cluster-values
+      fieldPath: data.ssoHostname
+    targets:
+      - select:
+          kind: Route
+          name: keycloak
+        fieldPaths:
+          - spec.host
+      - select:
+          kind: Keycloak
+          name: keycloak
+        fieldPaths:
+          - spec.hostname.hostname
+  - source:
+      kind: ConfigMap
+      name: cluster-values
+      fieldPath: data.environment
+    targets:
+      - select:
+          kind: ExternalSecret
+          name: keycloak-pgsql-user
+        fieldPaths:
+          - spec.data.0.remoteRef.key
+          - spec.data.1.remoteRef.key
+          - spec.data.2.remoteRef.key
+        options:
+          delimiter: "-"
+          index: 1
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform
