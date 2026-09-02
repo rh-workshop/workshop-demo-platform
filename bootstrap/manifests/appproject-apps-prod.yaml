@@ -1,0 +1,53 @@
+# Aplicaciones de negocio en PRODUCCION y CONTINGENCIA.
+#
+# Mismos repositorios y mismos kinds que apps-nonprod: lo unico que cambia es el
+# DESTINO. Esa es la barandilla -- un manifiesto de este proyecto no puede
+# aterrizar en un namespace de desarrollo, ni al reves.
+#
+# Aqui es donde entran las ventanas de mantenimiento (syncWindows) y la revision
+# de quien opera el ambiente.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps-prod
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  description: Aplicaciones de negocio en prod y contingencia
+  orphanedResources:
+    warn: true
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-demo-app-config.git
+  - https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config.git
+  destinations:
+  - server: '*'
+    namespace: workshop-demo-prod
+  - server: '*'
+    namespace: workshop-demo-contingencia
+  - server: '*'
+    namespace: kafka
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  namespaceResourceWhitelist:
+  - group: kafka.strimzi.io
+    kind: KafkaTopic
+  - group: kafka.strimzi.io
+    kind: KafkaUser
+  - group: external-secrets.io
+    kind: ExternalSecret
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ConfigMap
+  - group: apps
+    kind: Deployment
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+  - group: kuadrant.io
+    kind: AuthPolicy
+  - group: kuadrant.io
+    kind: RateLimitPolicy
+  - group: networking.istio.io
+    kind: DestinationRule

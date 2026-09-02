@@ -1,0 +1,125 @@
+# Productos que solo viven en el cluster de gestion: Quay, ACS Central, Pipelines,
+# Developer Hub, OpenBao y el gateway compartido del hub.
+#
+# Separado de los workload porque su destino es UN cluster concreto, no un
+# Placement: un fallo aqui no se propaga a la flota.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-hub
+  namespace: openshift-gitops
+spec:
+  description: Dominio platform-hub
+  orphanedResources:
+    warn: true
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: quay-enterprise
+  - server: https://kubernetes.default.svc
+    namespace: openshift-storage
+  - server: https://kubernetes.default.svc
+    namespace: openshift-cloud-credential-operator
+  - server: https://kubernetes.default.svc
+    namespace: stackrox
+  - server: https://kubernetes.default.svc
+    namespace: openshift-pipelines
+  - server: https://kubernetes.default.svc
+    namespace: developer-hub
+  - server: https://kubernetes.default.svc
+    namespace: openbao
+  - server: https://kubernetes.default.svc
+    namespace: external-secrets
+  - server: https://kubernetes.default.svc
+    namespace: istio-system
+  - server: https://kubernetes.default.svc
+    namespace: istio-cni
+  - server: https://kubernetes.default.svc
+    namespace: cert-manager
+  - server: https://kubernetes.default.svc
+    namespace: kuadrant-system
+  - server: https://kubernetes.default.svc
+    namespace: platform-gateway
+  - server: https://kubernetes.default.svc
+    namespace: workshop-demo-dev
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: external-secrets.io
+    kind: ClusterSecretStore
+  - group: operator.openshift.io
+    kind: ExternalSecretsConfig
+  - group: cert-manager.io
+    kind: ClusterIssuer
+  - group: operator.tekton.dev
+    kind: TektonConfig
+  - group: sailoperator.io
+    kind: Istio
+  - group: sailoperator.io
+    kind: IstioCNI
+  - group: sailoperator.io
+    kind: IstioRevisionTag
+  namespaceResourceWhitelist:
+  - group: quay.redhat.com
+    kind: QuayRegistry
+  - group: noobaa.io
+    kind: NooBaa
+  - group: noobaa.io
+    kind: BackingStore
+  - group: noobaa.io
+    kind: BucketClass
+  - group: cloudcredential.openshift.io
+    kind: CredentialsRequest
+  - group: platform.stackrox.io
+    kind: Central
+  - group: platform.stackrox.io
+    kind: SecuredCluster
+  - group: config.stackrox.io
+    kind: SecurityPolicy
+  - group: rhdh.redhat.com
+    kind: Backstage
+  - group: tekton.dev
+    kind: Pipeline
+  - group: tekton.dev
+    kind: Task
+  - group: pipelinesascode.tekton.dev
+    kind: Repository
+  - group: ''
+    kind: ServiceAccount
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+  - group: apps
+    kind: StatefulSet
+  - group: apps
+    kind: Deployment
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ConfigMap
+  - group: route.openshift.io
+    kind: Route
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: ''
+    kind: PersistentVolumeClaim
+  - group: external-secrets.io
+    kind: ExternalSecret
+  - group: cert-manager.io
+    kind: Certificate
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+  - group: kuadrant.io
+    kind: Kuadrant
+  - group: kuadrant.io
+    kind: AuthPolicy
+  - group: kuadrant.io
+    kind: TLSPolicy
+  - group: operator.authorino.kuadrant.io
+    kind: Authorino
+  - group: limitador.kuadrant.io
+    kind: Limitador
+  - group: policy
+    kind: PodDisruptionBudget
+  - group: security.istio.io
+    kind: PeerAuthentication

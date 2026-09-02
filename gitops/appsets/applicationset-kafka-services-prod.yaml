@@ -57,7 +57,9 @@ spec:
         # un KafkaTopic no se puede crear si el operador de tópicos aún no existe.
         argocd.argoproj.io/sync-wave: "3"
     spec:
-      project: workshop-platform
+      # Dominio apps, ambiente prod: el destino es la barandilla -- un manifiesto
+      # de este proyecto no puede aterrizar en un namespace de otro ambiente.
+      project: apps-prod
       source:
         repoURL: https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config.git
         targetRevision: main

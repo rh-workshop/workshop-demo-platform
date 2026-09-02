@@ -56,7 +56,9 @@ spec:
       annotations:
         argocd.argoproj.io/sync-wave: "2"
     spec:
-      project: workshop-platform
+      # Dominio apps, ambiente contingencia: el destino es la barandilla -- un manifiesto
+      # de este proyecto no puede aterrizar en un namespace de otro ambiente.
+      project: apps-prod
       source:
         repoURL: https://github.com/rh-workshop/workshop-demo-app-config.git
         targetRevision: main

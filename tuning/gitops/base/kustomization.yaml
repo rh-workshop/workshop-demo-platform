@@ -1,0 +1,10 @@
+# Configuracion del propio OpenShift, separada de la configuracion de productos.
+#
+# Lo que entra aqui NO es un operando: es como se comporta el cluster. Un error
+# tiene radio de impacto de cluster, no de aplicacion, y revertir el commit no
+# repara rapido -- la correccion dispara otro rollout. Por eso su Application se
+# sincroniza a mano, en ventana (ver D.3 del backlog de gobierno).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - console-kuadrant-plugin.yaml

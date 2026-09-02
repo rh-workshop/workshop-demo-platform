@@ -10,4 +10,3 @@ resources:
   # Puerta de entrada del router al gateway; una sola para todos los servicios.
   - route-shared-gateway.yaml
   # Activa el plugin de Kuadrant en la consola web de OpenShift.
-  - console-kuadrant-plugin.yaml

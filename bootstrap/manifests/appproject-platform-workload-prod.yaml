@@ -1,0 +1,114 @@
+# Productos de plataforma en los clusters de produccion y contingencia: Keycloak, Connectivity Link,
+# cert-manager, Kafka, Service Mesh, el puente de secretos y el agente de ACS.
+#
+# Partido por criticidad y no solo por dominio: es la unica barandilla que impide
+# que un manifiesto pensado para desarrollo aterrice en un namespace de
+# produccion. El AppProject no mira de donde viene el cambio, mira a donde va.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-workload-prod
+  namespace: openshift-gitops
+spec:
+  description: Dominio platform-workload-prod
+  orphanedResources:
+    warn: true
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  destinations:
+  - server: '*'
+    namespace: keycloak
+  - server: '*'
+    namespace: kuadrant-system
+  - server: '*'
+    namespace: platform-gateway
+  - server: '*'
+    namespace: cert-manager
+  - server: '*'
+    namespace: kafka
+  - server: '*'
+    namespace: istio-system
+  - server: '*'
+    namespace: istio-cni
+  - server: '*'
+    namespace: external-secrets
+  - server: '*'
+    namespace: stackrox
+  - server: '*'
+    namespace: metallb-system
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: external-secrets.io
+    kind: ClusterSecretStore
+  - group: operator.openshift.io
+    kind: ExternalSecretsConfig
+  - group: cert-manager.io
+    kind: ClusterIssuer
+  - group: sailoperator.io
+    kind: Istio
+  - group: sailoperator.io
+    kind: IstioCNI
+  - group: sailoperator.io
+    kind: IstioRevisionTag
+  namespaceResourceWhitelist:
+  - group: k8s.keycloak.org
+    kind: Keycloak
+  - group: k8s.keycloak.org
+    kind: KeycloakRealmImport
+  - group: kuadrant.io
+    kind: Kuadrant
+  - group: kuadrant.io
+    kind: AuthPolicy
+  - group: kuadrant.io
+    kind: TLSPolicy
+  - group: operator.authorino.kuadrant.io
+    kind: Authorino
+  - group: limitador.kuadrant.io
+    kind: Limitador
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+  - group: cert-manager.io
+    kind: Certificate
+  - group: kafka.strimzi.io
+    kind: Kafka
+  - group: kafka.strimzi.io
+    kind: KafkaNodePool
+  - group: kafka.strimzi.io
+    kind: KafkaTopic
+  - group: kafka.strimzi.io
+    kind: KafkaUser
+  - group: platform.stackrox.io
+    kind: SecuredCluster
+  - group: metallb.io
+    kind: MetalLB
+  - group: metallb.io
+    kind: IPAddressPool
+  - group: metallb.io
+    kind: L2Advertisement
+  - group: security.istio.io
+    kind: PeerAuthentication
+  - group: external-secrets.io
+    kind: ExternalSecret
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ServiceAccount
+  - group: apps
+    kind: Deployment
+  - group: apps
+    kind: StatefulSet
+  - group: ''
+    kind: PersistentVolumeClaim
+  - group: policy
+    kind: PodDisruptionBudget
+  - group: route.openshift.io
+    kind: Route
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: monitoring.coreos.com
+    kind: PodMonitor
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding

@@ -1,0 +1,59 @@
+# Aplicaciones de negocio en DESARROLLO y PRUEBAS.
+#
+# Separado de apps-prod para que el equipo pueda desplegar solo aqui: es la mitad
+# de la segregacion de funciones -- quien desarrolla no aprueba su propio paso a
+# produccion. La otra mitad la pone el RBAC de la interfaz (roles app-developer y
+# release-manager) y CODEOWNERS.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps-nonprod
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+spec:
+  description: Aplicaciones de negocio en dev y test
+  orphanedResources:
+    warn: true
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-demo-app-config.git
+  - https://github.com/rh-workshop/workshop-demo-kafka-audit-pipeline-config.git
+  destinations:
+  - server: '*'
+    namespace: workshop-demo-dev
+  - server: '*'
+    namespace: workshop-demo-test
+  - server: '*'
+    namespace: canary-demo-dev
+  - server: '*'
+    namespace: circuit-breaker-demo-dev
+  - server: '*'
+    namespace: bluegreen-demo-dev
+  - server: '*'
+    namespace: api-demo-dev
+  - server: '*'
+    namespace: kafka
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  namespaceResourceWhitelist:
+  - group: kafka.strimzi.io
+    kind: KafkaTopic
+  - group: kafka.strimzi.io
+    kind: KafkaUser
+  - group: external-secrets.io
+    kind: ExternalSecret
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ConfigMap
+  - group: apps
+    kind: Deployment
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+  - group: kuadrant.io
+    kind: AuthPolicy
+  - group: kuadrant.io
+    kind: RateLimitPolicy
+  - group: networking.istio.io
+    kind: DestinationRule

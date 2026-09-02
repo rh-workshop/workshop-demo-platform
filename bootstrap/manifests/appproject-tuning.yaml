@@ -1,0 +1,27 @@
+# Configuracion del propio OpenShift: retencion de metricas, plugins de consola y,
+# cuando se anada, el tuning de nodos.
+#
+# Un dominio propio por el RADIO DE IMPACTO: un error aqui no afecta a una
+# aplicacion, afecta al cluster -- y revertir el commit no repara rapido, porque
+# la correccion dispara otro rollout. Por eso su Application NO lleva sync
+# automatico: se sincroniza en ventana de mantenimiento (ver D.3 del backlog).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tuning
+  namespace: openshift-gitops
+spec:
+  description: Dominio tuning
+  orphanedResources:
+    warn: true
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  destinations:
+  - server: '*'
+    namespace: openshift-monitoring
+  clusterResourceWhitelist:
+  - group: operator.openshift.io
+    kind: Console
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: ConfigMap

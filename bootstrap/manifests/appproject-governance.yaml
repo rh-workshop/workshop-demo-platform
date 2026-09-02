@@ -1,0 +1,66 @@
+# Gobierno de la flota: cuotas, limites, RBAC por namespace y las Policies de ACM.
+#
+# Un dominio propio porque decide QUE PUEDE CONSUMIR y QUIEN ENTRA en cada
+# namespace -- de los cuatro dominios, el que mas se parece a un control de
+# acceso. Separarlo permite exigir revision de seguridad solo aqui, sin frenar un
+# cambio de configuracion de un producto.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: governance
+  namespace: openshift-gitops
+spec:
+  description: Dominio governance
+  orphanedResources:
+    warn: true
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  destinations:
+  - server: '*'
+    namespace: open-cluster-management
+  - server: '*'
+    namespace: open-cluster-management-observability
+  - server: '*'
+    namespace: kuadrant-system
+  - server: '*'
+    namespace: platform-gateway
+  - server: '*'
+    namespace: workshop-demo-dev
+  - server: '*'
+    namespace: quay-enterprise
+  - server: '*'
+    namespace: stackrox
+  - server: '*'
+    namespace: developer-hub
+  - server: '*'
+    namespace: openshift-pipelines
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: observability.open-cluster-management.io
+    kind: MultiClusterObservability
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: rbac.authorization.k8s.io
+    kind: Role
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+  - group: policy.open-cluster-management.io
+    kind: Policy
+  - group: policy.open-cluster-management.io
+    kind: PlacementBinding
+  - group: cluster.open-cluster-management.io
+    kind: Placement
+  - group: cluster.open-cluster-management.io
+    kind: ManagedClusterSetBinding
+  - group: operator.open-cluster-management.io
+    kind: MultiClusterHub
+  - group: external-secrets.io
+    kind: ExternalSecret
+  - group: ''
+    kind: ConfigMap

@@ -1,0 +1,9 @@
+# Tuning del cluster de hub.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: workshop-platform
+      workshop.redhat.com/environment: hub
