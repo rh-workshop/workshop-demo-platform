@@ -1,0 +1,24 @@
+# El hub se vigila a si mismo.
+#
+# Central corre en este mismo cluster, asi que el sensor lo alcanza por el
+# Service interno: no hay motivo para salir a la Route y volver a entrar.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: SecuredCluster
+      name: stackrox-secured-cluster-services
+    patch: |
+      - op: add
+        path: /spec/clusterName
+        value: local-cluster
+      - op: add
+        path: /spec/centralEndpoint
+        value: central.stackrox.svc:443
+      # Central ya trae su propio scanner en este cluster; un segundo scanner
+      # local duplicaria el gasto sin analizar nada nuevo.
+      - op: replace
+        path: /spec/scanner/scannerComponent
+        value: Disabled

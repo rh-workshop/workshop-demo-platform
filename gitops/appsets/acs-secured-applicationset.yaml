@@ -1,0 +1,95 @@
+# Fan-out del agente de ACS a TODOS los clusters, hub incluido.
+#
+# Central se despliega aparte y una sola vez (gitops/apps/hub/acs-application.yaml);
+# esto reparte el SecuredCluster, que es lo que va en CADA cluster vigilado —
+# tambien en el hub, que no deja de ser un cluster con cargas.
+#
+# Igual que monitoring, DERIVA el overlay de la etiqueta 'environment' del cluster
+# en vez de fijar uno por AppSet: asi un cluster nuevo queda vigilado en cuanto
+# ACM lo registra y lo etiqueta, sin tocar este fichero. El precio es que
+# acs/gitops/secured/overlays/<environment> debe existir para todo ambiente que
+# se etiquete (hoy: hub, dev, test, prod, contingencia).
+#
+# Usa el generador 'clusters' y NO clusterDecisionResource: aquel solo devuelve
+# nombre y URL (lee las PlacementDecision, que no llevan mas), y aqui hacen falta
+# las ETIQUETAS. El GitOpsCluster de ACM las copia del ManagedCluster al secret
+# de cluster de Argo, que es lo que este generador lee.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  annotations:
+    # Wave 4: depende de que ACM haya registrado los clusters en Argo (wave 3).
+    argocd.argoproj.io/sync-wave: "4"
+  name: acs-secured
+  labels:
+    # Distingue de un vistazo qué es infraestructura y qué es aplicación.
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: acs
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+  - clusters:
+      selector:
+        matchExpressions:
+          # Todo cluster con ambiente declarado, es decir, los registrados por
+          # ACM y homologados por el bootstrap. Excluye el 'in-cluster' que Argo
+          # trae de fabrica, que no lleva etiquetas y duplicaria el hub.
+          - key: environment
+            operator: Exists
+  template:
+    metadata:
+      # El nombre lleva el cluster porque hay una Application por cluster.
+      name: 'config-acs-secured-{{.name}}'
+      labels:
+        workshop.redhat.com/layer: infrastructure
+        workshop.redhat.com/component: acs
+        workshop.redhat.com/cluster: '{{.name}}'
+    spec:
+      project: workshop-multicluster
+      source:
+        repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+        targetRevision: main
+        # El overlay sale de la etiqueta del cluster, homologada por el bootstrap.
+        path: 'acs/gitops/secured/overlays/{{.metadata.labels.environment}}'
+      destination:
+        # Para el hub se usa la URL interna en vez de la que da ACM: al ser un
+        # ManagedCluster mas, ACM lo publica detras de su cluster-proxy, y salir
+        # al proxy para hablar con el propio cluster anade una dependencia que
+        # no aporta nada. Los spokes si van por ahi, que es su unico camino.
+        server: '{{ if eq .name "local-cluster" }}https://kubernetes.default.svc{{ else }}{{ .server }}{{ end }}'
+        namespace: stackrox
+      # EL OPERADOR COMPLETA EL CR. Al reconciliar, rellena defaults y campos de
+      # estado que no estan en Git (tolerations, la config del scanner que decide
+      # AutoSense), y Argo los ve como deriva: la Application quedaria OutOfSync a
+      # perpetuidad aun estando sana. Se ignora POR MANAGER, no por campo, porque
+      # lo que las distingue es QUIEN las escribio, no donde.
+      ignoreDifferences:
+        - group: platform.stackrox.io
+          kind: SecuredCluster
+          name: stackrox-secured-cluster-services
+          namespace: stackrox
+          managedFieldsManagers:
+            - rhacs-operator
+      syncPolicy:
+        retry:
+          # Arranque en frio: el CRD lo instala ACM por su cuenta (OperatorPolicy) y
+          # puede tardar minutos. Sin backoff Argo agota 5 intentos y se rinde.
+          limit: 20
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 10m
+        automated:
+          # prune: false a proposito. Los secretos del init bundle viven en este
+          # mismo namespace y los pone una Policy de ACM, no Argo; con prune
+          # activo Argo los borraria por no verlos en Git y dejaria el sensor sin
+          # credenciales en el siguiente sync.
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+  syncPolicy:
+    preserveResourcesOnDeletion: true

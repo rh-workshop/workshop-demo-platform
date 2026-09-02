@@ -1,0 +1,43 @@
+# SecuredCluster: el agente que vigila un cluster y reporta a Central.
+#
+# Instala el sensor, el admission controller (puede BLOQUEAR despliegues que
+# violen una politica) y el collector (observa el trafico y los procesos con eBPF).
+#
+# LOS DOS VALORES QUE CAMBIAN POR CLUSTER estan en los overlays, no aqui:
+#   - clusterName: es el nombre con el que Central lista el cluster en su
+#     inventario. Repetirlo entre clusters hace que dos sensores escriban sobre la
+#     misma entrada y las violaciones se mezclen, asi que se usa el nombre del
+#     ManagedCluster de ACM, que ya es unico por construccion.
+#   - centralEndpoint: en el hub, Central esta en el mismo cluster y se llega por
+#     el Service interno; desde un spoke hay que salir por la Route publica.
+#
+# LOS CERTIFICADOS NO ESTAN EN GIT. El sensor se identifica ante Central con el
+# init bundle, que emite Central por su API y replica la Policy de ACM
+# require-acs-init-bundle (uno por ambiente). Sin esos secretos el operador se
+# queda en "Irreconcilable: init-bundle secrets missing" y no despliega nada,
+# aunque este CR aparezca perfectamente sincronizado.
+apiVersion: platform.stackrox.io/v1alpha1
+kind: SecuredCluster
+metadata:
+  annotations:
+    # El CRD lo instala ACM (OperatorPolicy), no este sync: sin esto el dry-run del arranque en frio invalida la Application entera.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: stackrox-secured-cluster-services
+  namespace: stackrox
+spec:
+  admissionControl:
+    listenOnCreates: true
+    listenOnUpdates: true
+    # timeout explicito, no el default implicito del operador. El bloqueo real lo
+    # decide enforcementActions de cada SecurityPolicy (ver policies/), aqui solo
+    # se garantiza que el admission controller escucha y responde a tiempo.
+    timeoutSeconds: 10
+  perNode:
+    collector:
+      # CORE_BPF es el unico modo soportado (EBPF retirado).
+      collection: CORE_BPF
+  scanner:
+    # AutoSense despliega un scanner local solo si el cluster no tiene ya uno.
+    # En el hub eso lo resuelve el propio Central; en un spoke, este scanner es
+    # el que permite analizar sin mandar cada imagen al hub.
+    scannerComponent: AutoSense

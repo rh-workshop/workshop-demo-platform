@@ -1,0 +1,39 @@
+# A TODOS los clusters: el hub tambien aloja un SecuredCluster que se vigila a si
+# mismo, y arrastra el mismo fallo de init bundle que los spokes.
+#
+# Son dos bindings sobre los Placement que ya existen en vez de un Placement
+# nuevo que los una: `clusters-hub` y `clusters-workload` ya estan validados y
+# reparten el mismo conjunto, y una Policy admite varios PlacementBinding.
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-acs-init-bundle-hub-binding
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-hub
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: require-acs-init-bundle
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-acs-init-bundle-workload-binding
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-workload
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: require-acs-init-bundle

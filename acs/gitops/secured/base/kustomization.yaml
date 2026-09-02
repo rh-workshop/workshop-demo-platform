@@ -1,0 +1,8 @@
+# El agente de ACS, comun a todos los clusters vigilados.
+#
+# Lo que distingue a cada uno (clusterName, centralEndpoint) lo aporta su
+# overlay: aqui solo esta lo que no cambia.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - securedcluster.yaml

@@ -1,0 +1,102 @@
+# Replica el init bundle de ACS al namespace stackrox de cada cluster vigilado.
+#
+# EL PROBLEMA QUE RESUELVE. El SecuredCluster no arranca sin los certificados de
+# cliente con los que el sensor se identifica ante Central. Sin ellos el operador
+# se queda en:
+#
+#   Irreconcilable=True: some init-bundle secrets missing in namespace "stackrox"
+#
+# y NINGUN componente del agente llega a desplegarse (Available=False,
+# "No workloads found") aunque el CR este perfectamente sincronizado por Argo.
+#
+# POR QUE ACM Y NO ARGO. El bundle son certificados: no puede versionarse. Lo
+# EMITE Central por su API en cada instalacion, asi que tampoco es declarable en
+# Git. `fromSecret` de un hub template lo lee en el hub y lo materializa en el
+# destino sin que su valor pase por Git — mismo mecanismo que require-vault-token
+# y require-registry-pull-secret.
+#
+# UN BUNDLE POR AMBIENTE. `.ManagedClusterLabels` lo resuelve el HUB para cada
+# cluster al que aplica la Policy, y de ahi sale que credencial le toca. Se
+# emite uno por ambiente en vez de compartir uno solo para que revocar el de un
+# ambiente no tumbe el sensor de los demas: el radio de impacto de una rotacion
+# es un cluster, no la flota. Es el mismo criterio por ambiente que ya sigue
+# require-registry-pull-secret con los robots del registro.
+#
+# TRES SECRETOS Y NO UNO. El bundle que emite Central trae un par de certificados
+# por componente y el operador los busca POR NOMBRE exacto; entregarlos juntos en
+# un solo Secret deja el mismo error de arriba. Los tres van en el mismo
+# ConfigurationPolicy porque el sensor sin admission controller ni collector es
+# un agente a medias: o estan los tres, o el cluster no queda vigilado.
+#
+# EL ORIGEN lo siembra acs/ansible/init-bundles.yml, que es quien puede pedirselo
+# a la API de Central. El namespace del origen NO es elegible: los hub templates
+# solo leen de `open-cluster-management`.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-acs-init-bundle
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: require-acs-init-bundle-config
+        spec:
+          remediationAction: enforce
+          severity: high
+          # El namespace se declara aqui ADEMAS de en install-operators-workload
+          # porque el hub tambien recibe esta Policy y alli lo crea el operando de
+          # Argo; musthave sobre algo que ya existe es un no-op, y asi ningun
+          # cluster depende del orden entre las dos policies.
+          #
+          # OJO CON LOS COMENTARIOS DENTRO DE LA PLANTILLA: van FUERA a
+          # proposito — dentro rompen el YAML resuelto o los interpreta el motor.
+          object-templates-raw: |
+            {{- $env := (index .ManagedClusterLabels "environment") }}
+            {{- $bundle := (printf "acs-init-bundle-%s" $env) }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: stackrox
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: sensor-tls
+                  namespace: stackrox
+                data:
+                  ca.pem: "{{hub fromSecret "open-cluster-management" $bundle "sensor-tls-ca.pem" hub}}"
+                  sensor-cert.pem: "{{hub fromSecret "open-cluster-management" $bundle "sensor-tls-cert.pem" hub}}"
+                  sensor-key.pem: "{{hub fromSecret "open-cluster-management" $bundle "sensor-tls-key.pem" hub}}"
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: collector-tls
+                  namespace: stackrox
+                data:
+                  ca.pem: "{{hub fromSecret "open-cluster-management" $bundle "collector-tls-ca.pem" hub}}"
+                  collector-cert.pem: "{{hub fromSecret "open-cluster-management" $bundle "collector-tls-cert.pem" hub}}"
+                  collector-key.pem: "{{hub fromSecret "open-cluster-management" $bundle "collector-tls-key.pem" hub}}"
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: admission-control-tls
+                  namespace: stackrox
+                data:
+                  ca.pem: "{{hub fromSecret "open-cluster-management" $bundle "admission-control-tls-ca.pem" hub}}"
+                  admission-control-cert.pem: "{{hub fromSecret "open-cluster-management" $bundle "admission-control-tls-cert.pem" hub}}"
+                  admission-control-key.pem: "{{hub fromSecret "open-cluster-management" $bundle "admission-control-tls-key.pem" hub}}"

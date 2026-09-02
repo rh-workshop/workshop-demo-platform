@@ -50,6 +50,18 @@ spec:
                 kind: Namespace
                 metadata:
                   name: kafka
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: rhacs-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: stackrox
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1beta1
         kind: OperatorPolicy
@@ -193,6 +205,31 @@ spec:
           subscription:
             name: amq-streams
             namespace: kafka
+            channel: stable
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1beta1
+        kind: OperatorPolicy
+        metadata:
+          name: rhacs-operator
+        spec:
+          # El mismo operador que el hub, pero aqui solo reconcilia el SecuredCluster:
+          # el Central vive una unica vez y es el hub quien lo aloja. El agente
+          # (sensor, admission controller y collector) es lo que necesita cada cluster
+          # vigilado, y sin operador local no hay quien lo despliegue.
+          #
+          # La CSV se fija a la MISMA version que el hub a proposito: el sensor y
+          # Central negocian una version comun, y dejar que un spoke adelante al hub
+          # es el escenario que ACS no soporta.
+          remediationAction: enforce
+          complianceType: musthave
+          upgradeApproval: Automatic
+          versions:
+            - rhacs-operator.v4.11.3   # pin: solo esta CSV; el upgrade se decide por PR en Git
+          subscription:
+            name: rhacs-operator
+            namespace: rhacs-operator
             channel: stable
             source: redhat-operators
             sourceNamespace: openshift-marketplace

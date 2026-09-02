@@ -1,0 +1,219 @@
+---
+# Emite un init bundle de ACS por ambiente y lo deposita donde ACM puede leerlo.
+#
+# QUE ES EL INIT BUNDLE. Los certificados de cliente con los que el sensor de un
+# cluster se identifica ante Central. Sin ellos el operador no despliega NINGUN
+# componente del agente y se queda en:
+#
+#   Irreconcilable=True: some init-bundle secrets missing in namespace "stackrox"
+#
+# POR QUE ES UN PLAYBOOK Y NO ARGO NI UNA POLICY. Los emite Central por su API en
+# cada instalacion: no existen hasta que alguien los pide, asi que no hay nada que
+# declarar en Git — y aunque lo hubiera, son certificados y no pueden versionarse.
+# Este playbook solo los CREA y los deposita; QUIEN LOS REPARTE a cada cluster es
+# la Policy de ACM require-acs-init-bundle, que los lee de aqui con un hub
+# template. Mismo reparto de papeles que con el token del almacen.
+#
+# UNO POR AMBIENTE. Revocar el bundle de un ambiente no debe tumbar el sensor de
+# los demas: el radio de impacto de una rotacion es un cluster, no la flota. Es el
+# mismo criterio por ambiente que siguen los robots del registro.
+#
+# ROTACION. Reejecutar con -e forzar_reemision=true revoca el bundle anterior y
+# emite uno nuevo; la Policy lo propaga sola en el siguiente ciclo. Por defecto es
+# IDEMPOTENTE: si el secreto ya existe no se toca, porque reemitir sin querer deja
+# a los sensores con credenciales viejas hasta que ACM reconcilie.
+#
+#   export ACS_HOST=<host-de-central>
+#   export ACS_TOKEN=<token-de-api>          # consola de ACS -> Integrations -> API Token (rol Admin)
+#   ansible-playbook acs/ansible/init-bundles.yml
+- name: Emitir los init bundles de ACS y depositarlos para ACM
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [acs, secrets]
+
+  vars_files:
+    - "{{ playbook_dir }}/../../vars/platform-vars.yml"
+
+  vars:
+    acs_host: "{{ lookup('env', 'ACS_HOST') }}"
+    acs_token: "{{ lookup('env', 'ACS_TOKEN') }}"
+    acs_api: "https://{{ acs_host }}/v1"
+    # PRODUCCION: verificar SIEMPRE el certificado de Central. false solo es un
+    # atajo de lab (MITM sobre el token Admin). Sobreescribible solo explicitamente.
+    validate_certs: "{{ lookup('env', 'ACS_VALIDATE_CERTS') | default(true, true) }}"
+    # Unico namespace desde el que un hub template puede leer: no es elegible.
+    origen_namespace: open-cluster-management
+    # El hub tambien se vigila a si mismo, asi que tambien necesita su bundle.
+    ambientes_acs: "{{ (environments | map(attribute='name') | list) + ['hub'] }}"
+    forzar_reemision: false
+
+  tasks:
+    - name: Comprobar que hay credenciales de Central
+      ansible.builtin.assert:
+        that:
+          - acs_host | length > 0
+          - acs_token | length > 0
+        fail_msg: >-
+          Faltan ACS_HOST o ACS_TOKEN en el entorno. Exportalos antes de
+          ejecutar; nunca los escribas aqui.
+
+    # Un token caducado responde 401 en la primera llamada real y el error sale
+    # enterrado en la tarea siguiente. Se comprueba aqui para fallar con un
+    # mensaje que diga que hacer.
+    - name: Comprobar que el token de Central sigue siendo valido
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/auth/status"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        validate_certs: "{{ validate_certs | bool }}"
+        status_code: [200, 401, 403]
+      register: acs_auth
+      no_log: true
+
+    - name: Avisar si el token de Central ha caducado
+      ansible.builtin.fail:
+        msg: >-
+          Central rechaza el token (HTTP {{ acs_auth.status }}). Genera uno nuevo
+          en la consola (Platform Configuration -> Integrations -> API Token, rol
+          Admin) y exportalo en ACS_TOKEN.
+      when: acs_auth.status != 200
+
+    - name: Ver que bundles ya estan depositados
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        namespace: "{{ origen_namespace }}"
+        name: "acs-init-bundle-{{ item }}"
+      register: bundles_actuales
+      loop: "{{ ambientes_acs }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Decidir cuales hay que emitir
+      ansible.builtin.set_fact:
+        ambientes_pendientes: >-
+          {{ bundles_actuales.results
+             | selectattr('resources', 'equalto', [])
+             | map(attribute='item') | list
+             if not (forzar_reemision | bool) else ambientes_acs }}
+
+    - name: Informar de lo que se va a hacer
+      ansible.builtin.debug:
+        msg: >-
+          {{ ambientes_pendientes | length }} bundle(s) a emitir
+          ({{ ambientes_pendientes | join(', ') | default('ninguno', true) }}).
+          Los que ya existen se conservan; para rotarlos, -e forzar_reemision=true.
+
+    # Central RECHAZA emitir dos bundles con el mismo nombre. Al reemitir hay que
+    # revocar antes, o la llamada falla con 400 y el mensaje no lo deja claro.
+    - name: Revocar el bundle anterior al reemitir
+      when: forzar_reemision | bool
+      block:
+        - name: Listar los bundles que conoce Central
+          ansible.builtin.uri:
+            url: "{{ acs_api }}/cluster-init/init-bundles"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ acs_token }}"
+            validate_certs: "{{ validate_certs | bool }}"
+          register: bundles_central
+          no_log: true
+
+        - name: Revocar los que se van a reemitir
+          ansible.builtin.uri:
+            url: "{{ acs_api }}/cluster-init/init-bundles/revoke"
+            method: PATCH
+            headers:
+              Authorization: "Bearer {{ acs_token }}"
+            body_format: json
+            body:
+              ids: "{{ [item.id] }}"
+            validate_certs: "{{ validate_certs | bool }}"
+          loop: >-
+            {{ bundles_central.json.items | default([])
+               | selectattr('name', 'in', ambientes_pendientes | map('regex_replace', '^', 'agente-') | list) }}
+          loop_control:
+            label: "{{ item.name }}"
+          no_log: true
+
+    # Central devuelve los certificados UNA sola vez, en esta respuesta: no hay
+    # forma de recuperarlos despues. Por eso lo siguiente que ocurre es guardarlos.
+    - name: Pedir a Central un bundle por ambiente
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/cluster-init/init-bundles"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          name: "agente-{{ item }}"
+        validate_certs: "{{ validate_certs | bool }}"
+        status_code: [200]
+      register: bundles_emitidos
+      loop: "{{ ambientes_pendientes }}"
+      loop_control:
+        label: "{{ item }}"
+      no_log: true
+
+    # DE DONDE SALEN LOS CERTIFICADOS. La respuesta NO los trae sueltos: `meta`
+    # son solo metadatos (id, nombre, caducidad) y los certificados viajan dentro
+    # de `kubectlBundle`, un YAML multi-documento codificado en base64 con los
+    # tres Secret ya formados (sensor-tls, collector-tls, admission-control-tls).
+    # Se decodifica y se indexa por nombre para no depender del orden.
+    - name: Extraer los certificados de cada bundle
+      ansible.builtin.set_fact:
+        bundles_planos: >-
+          {{ bundles_planos | default({}) | combine({
+               item.item: dict(
+                 (item.json.kubectlBundle | b64decode | from_yaml_all | list
+                  | selectattr('kind', 'equalto', 'Secret')
+                  | map(attribute='metadata.name') | list)
+                 | zip(
+                 (item.json.kubectlBundle | b64decode | from_yaml_all | list
+                  | selectattr('kind', 'equalto', 'Secret')
+                  | map(attribute='stringData') | list))) }) }}
+      loop: "{{ bundles_emitidos.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item }}"
+      no_log: true
+
+    # Los certificados se guardan APLANADOS (sensor-tls-cert.pem, collector-tls-ca.pem...)
+    # y no como el YAML que devuelve Central: un hub template lee UNA clave de UN
+    # secreto y no sabe recorrer una estructura anidada. La Policy vuelve a
+    # componer con ellos los tres Secret que el operador busca por nombre.
+    - name: Depositar cada bundle donde ACM puede leerlo
+      kubernetes.core.k8s:
+        state: present
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "acs-init-bundle-{{ item.key }}"
+            namespace: "{{ origen_namespace }}"
+          stringData:
+            sensor-tls-ca.pem: "{{ item.value['sensor-tls']['ca.pem'] }}"
+            sensor-tls-cert.pem: "{{ item.value['sensor-tls']['sensor-cert.pem'] }}"
+            sensor-tls-key.pem: "{{ item.value['sensor-tls']['sensor-key.pem'] }}"
+            collector-tls-ca.pem: "{{ item.value['collector-tls']['ca.pem'] }}"
+            collector-tls-cert.pem: "{{ item.value['collector-tls']['collector-cert.pem'] }}"
+            collector-tls-key.pem: "{{ item.value['collector-tls']['collector-key.pem'] }}"
+            admission-control-tls-ca.pem: "{{ item.value['admission-control-tls']['ca.pem'] }}"
+            admission-control-tls-cert.pem: "{{ item.value['admission-control-tls']['admission-control-cert.pem'] }}"
+            admission-control-tls-key.pem: "{{ item.value['admission-control-tls']['admission-control-key.pem'] }}"
+      loop: "{{ bundles_planos | default({}) | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      no_log: true
+
+    - name: Recordar quien lo replica
+      ansible.builtin.debug:
+        msg: >-
+          Bundles depositados en {{ origen_namespace }}. La Policy de ACM
+          require-acs-init-bundle los replica al namespace stackrox de cada
+          cluster segun su etiqueta 'environment'; sus valores nunca pasan por Git.

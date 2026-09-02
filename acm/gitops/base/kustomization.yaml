@@ -36,6 +36,9 @@ resources:
   # Aislamiento de red y RBAC de los namespaces de negocio. El binding al hub va
   # suelto; la Policy la genera el Policy Generator (ver generators: abajo).
   - policies/require-namespace-isolation/hub-placementbinding.yaml
+  # Certificados del agente de ACS: sin ellos ningun SecuredCluster arranca.
+  - policies/require-acs-init-bundle/policy.yaml
+  - policies/require-acs-init-bundle/placementbinding.yaml
   # Observabilidad multi-cluster: metricas de todos los clusters gestionados,
   # centralizadas en el hub. Tambien es de lo que se alimenta el analisis del
   # canary de Argo Rollouts.

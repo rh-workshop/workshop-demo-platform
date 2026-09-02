@@ -11,8 +11,10 @@ resources:
   - service-mesh-test-applicationset.yaml
   - service-mesh-prod-applicationset.yaml
   - service-mesh-contingencia-applicationset.yaml
-  # A todos los clusters (hub incluido): deriva el overlay de 'environment'.
+  # A todos los clusters (hub incluido): derivan el overlay de 'environment'.
   - monitoring-applicationset.yaml
+  # El agente de ACS. Central va aparte y solo en el hub (gitops/apps/hub/).
+  - acs-secured-applicationset.yaml
   # Descubrimiento de los servicios del workshop en el repo de aplicaciones:
   # dev en el hub (modelo original del taller) y test/prod/contingencia en el
   # cluster de su ambiente (matrix con el Placement del ambiente). Un servicio

@@ -1,8 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# El SecuredCluster NO esta aqui: vive en ../secured, porque es lo UNICO que se
+# despliega en los cuatro clusters de carga ademas del hub, y necesita un valor
+# distinto por ambiente (clusterName y centralEndpoint). Central, en cambio,
+# existe una sola vez y solo en el hub.
 resources:
   - central.yaml
-  - securedcluster.yaml
   - policies/disallow-latest-tag-securitypolicy.yaml
   # Las dos politicas de firma (BUILD y DEPLOY) NO van por Argo: referencian el
   # ID de la SignatureIntegration, que lo genera Central en cada instalacion.

@@ -1,4 +1,8 @@
-# Application de acs (solo hub): Central + SecuredCluster de seguridad.
+# Application de acs (solo hub): Central, el cerebro de la seguridad.
+#
+# El agente que vigila cada cluster (SecuredCluster) NO esta aqui: lo reparte el
+# ApplicationSet acs-secured a todos los clusters, este incluido. Central existe
+# una sola vez y solo en el hub, asi que sigue siendo una Application fija.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

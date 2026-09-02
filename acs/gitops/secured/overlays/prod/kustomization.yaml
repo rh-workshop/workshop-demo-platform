@@ -1,0 +1,22 @@
+# El agente de prod, que reporta al Central del HUB.
+#
+# centralEndpoint sale por la Route publica y no por el Service: Central vive en
+# otro cluster, y `central.stackrox.svc` solo resuelve dentro del hub.
+#
+# clusterName es el nombre del ManagedCluster en ACM, no el ambiente: es lo que
+# Central muestra en su inventario y debe ser unico en toda la flota.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: SecuredCluster
+      name: stackrox-secured-cluster-services
+    patch: |
+      - op: add
+        path: /spec/clusterName
+        value: cluster-prod
+      - op: add
+        path: /spec/centralEndpoint
+        value: central-stackrox.apps.ocp.hq2ss.sandbox3270.opentlc.com:443
