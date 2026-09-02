@@ -27,19 +27,28 @@ rules:
     resources:
       - networkpolicies
     verbs: [get, list, watch, create, update, patch, delete]
-  # Los objetos Group. Un grupo no concede nada por si mismo: lo que da acceso es
-  # el binding que lo referencia, y esos NO los gestiona Argo (ver abajo).
+  # Los objetos Group. SIN `update` NI `patch`, y es lo que sostiene el modelo de
+  # identidad entero.
   #
-  # Borrar un Group no rompe el binding -- los sujetos de RBAC son cadenas, no
-  # referencias -- pero deja a sus miembros sin acceso. La proteccion contra un
-  # borrado accidental es `Prune=false` en cada Group, no negarle `delete` al
-  # controlador: sin el verbo, un prune legitimo falla con 403 y la Application
-  # queda en Sync Failed.
+  # La PERTENENCIA es la concesion: `platform-admins` tiene cluster-admin en el
+  # hub por el ClusterRoleBinding del bootstrap, `role:admin` en Argo por el
+  # argocd-rbac-cm y admin de ACM en los cinco clusters. Anadir un nombre al
+  # campo `users` de ese grupo es, literalmente, concederse cluster-admin de la
+  # flota. Con `update`/`patch` eso cabe en un commit.
+  #
+  # No hace falta ese permiso: los manifiestos de Group OMITEN el campo `users` a
+  # proposito (ver namespace-governance/.../group-platform-admins.yaml) porque la
+  # pertenencia la escribe el servidor OAuth en cada login desde el claim
+  # `groups` del IdP. Argo solo necesita que el OBJETO exista, es decir `create`.
+  #
+  # `delete` se conserva: la proteccion contra el borrado accidental es
+  # `Prune=false` en cada Group, no negarle el verbo -- sin el, un prune legitimo
+  # falla con 403 y la Application queda en Sync Failed.
   - apiGroups:
       - user.openshift.io
     resources:
       - groups
-    verbs: [get, list, watch, create, update, patch, delete]
+    verbs: [get, list, watch, create, delete]
   # Conceder un rol exige tenerlo o poder hacer `bind` sobre el: Kubernetes
   # impide otorgar permisos que uno no posee. Los RoleBinding por namespace
   # referencian `view` y `admin`, que incluyen verbos que este controlador no
