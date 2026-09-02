@@ -1,12 +1,20 @@
-# Identidad de emergencia del cluster (break-glass).
+# Identidad de un cluster WORKLOAD (spoke): Keycloak + break-glass.
 #
-# EL PROBLEMA QUE RESUELVE: el unico proveedor de identidad del cluster es
-# Keycloak (`rhbk`, OIDC). Si Keycloak no responde, el servidor OAuth devuelve 500
-# y NADIE puede iniciar sesion -- tampoco para arreglar Keycloak. Y como
-# `kubeadmin` ya se retiro, no queda ninguna via alternativa.
+# Los spokes si autentican contra Keycloak: su Keycloak no depende de ellos
+# mismos, asi que no hay circularidad. El HUB es distinto -- el despliega
+# Keycloak y por eso usa solo htpasswd; ver oauth-hub.reference.yaml.
+#
+# EL PROBLEMA QUE RESUELVE EL SEGUNDO PROVEEDOR: si Keycloak no responde, el
+# servidor OAuth devuelve 500 y NADIE puede iniciar sesion -- tampoco para
+# arreglar Keycloak. Y como `kubeadmin` ya se retiro, no queda otra via.
 #
 # Un proveedor htpasswd no depende de ningun servicio externo: lo valida el propio
 # API server contra un Secret del cluster.
+#
+# EL CLAIM `groups` ES OBLIGATORIO. Sin el, el servidor OAuth del spoke no crea
+# los Group y los ClusterRoleBinding que reparte ACM (gitops/clusters/
+# human-access/) no encuentran a nadie: el acceso queda concedido sobre el papel
+# y vacio en la practica. Lo vigila la Policy require-oidc-groups-claim.
 #
 # ESTE FICHERO ES UNA REFERENCIA, NO SE APLICA POR GITOPS. El Secret con el hash
 # de la contrasena no puede vivir en Git, y el OAuth del cluster es plano de

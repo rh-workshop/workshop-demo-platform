@@ -1,0 +1,55 @@
+# Identidad del cluster HUB: solo htpasswd.
+#
+# POR QUE EL HUB NO USA KEYCLOAK. El hub es quien despliega Keycloak. Si ademas
+# autenticara contra el, tendriamos una dependencia circular: para arreglar un
+# Keycloak caido hay que entrar al cluster, y para entrar al cluster hace falta
+# Keycloak. El servidor OAuth devuelve 500 y no entra nadie, tampoco quien va a
+# repararlo. Un proveedor htpasswd lo valida el propio API server contra un
+# Secret local, sin depender de ningun servicio.
+#
+# CONSECUENCIA: en el hub la pertenencia a grupos NO llega por claim OIDC. Los
+# objetos Group los declara Git (namespace-governance/.../identity/) y los
+# usuarios se asignan con `oc adm groups add-users`. Es un cluster de operacion
+# con pocas cuentas nominales, no una plataforma de autoservicio.
+#
+# LOS SPOKES SI USAN KEYCLOAK: alli no hay circularidad, porque su Keycloak no
+# depende de ellos mismos. Ver la Policy require-oidc-groups-claim.
+#
+# ESTE FICHERO ES UNA REFERENCIA, NO SE APLICA POR GITOPS. El Secret con el hash
+# de la contrasena no puede vivir en Git, y el OAuth del cluster es plano de
+# control: se aplica en el bootstrap tras crear el Secret a mano.
+#
+# PROCEDIMIENTO
+#
+#   1. Generar el fichero htpasswd (2 cuentas como minimo: una sola persona de
+#      guardia es un punto unico de fallo):
+#        htpasswd -c -B -b break-glass.htpasswd breakglass1 '<contrasena-larga>'
+#        htpasswd    -B -b break-glass.htpasswd breakglass2 '<otra-contrasena>'
+#
+#   2. Crear el Secret:
+#        oc create secret generic break-glass-htpasswd \
+#          --from-file=htpasswd=break-glass.htpasswd -n openshift-config
+#
+#   3. Aplicar este OAuth.
+#
+#   4. Dar permisos a las cuentas:
+#        oc adm policy add-cluster-role-to-user cluster-admin breakglass1
+#
+#   5. Custodiar las contrasenas fuera del cluster (sobre sellado o gestor de
+#      secretos corporativo) y borrar el fichero htpasswd local.
+#
+# GOBIERNO: el audit log registra `breakglass1` como usuario, asi que una regla
+# sobre ese nombre en el SIEM (ver G.1 del backlog) avisa de cada acceso. Rotar
+# las contrasenas tras cada uso.
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+    - name: break-glass
+      mappingMethod: claim
+      type: HTPasswd
+      htpasswd:
+        fileData:
+          name: break-glass-htpasswd

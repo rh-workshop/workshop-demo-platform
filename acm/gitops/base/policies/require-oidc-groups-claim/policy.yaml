@@ -1,5 +1,5 @@
-# Policy de gobierno: el proveedor OIDC de cada cluster debe pedir el claim
-# `groups`.
+# Policy de gobierno: el proveedor OIDC de cada spoke debe pedir el claim
+# `groups`, y ACM lo corrige si falta.
 #
 # QUE PROBLEMA RESUELVE. La autenticacion en OpenShift es por cluster: cada uno
 # resuelve la pertenencia contra sus propios objetos Group, que crea su servidor
@@ -8,17 +8,16 @@
 # (gitops/clusters/human-access/) no encuentran a nadie a quien aplicar: el
 # acceso queda concedido sobre el papel y vacio en la practica.
 #
-# POR QUE inform Y NO enforce. El proveedor `rhbk` lleva un `clientSecret` que
-# referencia un Secret distinto en cada cluster. Una Policy en enforce sobre el
-# objeto OAuth completo lo reescribiria con el nombre de otro cluster y dejaria
-# el cluster SIN NINGUN acceso por Keycloak -- incluido el de quien fuera a
-# arreglarlo. El claim se anade a mano, una vez por cluster; esta Policy verifica
-# que sigue ahi y avisa si alguien lo quita.
+# POR QUE `lookup` Y NO UN OBJETO FIJO. El proveedor `rhbk` lleva un `issuer` y
+# un `clientSecret` DISTINTOS en cada cluster. Una plantilla con valores fijos
+# los reescribiria con los de otro cluster y lo dejaria sin acceso por Keycloak
+# -- incluido el de quien fuera a arreglarlo. Aqui se leen del propio cluster con
+# `lookup` y se reinyectan tal cual: lo unico que esta politica aporta es el
+# claim `groups`.
 #
-# COMO SE CORRIGE cuando reporta NonCompliant, en el cluster afectado:
-#
-#   oc patch oauth cluster --type=json -p \
-#     '[{"op":"add","path":"/spec/identityProviders/0/openID/claims/groups","value":["groups"]}]'
+# EL HUB NO ENTRA AQUI. El hub despliega Keycloak, asi que autentica solo por
+# htpasswd para no depender de si mismo (ver oauth-hub.reference.yaml). Por eso
+# el PlacementBinding es unicamente para `clusters-workload`.
 #
 # Requiere ademas que el cliente de Keycloak emita el claim: un mapper de tipo
 # "Group Membership" con full.path=false, o los nombres llegan como /grupo y no
@@ -36,8 +35,7 @@ metadata:
   namespace: open-cluster-management
 spec:
   disabled: false
-  # inform: reporta la desviacion, no la corrige. Ver la cabecera.
-  remediationAction: inform
+  remediationAction: enforce
   policy-templates:
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
@@ -45,11 +43,14 @@ spec:
         metadata:
           name: require-oidc-groups-claim
         spec:
-          remediationAction: inform
+          remediationAction: enforce
           severity: high
-          object-templates:
-            # musthave sobre un fragmento: exige que el claim figure, sin tocar
-            # el resto del proveedor (issuer, clientID, clientSecret).
+          # El OAuth de un cluster sin proveedor OIDC no se toca: la plantilla
+          # se salta el cluster en vez de escribir un proveedor a medias.
+          object-templates-raw: |
+            {{- $oauth := (lookup "config.openshift.io/v1" "OAuth" "" "cluster") }}
+            {{- range $idp := $oauth.spec.identityProviders }}
+            {{- if eq $idp.type "OpenID" }}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: config.openshift.io/v1
@@ -58,9 +59,20 @@ spec:
                   name: cluster
                 spec:
                   identityProviders:
-                    - name: rhbk
+                    - name: {{ $idp.name }}
                       type: OpenID
+                      mappingMethod: {{ $idp.mappingMethod }}
                       openID:
+                        # Leidos del propio cluster: cada uno tiene los suyos.
+                        clientID: {{ $idp.openID.clientID }}
+                        clientSecret:
+                          name: {{ $idp.openID.clientSecret.name }}
+                        issuer: {{ $idp.openID.issuer }}
                         claims:
-                          groups:
-                            - groups
+                          preferredUsername: {{ $idp.openID.claims.preferredUsername | toRawJson }}
+                          name: {{ $idp.openID.claims.name | toRawJson }}
+                          email: {{ $idp.openID.claims.email | toRawJson }}
+                          # Lo unico que aporta esta politica.
+                          groups: [groups]
+            {{- end }}
+            {{- end }}
