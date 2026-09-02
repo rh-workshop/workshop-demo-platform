@@ -4,7 +4,26 @@ Cómo una persona pasa de iniciar sesión a tener permisos, y dónde se decide c
 paso. Complementa `governance-backlog.md`, que dice *qué falta*; esto dice *cómo
 funciona lo que ya hay*.
 
-## La cadena
+## Dos modelos, según el cluster
+
+El hub y los spokes autentican distinto, y no es una inconsistencia:
+
+| | Hub | Spokes |
+|---|---|---|
+| Proveedor | **Solo htpasswd** | Keycloak (`rhbk`) |
+| Pertenencia a grupos | `oc adm groups add-users` | Claim `groups` del OIDC |
+
+**El hub despliega Keycloak, así que no puede depender de él para autenticar.**
+Si lo hiciera, arreglar un Keycloak caído exigiría entrar al cluster, y entrar al
+cluster exigiría Keycloak: el servidor OAuth devuelve 500 y no entra nadie,
+tampoco quien va a repararlo. Por eso el hub tiene un único proveedor htpasswd,
+que valida el propio API server contra un Secret local.
+
+En los spokes no hay circularidad —su Keycloak no depende de ellos mismos— así
+que sí usan OIDC, que es lo que permite gestionar la pertenencia en un solo
+sitio.
+
+## La cadena (spokes)
 
 ```
 Keycloak (realm sso)          OpenShift                    Argo CD
@@ -118,12 +137,26 @@ cluster (`cluster-reader` para `platform-operators` y `platform-viewers`). Los
 `Group` no hacen falta allí: los crea el servidor OAuth del spoke en el primer
 login.
 
-Para eso el OAuth de cada spoke debe pedir el claim `groups`, cosa que hoy **no
-hace** — lo vigila la Policy `require-oidc-groups-claim`, que los reporta
-`NonCompliant`. Va en modo `inform` a propósito: el proveedor `rhbk` referencia
-un `clientSecret` distinto en cada cluster, y una Policy en `enforce` sobre el
-objeto `OAuth` completo lo reescribiría dejando el cluster sin acceso por
-Keycloak. Se corrige con un patch por cluster, documentado en la Policy.
+Para eso el OAuth de cada spoke debe pedir el claim `groups`. Lo garantiza la
+Policy `require-oidc-groups-claim`, en modo **`enforce`**: si falta, ACM lo añade.
+
+La Policy no escribe un `OAuth` fijo. El proveedor `rhbk` lleva un `issuer` y un
+`clientSecret` **distintos en cada cluster**, y una plantilla con valores fijos
+los reescribiría con los de otro, dejándolo sin acceso por Keycloak. En su lugar
+usa `object-templates-raw` con `lookup`: lee el proveedor del propio cluster y lo
+reinyecta tal cual, aportando únicamente el claim. Verificado en los cuatro
+spokes — cada uno conservó su issuer.
+
+### Riesgo abierto: los spokes no tienen break-glass
+
+Los cuatro spokes tienen **un solo proveedor**, `rhbk`. Si su Keycloak no
+responde, nadie entra en ese cluster — ni para arreglarlo. Es el mismo problema
+que el hub ya resolvió.
+
+Se cierra replicando el proveedor htpasswd en cada spoke
+(`bootstrap/manifests/oauth-spoke.reference.yaml`), con su propio Secret: no
+puede compartirse desde el hub, porque el hash vive en un Secret local de cada
+cluster.
 
 ## Acceso de emergencia
 
