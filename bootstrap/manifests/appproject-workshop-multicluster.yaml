@@ -147,6 +147,11 @@ spec:
   # OpenBao: el almacen corre como StatefulSet con su Service e identidad.
   - group: apps
     kind: StatefulSet
+  # PostgreSQL de Keycloak: Deployment (recrear, no ordinal) y su volumen de datos.
+  - group: apps
+    kind: Deployment
+  - group: ''
+    kind: PersistentVolumeClaim
   - group: ''
     kind: ServiceAccount
   # Configuración y servicios auxiliares de los productos.

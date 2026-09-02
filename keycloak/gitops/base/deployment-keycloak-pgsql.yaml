@@ -17,6 +17,10 @@ metadata:
   annotations:
     # Reinicia el pod cuando ESO rota la credencial en el Secret.
     reloader.stakater.com/auto: "true"
+    # Replace en vez de patch: cambiar el TIPO de una probe (tcpSocket -> exec) no
+    # se puede fusionar, el apiserver lo rechaza con "may not specify more than 1
+    # handler type" sobre un Deployment que ya existe.
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
   replicas: 1
   # El PVC es RWO: Recreate evita que el pod nuevo se quede Pending esperando el volumen.
