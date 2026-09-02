@@ -33,19 +33,26 @@ rules:
       - multiclusterobservabilities
     verbs: [get, list, watch, create, update, patch, delete]
 
-  # ACM: destinos de despliegue. Solo los objetos de placement y el registro de
-  # clusters en Argo.
+  # ACM: destinos de despliegue. Solo los objetos de placement.
   - apiGroups:
       - cluster.open-cluster-management.io
     resources:
       - placements
       - managedclustersetbindings
     verbs: [get, list, watch, create, update, patch, delete]
+
+  # GitOpsCluster: SOLO LECTURA. Es el objeto que decide con QUE IDENTIDAD
+  # escribe Argo en cada spoke (managedServiceAccountRef). Con escritura, un
+  # cambio de ese campo a `application-manager` — el MSA por defecto de ACM, cuyo
+  # ClusterRole es ['*']/['*']/['*'] — haria que ACM regenerase los cluster
+  # secrets con un token cluster-admin, anulando de una vez el ClusterPermission
+  # de argocd-push en los cuatro spokes. Es el limite que contiene al controller:
+  # no puede ser el propio controller quien lo reescriba. Lo aplica el bootstrap.
   - apiGroups:
       - apps.open-cluster-management.io
     resources:
       - gitopsclusters
-    verbs: [get, list, watch, create, update, patch, delete]
+    verbs: [get, list, watch]
 
   # External Secrets: los objetos que declaran DE DONDE leer, no los secretos.
   - apiGroups:
@@ -165,11 +172,27 @@ rules:
     verbs: [get, list, watch, create, update, patch, delete]
 
   # Cloud Credential Operator: solo el CredentialsRequest del bucket de Quay (s3).
+  #
+  # Acotado POR NOMBRE, no solo por recurso: un CredentialsRequest declara la
+  # politica IAM que el CCO acuna en la cuenta de cloud. En modo Mint, uno con
+  # Action:'*' Resource:'*' entrega credenciales de administrador del cloud en el
+  # Secret que indique `spec.secretRef` — escalada de Kubernetes a la cuenta.
+  # `resourceNames` no filtra `create` (el objeto aun no existe cuando se evalua
+  # la autorizacion) ni `list`/`watch`, que son de coleccion. Esos tres van en la
+  # regla sin nombre; el resto queda restringido a quay-s3. Acotar update/patch/
+  # delete ya impide secuestrar el CredentialsRequest de otro componente, y la
+  # creacion de uno nuevo la frena la revision del repo de gobierno.
   - apiGroups:
       - cloudcredential.openshift.io
     resources:
       - credentialsrequests
-    verbs: [get, list, watch, create, update, patch, delete]
+    verbs: [list, watch, create]
+  - apiGroups:
+      - cloudcredential.openshift.io
+    resources:
+      - credentialsrequests
+    resourceNames: [quay-s3]
+    verbs: [get, update, patch, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
