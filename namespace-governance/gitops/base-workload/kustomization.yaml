@@ -1,0 +1,13 @@
+# Gobierno de los namespaces de plataforma que existen en TODOS los clusters.
+#
+# kuadrant-system y platform-gateway alojan la ruta de datos (Authorino,
+# Limitador, Gateway) y sus CR no admiten `resources`: el LimitRange es lo unico
+# que evita que esos pods corran BestEffort.
+#
+# Se separa de la base del hub porque alli hay ademas namespaces que solo
+# existen en el cluster de gestion (Quay, ACS, Developer Hub, Pipelines).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base/namespaces/kuadrant-system
+  - ../base/namespaces/platform-gateway

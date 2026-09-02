@@ -1,9 +1,33 @@
 # namespace-governance — gobierno de namespaces de la plataforma
 
-Antes, los Namespace se declaraban dispersos (cada producto el suyo, cada app el
-suyo), no existía RBAC de personas ni equipos, y la Policy `require-resourcequota`
-exigía cuotas que ningún namespace declaraba en Git. Este componente centraliza
-ese gobierno en un solo lugar.
+Centraliza cuota, limites y RBAC de los namespaces de plataforma: quien puede ver
+o administrar cada uno, cuanto puede consumir y que valores por defecto reciben
+los pods que no declaran `resources`.
+
+## Argo aplica, ACM verifica
+
+El gobierno se declara UNA vez en Kustomize y lo aplica **Argo CD**, tanto en el
+hub como en los clusters de carga (los AppSets `workload-*` lo incluyen). Asi un
+cliente **sin ACM** conserva sus cuotas, sus limites y su RBAC: solo necesita
+OpenShift GitOps.
+
+**ACM no crea este gobierno: lo verifica.** Las Policies `require-limitrange` y
+`require-resourcequota` reportan el cumplimiento por cluster, que es lo que Argo
+no da. Un objeto, un dueno.
+
+La excepcion son los namespaces que NO se pueden enumerar por adelantado: los de
+negocio (`*-demo-*`) y los previews de PR, que nacen y mueren con cada rama. Ahi
+la Policy va en `enforce`, porque un Kustomize no puede declarar lo que aun no
+existe. No es duplicidad: es el hueco que Argo no alcanza.
+
+| | Lo declara | ACM |
+|---|---|---|
+| Namespaces de plataforma (kuadrant-system, platform-gateway, quay-enterprise...) | Argo | verifica (`inform`) |
+| Namespaces de negocio y previews (`*-demo-*`, `demo-service-pr-*`) | ACM (`enforce`) | aplica |
+| Reparto de secretos entre clusters (init bundles, pull secrets, token del almacen) | ACM (`enforce`) | aplica |
+
+En un cliente **sin Argo CD**, cambiar las Policies de `inform` a `enforce`
+convierte a ACM en el aplicador de todo, sin tocar nada mas.
 
 ## Estructura: perfil compartido + un directorio por namespace
 
