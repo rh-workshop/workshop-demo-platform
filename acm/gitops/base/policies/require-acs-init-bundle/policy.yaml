@@ -58,9 +58,13 @@ spec:
           #
           # OJO CON LOS COMENTARIOS DENTRO DE LA PLANTILLA: van FUERA a
           # proposito — dentro rompen el YAML resuelto o los interpreta el motor.
+          #
+          # EL NOMBRE DEL SECRETO SE CALCULA DENTRO DEL BLOQUE hub, repetido en
+          # cada linea en vez de en una variable comun. No es por gusto: lo de
+          # fuera se evalua en el CLUSTER DESTINO y lo de `{{hub ... hub}}` en el
+          # HUB, asi que una variable declarada arriba no existe aqui dentro y la
+          # Policy falla entera con "failed to parse the template JSON string".
           object-templates-raw: |
-            {{- $env := (index .ManagedClusterLabels "environment") }}
-            {{- $bundle := (printf "acs-init-bundle-%s" $env) }}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -75,9 +79,9 @@ spec:
                   name: sensor-tls
                   namespace: stackrox
                 data:
-                  ca.pem: "{{hub fromSecret "open-cluster-management" $bundle "sensor-tls-ca.pem" hub}}"
-                  sensor-cert.pem: "{{hub fromSecret "open-cluster-management" $bundle "sensor-tls-cert.pem" hub}}"
-                  sensor-key.pem: "{{hub fromSecret "open-cluster-management" $bundle "sensor-tls-key.pem" hub}}"
+                  ca.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "sensor-tls-ca.pem" hub}}"
+                  sensor-cert.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "sensor-tls-cert.pem" hub}}"
+                  sensor-key.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "sensor-tls-key.pem" hub}}"
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -86,9 +90,9 @@ spec:
                   name: collector-tls
                   namespace: stackrox
                 data:
-                  ca.pem: "{{hub fromSecret "open-cluster-management" $bundle "collector-tls-ca.pem" hub}}"
-                  collector-cert.pem: "{{hub fromSecret "open-cluster-management" $bundle "collector-tls-cert.pem" hub}}"
-                  collector-key.pem: "{{hub fromSecret "open-cluster-management" $bundle "collector-tls-key.pem" hub}}"
+                  ca.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "collector-tls-ca.pem" hub}}"
+                  collector-cert.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "collector-tls-cert.pem" hub}}"
+                  collector-key.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "collector-tls-key.pem" hub}}"
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -97,6 +101,6 @@ spec:
                   name: admission-control-tls
                   namespace: stackrox
                 data:
-                  ca.pem: "{{hub fromSecret "open-cluster-management" $bundle "admission-control-tls-ca.pem" hub}}"
-                  admission-control-cert.pem: "{{hub fromSecret "open-cluster-management" $bundle "admission-control-tls-cert.pem" hub}}"
-                  admission-control-key.pem: "{{hub fromSecret "open-cluster-management" $bundle "admission-control-tls-key.pem" hub}}"
+                  ca.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "admission-control-tls-ca.pem" hub}}"
+                  admission-control-cert.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "admission-control-tls-cert.pem" hub}}"
+                  admission-control-key.pem: "{{hub fromSecret "open-cluster-management" (printf "acs-init-bundle-%s" (index .ManagedClusterLabels "environment")) "admission-control-tls-key.pem" hub}}"
