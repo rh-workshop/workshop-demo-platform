@@ -56,6 +56,16 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: [roles, rolebindings]
     verbs: [create, update, patch, delete]
+  # Kubernetes exige el verbo `bind` para conceder permisos que uno no tiene: sin
+  # el, crear un RoleBinding hacia un ClusterRole ajeno falla con "attempting to
+  # grant". Se acota con resourceNames al unico ClusterRole que el repo enlaza --
+  # la SCC de Pipelines, que el CI necesita para construir imagenes. Sin
+  # resourceNames, `bind` seria una escalada de privilegios en toda regla: Argo
+  # podria enlazar cluster-admin a cualquier cuenta.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [clusterroles]
+    resourceNames: [pipelines-scc-clusterrole]
+    verbs: [bind]
 
   # OLM no entra: los operadores los instala ACM con OperatorPolicy, y aprobar la
   # instalacion de un operador equivale a ejecutar codigo con permisos de cluster.
