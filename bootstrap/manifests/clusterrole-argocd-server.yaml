@@ -1,0 +1,78 @@
+# Permisos cluster-scoped del servidor de Argo CD (API y UI) y del controlador de
+# ApplicationSets.
+#
+# Con `defaultClusterScopedRoleDisabled: true` el operador deja de crear los roles
+# por defecto de TODOS los componentes, no solo del application-controller. El
+# server los necesita para poblar la vista de recursos de la UI y para responder
+# `argocd app sync`; sin ellos falla con "services is forbidden".
+#
+# El nombre NO sigue el patron <argocd_name>-<argocd_namespace>-<componente>: con
+# ese patron el operador considera el rol suyo y lo BORRA, porque
+# defaultClusterScopedRoleDisabled desactiva los roles cluster-scoped de todos los
+# componentes. Con un nombre propio, el binding sobrevive a la reconciliacion.
+#
+# Ambos son de SOLO LECTURA: el server no aplica manifiestos -- eso lo hace el
+# application-controller, con el rol argocd-base.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-server-read
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: [get, list, watch]
+  # La UI necesita poder abrir los logs de un pod desde el arbol de recursos.
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  # Eventos que la UI muestra junto a cada recurso.
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-server-read
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-server
+    namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-server-read
+---
+# El controlador de ApplicationSets solo LEE: genera Applications a partir de los
+# generadores (clusterDecisionResource lee PlacementDecisions de ACM). Las
+# Applications las escribe en su propio namespace, cubierto por el Role que crea
+# el operador.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openshift-gitops-openshift-gitops-argocd-applicationset-controller
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-gitops-openshift-gitops-argocd-applicationset-controller
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-applicationset-controller
+    namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openshift-gitops-openshift-gitops-argocd-applicationset-controller
