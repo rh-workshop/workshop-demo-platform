@@ -1,25 +1,12 @@
-# En prod el comodin apunta al dominio de apps del cluster de produccion.
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: shared-gateway
-  namespace: platform-gateway
-spec:
-  listeners:
-  - name: https
-    port: 443
-    protocol: HTTPS
-    # Sustituir por el dominio del cluster de PRODUCCIÓN: *.apps.<cluster-prod>.<dominio-base>
-    hostname: '*.apps.ocp.2rndh.sandbox213.opentlc.com'
-    allowedRoutes:
-      namespaces:
-        from: Selector
-        selector:
-          matchLabels:
-            shared-gateway-access: 'true'
-    tls:
-      mode: Terminate
-      certificateRefs:
-      - group: ''
-        kind: Secret
-        name: shared-gateway-https
+# El dominio *.apps del cluster de prod.
+#
+# ES UN PATCH JSON, NO UN MERGE. Un strategic merge patch sobre `listeners`
+# REEMPLAZA la lista entera —Kustomize no conoce la clave de mezcla de un CRD— y
+# se llevaria por delante el listener `https-business`, que es justamente el que
+# hace posible el DR. Con `op: replace` sobre un indice se toca SOLO el hostname.
+#
+# El indice 0 es el listener `https`; el 1 es `https-business`, que NO se parchea
+# en ningun overlay a proposito: su hostname es el mismo en todos los sitios.
+- op: replace
+  path: /spec/listeners/0/hostname
+  value: '*.apps.ocp.2rndh.sandbox213.opentlc.com'

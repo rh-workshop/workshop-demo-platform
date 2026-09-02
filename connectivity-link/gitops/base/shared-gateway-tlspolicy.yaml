@@ -4,6 +4,12 @@
 # declarativa (antes salia de un recurso fuera de Git). El issuer se parchea por
 # overlay: en el lab un selfsigned; en prod la CA corporativa o ACME real
 # (NO-PRODUCCION usar selfsigned; ver docs/production-outside-the-lab.md).
+#
+# CUBRE LOS DOS LISTENERS. El targetRef apunta al Gateway entero, no a un
+# listener, asi que cert-manager emite un certificado por cada uno: el del
+# dominio del cluster y el del dominio de NEGOCIO. Eso es lo que hace posible el
+# failover — sin cert para el hostname compartido, conmutar el DNS fallaria en el
+# handshake TLS aunque la ruta si estuviera adjunta.
 apiVersion: kuadrant.io/v1
 kind: TLSPolicy
 metadata:

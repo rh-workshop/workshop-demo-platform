@@ -4,8 +4,26 @@
 # de el con su HTTPRoute (que vive en el repo de despliegue), ruteando por PATH.
 # Es el modelo de un dominio compartido por grupo, no un subdominio por micro.
 #
-# EL HOSTNAME ES DEL ENTORNO: el comodin apunta al dominio de apps del cluster.
-# En la base va como marcador; cada overlay pone el suyo.
+# DOS LISTENERS, Y LA DIFERENCIA IMPORTA PARA EL DR:
+#
+#   `https`          — el dominio *.apps del CLUSTER. Cambia en cada sitio y sirve
+#                      para lo que es propio de ese cluster (consolas, pruebas).
+#   `https-business` — el dominio de NEGOCIO. Es IGUAL en todos los sitios.
+#
+# POR QUE EL SEGUNDO EXISTE. Un HTTPRoute solo se adjunta a un listener si su
+# hostname INTERSECA con el del listener (spec de Gateway API: un comodin `*.` es
+# un match por SUFIJO). Publicar una API en `*.apps.<cluster>` ata su nombre
+# publico al identificador del cluster, y entonces el sitio de contingencia no
+# puede servir el mismo hostname que produccion: su listener nunca intersecaria.
+# La ruta queda `Accepted=False`, el Gateway con attachedRoutes=0 y las
+# AuthPolicy/RateLimitPolicy huerfanas — un DR que no serviria trafico.
+#
+# Con un dominio de negocio compartido, prod y contingencia son SIMETRICOS: el
+# mismo hostname adjunta en ambos, y conmutar es solo reapuntar el DNS sin que
+# quien consume la API cambie nada.
+#
+# EL HOSTNAME DE `https` ES DEL ENTORNO: en la base va como marcador y cada
+# overlay pone el suyo. El de negocio NO se parchea por overlay: ese es el punto.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -30,3 +48,24 @@ spec:
       - group: ''
         kind: Secret
         name: shared-gateway-https
+  - name: https-business
+    port: 443
+    protocol: HTTPS
+    # El dominio de negocio, DESACOPLADO del cluster. Este valor es el contrato
+    # con quien consume la API y debe sobrevivir a la infraestructura: si un
+    # cluster se reinstala, el nombre publico no cambia.
+    hostname: '*.api.workshop.example'
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchLabels:
+            shared-gateway-access: 'true'
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - group: ''
+        kind: Secret
+        # Certificado PROPIO: un listener no puede reutilizar el del dominio del
+        # cluster, que no cubre este nombre. Lo emite la TLSPolicy en cada sitio.
+        name: shared-gateway-business-https

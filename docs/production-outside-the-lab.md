@@ -68,10 +68,44 @@ reinicio y no se comparten entre réplicas ni entre sitios. En producción: **Re
 
 ## 7. DNSPolicy para conmutación de sitios (DR)
 
-En el lab (un solo clúster) el wildcard del router basta. En producción con DR: una
-`DNSPolicy` con el proveedor DNS del cliente publica y conmuta el endpoint del
-Gateway con health checks, alineado al modelo de continuidad (re-sincronizar la
-config declarativa en el sitio que se active).
+**Afecta:** Connectivity Link (Gateway), los `HTTPRoute` de cada servicio.
+
+**El prerrequisito es el hostname, no el DNS.** Producción y contingencia publican
+el **mismo dominio de negocio** (`*.api.<dominio-cliente>`), servido por el listener
+`https-business` del Gateway compartido, que es idéntico en todos los sitios. Esto
+no es un detalle estético: la spec de Gateway API exige que el hostname de un
+`HTTPRoute` **interseque** con el del listener para que la ruta se adjunte (un
+comodín `*.` es un match por *sufijo*). Si cada sitio publicara en su propio
+`*.apps.<cluster>`, la ruta del sitio de respaldo nunca se programaría —el Gateway
+se queda con `attachedRoutes=0` y las `AuthPolicy`/`RateLimitPolicy` huérfanas—, y
+el failover **no serviría tráfico** por mucho que se conmute el DNS.
+
+Por eso el listener `https` (dominio del clúster, distinto en cada sitio) convive
+con `https-business` (dominio de negocio, compartido): el primero sirve lo propio
+del clúster, el segundo es el contrato con quien consume la API y sobrevive a que
+un clúster se reinstale.
+
+La `TLSPolicy` apunta al Gateway entero, así que emite certificado para **ambos**
+listeners. Sin el del dominio compartido, conmutar fallaría en el handshake TLS.
+
+Con eso resuelto, la conmutación es solo DNS. En producción: una `DNSPolicy` por
+sitio contra la **misma zona**, con `loadBalancing` (pesos asimétricos para
+activo/pasivo) y *health checks* que despublican el endpoint caído. Proveedores
+soportados en Connectivity Link: Route 53, Azure DNS, Google Cloud DNS y CoreDNS
+(este último permite demostrar el failover on-premise, sin DNS de nube).
+Alternativa igualmente válida: el **GSLB corporativo** (F5, NetScaler) apuntando a
+los VIP de ambos Gateways. No existe un CR de "Gateway multi-clúster": el modelo
+soportado es un Gateway por clúster coordinados por la zona DNS compartida.
+
+> **NO-PRODUCCIÓN (atajo de lab).** `*.api.workshop.example` no resuelve
+> públicamente y en el entorno efímero no hay zona DNS gestionada. Para probar sin
+> DNS real se fuerza la resolución, y **conmutar de sitio es cambiar esa IP** por
+> la del otro Gateway — que es exactamente lo que haría el DNS en producción:
+>
+> ```bash
+> curl --resolve demo.api.workshop.example:443:<IP-del-LB-del-sitio> \
+>      https://demo.api.workshop.example/demo
+> ```
 
 ## 8. Autenticación federada real
 
