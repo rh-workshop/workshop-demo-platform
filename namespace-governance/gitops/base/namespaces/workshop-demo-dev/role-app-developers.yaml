@@ -20,8 +20,21 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Núcleo del namespace SIN secrets ni serviceaccounts (identidades del CI).
   - apiGroups: [""]
-    resources: ["pods", "pods/log", "pods/exec", "pods/portforward", "services", "configmaps", "endpoints", "persistentvolumeclaims", "replicationcontrollers"]
+    resources: ["pods", "services", "configmaps", "persistentvolumeclaims", "replicationcontrollers"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Depuración: abrir una shell o un túnel contra un pod se pide con `create`.
+  - apiGroups: [""]
+    resources: ["pods/exec", "pods/portforward"]
+    verbs: ["get", "create"]
+  # Los logs solo se leen; no existe escribir en ellos.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list", "watch"]
+  # Los Endpoints los mantiene el controlador de Services. Escribirlos a mano
+  # permitiría desviar el tráfico de un Service a una IP arbitraria.
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["events", "resourcequotas", "limitranges"]
     verbs: ["get", "list", "watch"]
@@ -50,8 +63,15 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Builds e imágenes del flujo S2I del workshop.
   - apiGroups: ["build.openshift.io"]
-    resources: ["buildconfigs", "builds", "buildconfigs/instantiate", "builds/log"]
+    resources: ["buildconfigs", "builds"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Lanzar un build es `create` sobre el subrecurso; no admite otro verbo.
+  - apiGroups: ["build.openshift.io"]
+    resources: ["buildconfigs/instantiate"]
+    verbs: ["create"]
+  - apiGroups: ["build.openshift.io"]
+    resources: ["builds/log"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["image.openshift.io"]
     resources: ["imagestreams", "imagestreamtags", "imagestreamimages"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

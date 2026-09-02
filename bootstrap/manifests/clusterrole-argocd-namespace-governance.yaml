@@ -55,6 +55,16 @@ rules:
     resourceNames:
       - view
       - admin
+    verbs: [bind]
+  # El Role local app-developer-no-secrets, que este mismo componente declara.
+  # `bind` sobre roles va sin resourceNames porque el Role vive en cada namespace
+  # y la restriccion es por nombre, no por namespace; el alcance real lo fija que
+  # el controlador solo pueda crear Roles cuyos verbos ya posee.
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    resourceNames:
       - app-developer-no-secrets
     verbs: [bind]
   # NO se concede clusterrolebindings ni `escalate`. Argo sincroniza un
