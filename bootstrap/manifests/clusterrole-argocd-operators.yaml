@@ -39,7 +39,6 @@ rules:
       - cluster.open-cluster-management.io
     resources:
       - placements
-      - placementdecisions
       - managedclustersetbindings
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups:
@@ -54,7 +53,6 @@ rules:
     resources:
       - externalsecrets
       - clustersecretstores
-      - secretstores
     verbs: [get, list, watch, create, update, patch, delete]
 
   # Instancia del controlador de ESO y el plugin de consola de Kuadrant. Solo estos
@@ -100,7 +98,6 @@ rules:
     resources:
       - certificates
       - clusterissuers
-      - issuers
     verbs: [get, list, watch, create, update, patch, delete]
 
   # Developer Hub y Pipelines.
@@ -119,8 +116,6 @@ rules:
     resources:
       - pipelines
       - tasks
-      - pipelineruns
-      - taskruns
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups:
       - pipelinesascode.tekton.dev
@@ -148,7 +143,6 @@ rules:
     resources:
       - istios
       - istiocnis
-      - istiorevisions
       - istiorevisiontags
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups:

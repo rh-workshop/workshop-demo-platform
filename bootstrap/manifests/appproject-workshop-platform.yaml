@@ -104,17 +104,17 @@ spec:
       kind: ConfigMap
     - group: apps
       kind: Deployment
-    # RoleBinding de los image-puller y de la pipeline (nunca ClusterRole*).
-    - group: rbac.authorization.k8s.io
-      kind: RoleBinding
+    # RoleBinding NO se permite: ningun repo de aplicaciones renderiza uno, y con
+    # el permiso abierto un commit podria enlazar admin a un grupo en
+    # workshop-demo-dev, que es donde viven los secretos del CI. El RBAC por
+    # namespace lo declara namespace-governance (plataforma).
     # ServiceAccount y Secret quedan fuera a propósito: un AppProject no filtra por
     # nombre, así que permitir Secret dejaría al repo de aplicaciones sobrescribir
     # (selfHeal incluido) los Secrets del CI de workshop-demo-dev —
     # cosign-signing-key, git-credentials, quay-push-credentials, argocd-env-secret.
     # La identidad del análisis del canary vive en namespace-governance.
-    # Exposición: Route del gateway y HTTPRoute de Gateway API por servicio.
-    - group: route.openshift.io
-      kind: Route
+    # Exposicion por HTTPRoute (Gateway API). Route no entra: los servicios de
+    # negocio se exponen por el gateway compartido, no con rutas propias.
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
     # Políticas de Connectivity Link a nivel de RUTA (responsabilidad del

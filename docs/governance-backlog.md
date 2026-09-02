@@ -69,19 +69,23 @@ componentes, no solo del application-controller. Documentado en
 convención de nombres del operador es borrado por él en la siguiente
 reconciliación.
 
-### A.4 `clusterrole-argocd-base.yaml` no lo aplica el playbook — ALTO
-El fichero está en Git y en el cluster, pero `bootstrap/ansible/bootstrap.yml` no
-lo aplica: se aplicó a mano. Con `defaultClusterScopedRoleDisabled: true`, un
-bootstrap limpio dejaría a Argo sin ningún permiso, ni de lectura. Git y cluster no
-coinciden, que es la condición que GitOps existe para evitar.
+### A.4 `clusterrole-argocd-base.yaml` no lo aplicaba el playbook — HECHO
+Estaba en Git y en el cluster, pero `bootstrap.yml` no lo listaba: se había
+aplicado a mano. Con `defaultClusterScopedRoleDisabled: true`, un bootstrap limpio
+habría dejado a Argo sin ningún permiso, ni de lectura. Añadido junto a
+`clusterrole-argocd-server.yaml`, ambos antes que el resto.
 
-### A.5 Retirar permisos que nadie usa — MEDIO
-Del inventario real de kinds renderizados, sobran en los ClusterRoles:
-`appprojects` (escritura), `subscriptions`, `operatorgroups`, `servicemonitors`,
-`prometheusrules`, `pipelineruns`, `taskruns`, `placementdecisions` (escritura),
-`policysets`, `istiorevisions`, `issuers`, `secretstores`, `gatewayclasses`,
-`grpcroutes`, `referencegrants`, `dnspolicies`. Cada uno es una puerta abierta sin
-nadie detrás.
+### A.5 Permisos de escritura que nadie usaba — HECHO
+Comparando los ClusterRoles contra el inventario real de kinds renderizados
+sobraban 17: `appprojects`, `subscriptions`, `operatorgroups`, `servicemonitors`,
+`prometheusrules`, `pipelineruns`, `taskruns`, `placementdecisions`, `policysets`,
+`istiorevisions`, `issuers`, `secretstores`, `gatewayclasses`, `grpcroutes`,
+`referencegrants` y `dnspolicies`.
+
+Los dos más sensibles: `appprojects` permitía a Argo reescribir la barandilla que
+lo limita, y OLM le permitía instalar operadores — que equivale a ejecutar código
+con permisos de cluster. `PlacementDecision` se retiró solo de escritura: el
+generador de los AppSets la lee, y esa lectura la cubre la regla global.
 
 ---
 
@@ -115,23 +119,29 @@ es la única barandilla que impide que un manifiesto de dev aterrice en un names
 de prod, y para segregación de funciones eso pesa más. La síntesis es dominio para
 el ownership, ambiente para la criticidad.
 
-### B.2 Permisos sin uso en los AppProjects — CRÍTICO
-- `Secret` en `workshop-multicluster`: **ningún manifiesto renderiza un Secret**.
-  Con ese permiso, un commit al repo de plataforma sobrescribe `cosign-signing-key`,
-  `argocd-env-secret`, `openbao-eso-token` o `sensor-tls`, y selfHeal lo mantiene.
-- `RoleBinding` y `Route` en `workshop-platform`: el repo de **apps** podría
-  enlazar `admin` en el namespace donde viven los secretos del CI.
-- 4 destinos `*-demo-dev` que ya no reciben nada.
+### B.2 Permisos sin uso en los AppProjects — HECHO
+- `Secret` en `workshop-multicluster`: ningún manifiesto renderizaba uno, y con el
+  permiso abierto un commit podía sobrescribir `cosign-signing-key`,
+  `argocd-env-secret` u `openbao-eso-token`, con selfHeal manteniendo el valor.
+- `RoleBinding` y `Route` en `workshop-platform`: cero usos en los repos de apps;
+  el primero permitía enlazar `admin` donde viven los secretos del CI.
+- 4 destinos `*-demo-dev` huérfanos: esos namespaces los gobierna la Policy de ACM.
+- Un `ServiceAccount` duplicado.
+
+La whitelist de `workshop-platform` quedó en 10 kinds, que es exactamente lo que
+los repos de aplicaciones renderizan: nada de más, nada de menos.
 
 ### B.3 `Deployment` y `PersistentVolumeClaim` en `workshop-multicluster` — HECHO
 Faltaban para el PostgreSQL de Keycloak. Lo interesante del caso: el AppProject
 **funcionó como barrera** — frenó un recurso no previsto en vez de aplicarlo en
 silencio. Es la evidencia de que la división por proyectos aporta valor real.
 
-### B.4 El `ClusterSecretStore` no tiene `conditions` — ALTO
-Cualquier `ExternalSecret` desde el repo de apps puede materializar cualquier ruta
-que el token `eso-read` alcance, incluida `platform/keycloak/db-prod`, en un
-namespace donde corren pods de negocio. Acotar con `spec.conditions.namespaces`.
+### B.4 El `ClusterSecretStore` no tenía `conditions` — HECHO
+Cualquier `ExternalSecret` podía materializar cualquier ruta que el token
+`eso-read` alcanzara — incluida `platform/keycloak/db-prod` — en un namespace donde
+corren pods de negocio. Acotado a los cuatro namespaces que declaran
+ExternalSecret: `keycloak`, `kafka` y los dos de ACM. Añadir uno es ahora una
+decisión de plataforma, no de quien despliega la aplicación.
 
 ### B.5 `KafkaUser` declara sus propias ACLs — MEDIO
 Un servicio del repo de apps se autoconcede `Read`/`Write` sobre cualquier topic.
@@ -151,11 +161,15 @@ repo se sirve por `http://`. Aceptable para formación; hay que dejar escrito qu
 
 ## C. Identidad de las personas
 
-### C.1 La cuenta del CI puede sincronizar producción — CRÍTICO
-`applications, sync, workshop-platform/*` incluye `app-*-prod` y
-`app-*-contingencia`, y la credencial vive en el namespace de dev. Quien lea ese
-Secret despliega a producción. Acotar a `apps-nonprod/*` y retirar `login` de la
-cuenta (le basta `apiKey`).
+### C.1 La cuenta del CI podía sincronizar producción — HECHO
+El glob `workshop-platform/*` abarcaba `app-*-prod` y `app-*-contingencia`, y la
+credencial vive en el namespace de dev: quien leyera ese Secret desplegaba a
+producción. Acotado a `*-dev`, con lectura global conservada para diagnóstico.
+
+Dos detalles del arreglo: la política se asigna **directamente a la cuenta local**
+y no a través de un rol, porque con SSO activo un grupo que se llamara igual
+heredaría sus permisos; y se retiró `login`, que una cuenta de automatización no
+necesita.
 
 ### C.2 No hay roles intermedios: o admin o nada — ALTO
 Solo existe `role:admin` para cluster-admins. Los grupos `platform-admins`,
@@ -229,9 +243,14 @@ En los spokes, los namespaces de producto los declara Argo (base del componente)
 la `OperatorPolicy` de ACM. Sin conflicto de campos hoy, pero conviene elegir: ACM
 los crea (es prerequisito del operador) y Argo los adopta con `CreateNamespace=false`.
 
-### D.5 Retirar `self-provisioners` — MEDIO
-Cualquier desarrollador puede crear un Project fuera de `governance`: sin cuota,
-sin NetworkPolicy y sin RBAC. Anula el modelo entero.
+### D.5 `self-provisioners` permitía crear proyectos fuera del gobierno — HECHO
+Cualquier usuario autenticado podía crear un Project sin cuota, sin NetworkPolicy y
+sin RBAC, lo que vaciaba de sentido el modelo entero. Retirado con la Policy
+`require-no-self-provisioner`, en `enforce` sobre los 5 clusters.
+
+Al escribirla apareció un detalle: pedir a la vez que el ClusterRoleBinding exista
+y que no tenga sujetos deja la Policy oscilando. Basta `mustnothave` sobre el
+sujeto — al ser el único, ACM elimina el binding entero.
 
 ---
 
@@ -297,10 +316,17 @@ Central. Y Keycloak es el IdP de los clusters: **esto ocurrió durante la audito
 — al reiniciarse Keycloak, el login del cluster dejó de funcionar y hubo que
 recuperar el acceso con un token de ServiceAccount.
 
-### F.3 Identidad de emergencia — ALTO
-Consecuencia directa de F.2: hace falta un proveedor htpasswd de break-glass con
-credenciales custodiadas, **antes** de retirar `kubeadmin`. Sin él, un fallo del
-IdP deja el cluster inaccesible justo cuando hay que arreglarlo.
+### F.3 Identidad de emergencia — HECHO
+Consecuencia directa de F.2, y confirmada en vivo: el cluster tenía **un solo**
+proveedor de identidad (Keycloak) y `kubeadmin` ya estaba retirado, así que un
+fallo del IdP dejaba el cluster inaccesible justo cuando había que arreglarlo.
+
+Añadido un proveedor htpasswd con dos cuentas — una sola persona de guardia es un
+punto único de fallo — conservando el proveedor OIDC. Probado: ambos caminos
+inician sesión. El procedimiento, incluido cómo rotar y por qué su uso debería
+disparar una alerta en el SIEM, está en
+`bootstrap/manifests/oauth-break-glass.reference.yaml`. Las contraseñas se
+custodian fuera del cluster; el fichero htpasswd no se versiona.
 
 ### F.4 Backup y cifrado de etcd — ALTO
 Los Secrets que ESO materializa están **en claro** en etcd y en sus snapshots.
@@ -350,12 +376,14 @@ en Observability con retención larga.
 El criterio es **cerrar brechas explotables antes que añadir controles nuevos**, y
 dentro de eso, lo que no rompe nada antes de lo que exige ventana.
 
-**Ya hecho:** A.1, A.3, B.3, D.1.
+**Fase 1 — HECHA.** A.1, A.3, A.4, A.5, B.2, B.3, B.4, C.1, D.1, D.5, F.3.
 
-**Fase 1 — brechas abiertas, sin riesgo de rotura (días)**
-B.2 (retirar permisos sin uso) · C.1 (acotar el CI) · A.4 (el ClusterRole al
-playbook) · A.5 (limpiar permisos) · B.4 (`conditions` del store) · D.5
-(self-provisioners) · F.3 (break-glass).
+Verificado en el cluster: el CI ya no puede sincronizar prod ni contingencia
+(`argocd admin settings rbac can` responde No), los 9 permisos retirados dan `no`
+en `oc auth can-i` y los 13 necesarios siguen en `yes`, las 10 Policies de ACM
+quedan Compliant en los 5 clusters, el ClusterSecretStore sigue `Valid` con los 7
+ExternalSecret sincronizando, y el break-glass inicia sesion como cluster-admin
+sin pasar por Keycloak.
 
 **Fase 2 — el control que evita repetir esta auditoría (1-2 semanas)**
 E.4 (validación en el PR) · E.1 (CODEOWNERS). Se hacen pronto porque **cada día sin

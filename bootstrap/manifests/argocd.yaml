@@ -75,7 +75,8 @@ spec:
   # CI). Aunque alguien leyera ese Secret, esta cuenta solo puede get/sync en el
   # proyecto workshop-platform — no controla los 3 clusters.
   extraConfig:
-    accounts.pipeline: apiKey, login
+    # Sin `login`: es una cuenta de automatizacion, no entra por la UI.
+    accounts.pipeline: apiKey
   # RBAC de Argo: conserva las dos líneas que ponía el operador (admin para los
   # cluster-admins) y añade el rol mínimo de la cuenta pipeline.
   rbac:
@@ -84,9 +85,16 @@ spec:
     policy: |
       g, system:cluster-admins, role:admin
       g, cluster-admins, role:admin
-      p, role:ci-pipeline, applications, get, workshop-platform/*, allow
-      p, role:ci-pipeline, applications, sync, workshop-platform/*, allow
-      g, pipeline, role:ci-pipeline
+      # El CI sincroniza SOLO desarrollo. El glob workshop-platform/* abarcaba
+      # tambien app-*-prod y app-*-contingencia, asi que quien leyera el Secret del
+      # CI -- que vive en el namespace de dev -- desplegaba a produccion.
+      # Test, prod y contingencia los sincroniza una persona con su propio grupo.
+      #
+      # La politica se asigna DIRECTAMENTE a la cuenta local, no a traves de un
+      # rol: con SSO activo, un grupo del proveedor que se llamara igual que el
+      # rol heredaria sus permisos.
+      p, pipeline, applications, get, workshop-platform/*, allow
+      p, pipeline, applications, sync, workshop-platform/*-dev, allow
   # Health checks personalizados: sin ellos Argo marca Healthy recursos que aún no están operativos.
   resourceHealthChecks:
     # Application anidada (patrón app-of-apps): propaga el estado real de salud de la app hija.

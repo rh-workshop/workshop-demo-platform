@@ -1,0 +1,67 @@
+# Identidad de emergencia del cluster (break-glass).
+#
+# EL PROBLEMA QUE RESUELVE: el unico proveedor de identidad del cluster es
+# Keycloak (`rhbk`, OIDC). Si Keycloak no responde, el servidor OAuth devuelve 500
+# y NADIE puede iniciar sesion -- tampoco para arreglar Keycloak. Y como
+# `kubeadmin` ya se retiro, no queda ninguna via alternativa.
+#
+# Un proveedor htpasswd no depende de ningun servicio externo: lo valida el propio
+# API server contra un Secret del cluster.
+#
+# ESTE FICHERO ES UNA REFERENCIA, NO SE APLICA POR GITOPS. El Secret con el hash
+# de la contrasena no puede vivir en Git, y el OAuth del cluster es plano de
+# control: lo aplica el playbook de bootstrap tras crear el Secret a mano.
+#
+# PROCEDIMIENTO
+#
+#   1. Generar el fichero htpasswd (2 cuentas como minimo: una sola persona de
+#      guardia es un punto unico de fallo):
+#        htpasswd -c -B -b break-glass.htpasswd breakglass1 '<contrasena-larga>'
+#        htpasswd    -B -b break-glass.htpasswd breakglass2 '<otra-contrasena>'
+#
+#   2. Crear el Secret:
+#        oc create secret generic break-glass-htpasswd \
+#          --from-file=htpasswd=break-glass.htpasswd -n openshift-config
+#
+#   3. Anadir el proveedor al OAuth con este bloque (SIN sustituir el existente:
+#      `identityProviders` es una lista y hay que conservar `rhbk`).
+#
+#   4. Dar permisos a las cuentas:
+#        oc adm policy add-cluster-role-to-user cluster-admin breakglass1
+#
+#   5. Custodiar las contrasenas fuera del cluster (sobre sellado o gestor de
+#      secretos corporativo) y borrar el fichero htpasswd local.
+#
+# GOBIERNO: estas cuentas no son para el dia a dia. Su uso deberia disparar una
+# alerta -- el audit log registra `breakglass1` como usuario, asi que una regla
+# sobre ese nombre en el SIEM (ver G.1 del backlog de gobierno) avisa de cada
+# acceso. Rotar las contrasenas tras cada uso y revisarlas periodicamente.
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+    # El proveedor habitual: todo el mundo entra por aqui.
+    - name: rhbk
+      mappingMethod: claim
+      type: OpenID
+      openID:
+        clientID: idp-4-ocp
+        clientSecret:
+          name: idp-4-ocp-client-secret
+        issuer: https://sso.apps.CHANGE_ME_CLUSTER_DOMAIN/realms/sso
+        claims:
+          preferredUsername: [preferred_username]
+          name: [name]
+          email: [email]
+          # Los grupos llegan por el claim: evita mantener la pertenencia en dos
+          # sitios. Ver C.3 del backlog de gobierno.
+          groups: [groups]
+    # La via de rescate: no depende de Keycloak ni de ninguna red externa.
+    - name: break-glass
+      mappingMethod: claim
+      type: HTPasswd
+      htpasswd:
+        fileData:
+          name: break-glass-htpasswd

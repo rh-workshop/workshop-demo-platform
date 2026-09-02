@@ -37,6 +37,11 @@ resources:
   # suelto; la Policy la genera el Policy Generator (ver generators: abajo).
   - policies/require-namespace-isolation/placementbinding-hub.yaml
   # Certificados del agente de ACS: sin ellos ningun SecuredCluster arranca.
+  # Retira self-provisioner a los autenticados: un Project creado a mano nace sin
+  # cuota, sin aislamiento y sin RBAC, fuera del gobierno.
+  - policies/require-no-self-provisioner/policy.yaml
+  - policies/require-no-self-provisioner/placementbinding-hub.yaml
+  - policies/require-no-self-provisioner/placementbinding-workload.yaml
   - policies/require-acs-init-bundle/policy.yaml
   - policies/require-acs-init-bundle/placementbinding.yaml
   # Observabilidad multi-cluster: metricas de todos los clusters gestionados,

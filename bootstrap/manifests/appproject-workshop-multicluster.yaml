@@ -58,16 +58,9 @@ spec:
   # CI del workshop: el Pipeline y su identidad se instalan en el namespace de desarrollo.
   - server: '*'
     namespace: workshop-demo-dev
-  # Gobierno de los namespaces de aplicaciones (namespace-governance): cuota,
-  # límites, RBAC por grupo y aislamiento de red — no workloads de negocio.
-  - server: '*'
-    namespace: canary-demo-dev
-  - server: '*'
-    namespace: bluegreen-demo-dev
-  - server: '*'
-    namespace: circuit-breaker-demo-dev
-  - server: '*'
-    namespace: api-demo-dev
+  # Los namespaces *-demo-* de negocio NO son destino de este repo: su gobierno
+  # (cuota, limites, RBAC y aislamiento) lo reparte la Policy de ACM
+  # require-namespace-isolation, que alcanza tambien los que nacen con cada PR.
   # Workloads (hub y spokes): Connectivity Link, Keycloak, cert-manager, MetalLB y Service Mesh.
   - server: '*'
     namespace: kuadrant-system
@@ -249,12 +242,10 @@ spec:
   # El CRD lo trae OpenShift Pipelines, no se instala ningún producto aparte.
   - group: pipelinesascode.tekton.dev
     kind: Repository
-  - group: ''
-    kind: ServiceAccount
-  # Secret de tipo service-account-token del analisis del canary: se versiona VACIO
-  # (solo tipo y anotacion) y lo rellena el cluster; su contenido nunca viaja en Git.
-  - group: ''
-    kind: Secret
+  # Secret NO se permite: ningun manifiesto de este repo renderiza uno (los
+  # secretos llegan por ExternalSecret). Con el permiso abierto, un commit podria
+  # sobrescribir cosign-signing-key, argocd-env-secret u openbao-eso-token, y
+  # selfHeal mantendria el valor plantado.
   # Role namespaced del gobierno de workshop-demo-dev (app-developer-no-secrets);
   # los ClusterRole siguen fuera: solo los aplica el bootstrap.
   - group: rbac.authorization.k8s.io

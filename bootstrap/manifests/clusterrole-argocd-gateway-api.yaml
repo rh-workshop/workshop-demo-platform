@@ -21,10 +21,7 @@ rules:
       - gateway.networking.k8s.io
     resources:
       - gateways
-      - gatewayclasses
       - httproutes
-      - grpcroutes
-      - referencegrants
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups:
       - kuadrant.io
@@ -33,7 +30,6 @@ rules:
       - authpolicies
       - ratelimitpolicies
       - tlspolicies
-      - dnspolicies
     verbs: [get, list, watch, create, update, patch, delete]
   # Instancias de Authorino y Limitador que despliega el operador de Kuadrant.
   - apiGroups:

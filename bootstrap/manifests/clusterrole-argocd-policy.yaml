@@ -15,7 +15,6 @@ rules:
       - policy.open-cluster-management.io
     resources:
       - policies
-      - policysets
       - placementbindings
     verbs:
       - get
@@ -31,7 +30,6 @@ rules:
       - cluster.open-cluster-management.io
     resources:
       - placements
-      - placementdecisions
     verbs:
       - get
       - list

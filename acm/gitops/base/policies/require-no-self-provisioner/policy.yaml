@@ -1,0 +1,55 @@
+# Policy de gobierno: retira la capacidad de crear proyectos a cualquier usuario
+# autenticado.
+#
+# Por defecto OpenShift enlaza `self-provisioner` al grupo
+# `system:authenticated:oauth`: cualquiera que inicie sesion puede crear un
+# Project. Ese Project nace FUERA del gobierno -- sin cuota, sin LimitRange, sin
+# NetworkPolicy de aislamiento y sin RoleBinding -- lo que vacia de sentido el
+# modelo "Argo aplica, ACM verifica": los namespaces gobernados son los que
+# alguien declaro, y estos no pasan por ahi.
+#
+# Los namespaces de negocio los crea Argo (repos de aplicaciones) y los de
+# plataforma el componente correspondiente. Un equipo que necesite uno nuevo abre
+# un PR: es el mismo camino que para cualquier otro cambio.
+#
+# complianceType mustnothave sobre el sujeto: exige que el grupo de autenticados
+# no figure entre los sujetos del binding. Como es el unico que trae por defecto,
+# ACM elimina el ClusterRoleBinding entero.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-no-self-provisioner
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  remediationAction: enforce
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: require-no-self-provisioner-config
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            # Solo exige que el grupo de autenticados no figure como sujeto. No se
+            # pide que el ClusterRoleBinding exista: al retirar su unico sujeto,
+            # ACM lo elimina entero, y exigir ambas cosas dejaria la Policy
+            # oscilando entre Compliant y NonCompliant.
+            #
+            # Si el API server repusiera el binding en un reinicio, esta misma
+            # plantilla lo vuelve a limpiar en la siguiente evaluacion.
+            - complianceType: mustnothave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: self-provisioners
+                subjects:
+                  - apiGroup: rbac.authorization.k8s.io
+                    kind: Group
+                    name: system:authenticated:oauth

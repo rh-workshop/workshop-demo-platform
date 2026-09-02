@@ -76,6 +76,12 @@
     # Manifiestos del plano de control: los aplica este playbook, no Argo.
     manifiestos_bootstrap:
       - "{{ repo_root }}/bootstrap/manifests/argocd.yaml"
+      # El rol base va PRIMERO: con defaultClusterScopedRoleDisabled el operador no
+      # crea ninguno, y sin este el controller se queda sin lectura ni escritura.
+      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-base.yaml"
+      # El server y el applicationset-controller pierden sus roles por el mismo
+      # motivo; sin ellos la UI no puebla el arbol de recursos.
+      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-server.yaml"
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-gateway-api.yaml"
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-operators.yaml"
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-namespace-governance.yaml"
