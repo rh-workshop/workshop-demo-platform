@@ -8,9 +8,11 @@
 #
 # El default de 2Gi da margen a los pasos de build (buildah) de workshop-demo-dev.
 #
-# Cubre tambien kuadrant-system y platform-gateway: Authorino, Limitador y el
-# Gateway estan en la ruta de datos y sus CR no admiten `resources`, asi que el
-# LimitRange es lo unico que evita que corran BestEffort en los spokes.
+# Cubre tambien kuadrant-system y platform-gateway EN LOS SPOKES: Authorino,
+# Limitador y el Gateway estan en la ruta de datos y sus CR no admiten
+# `resources`, asi que el LimitRange es lo unico que evita que corran BestEffort.
+# En el hub esos namespaces los gobierna Argo (namespace-governance) con sus
+# propios valores.
 #
 # remediationAction: enforce -> ACM lo crea donde falte. Es seguro: un
 # LimitRange solo RELLENA lo que el pod no declara, nunca recorta lo declarado.
@@ -42,7 +44,9 @@ spec:
           {{- /* Mismo conjunto de namespaces de negocio que require-resourcequota. */ -}}
           {{- range (lookup "v1" "Namespace" "" "").items }}
           {{- $ns := .metadata.name }}
-          {{- if and (or (hasSuffix "-demo-dev" $ns) (hasSuffix "-demo-test" $ns) (hasSuffix "-demo-prod" $ns) (hasSuffix "-demo-contingencia" $ns) (eq $ns "kuadrant-system") (eq $ns "platform-gateway")) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
+          {{- /* En el hub, kuadrant-system y platform-gateway los gobierna Argo (namespace-governance): la Policy solo los cubre en los spokes, donde ese componente no llega. */ -}}
+          {{- $esHub := eq (fromClusterClaim "name") "local-cluster" }}
+          {{- if and (or (hasSuffix "-demo-dev" $ns) (hasSuffix "-demo-test" $ns) (hasSuffix "-demo-prod" $ns) (hasSuffix "-demo-contingencia" $ns) (and (not $esHub) (or (eq $ns "kuadrant-system") (eq $ns "platform-gateway")))) (not (hasPrefix "openshift-" $ns)) (not (hasPrefix "kube-" $ns)) (ne $ns "default") }}
           - complianceType: musthave
             objectDefinition:
               apiVersion: v1

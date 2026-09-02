@@ -19,7 +19,7 @@ spec:
   renewBefore: 8760h
   privateKey:
     algorithm: ECDSA
-    size: 384
+    size: 256
     # La clave de la raiz no rota con el certificado: rotarla invalidaria todo lo
     # que firmo.
     rotationPolicy: Never
