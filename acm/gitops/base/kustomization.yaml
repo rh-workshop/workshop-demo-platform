@@ -51,6 +51,10 @@ resources:
   # un Keycloak caido deja el cluster sin forma de entrar a repararlo.
   - policies/require-break-glass-idp/policy.yaml
   - policies/require-break-glass-idp/placementbinding-workload.yaml
+  # Replicas incompletas: un StatefulSet a 1/2 no se cae, pierde la alta
+  # disponibilidad en silencio y se confunde con un despliegue en curso.
+  - policies/require-workloads-fully-available/policy.yaml
+  - policies/require-workloads-fully-available/placementbinding-workload.yaml
   - policies/require-acs-init-bundle/policy.yaml
   - policies/require-acs-init-bundle/placementbinding.yaml
   # Observabilidad multi-cluster: metricas de todos los clusters gestionados,

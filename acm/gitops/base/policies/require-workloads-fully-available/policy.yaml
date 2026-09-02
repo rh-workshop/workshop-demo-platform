@@ -1,0 +1,58 @@
+# Policy de gobierno: ningun StatefulSet de plataforma debe quedarse con replicas
+# incompletas.
+#
+# QUE PROBLEMA RESUELVE. Un StatefulSet a 1/2 no se cae: la replica sana sigue
+# atendiendo y el servicio responde 200. Lo que se pierde es la alta
+# disponibilidad, y en silencio -- la Application queda Synced/Progressing, que en
+# un panel con decenas de aplicaciones se confunde con un despliegue en curso.
+# Este era el caso de Keycloak en prod y contingencia: tres dias a 1/2 replicas
+# porque el pod viejo conservaba la credencial anterior de la base de datos.
+#
+# POR QUE inform. La correccion depende del caso -- reiniciar el pod, arreglar
+# una credencial, ampliar recursos. Una Policy en enforce que reiniciara pods por
+# su cuenta convertiria un problema de disponibilidad en una caida. Aqui el valor
+# esta en que la desviacion sea visible, no en automatizar la reparacion.
+#
+# EL UMBRAL ES 5 MINUTOS de tolerancia implicita: la Policy se evalua cada 10
+# minutos por defecto, asi que un rollout normal no la dispara.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    policy.open-cluster-management.io/categories: CP Contingency Planning
+    policy.open-cluster-management.io/controls: CP-10 System Recovery
+    policy.open-cluster-management.io/standards: NIST SP 800-53
+  name: require-workloads-fully-available
+  namespace: open-cluster-management
+spec:
+  disabled: false
+  remediationAction: inform
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: require-workloads-fully-available
+        spec:
+          remediationAction: inform
+          severity: medium
+          # Se recorren los StatefulSet reales del cluster y se exige que su
+          # readyReplicas iguale a las pedidas. Un cluster sin ninguno de estos
+          # namespaces genera cero comprobaciones y queda Compliant, que es lo
+          # que permite aplicar la misma Policy a los cuatro spokes.
+          object-templates-raw: |
+            {{- range $ns := (list "keycloak" "kuadrant-system" "kafka") }}
+            {{- range $sts := (lookup "apps/v1" "StatefulSet" $ns "").items }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: StatefulSet
+                metadata:
+                  name: {{ $sts.metadata.name }}
+                  namespace: {{ $ns }}
+                status:
+                  readyReplicas: {{ $sts.spec.replicas }}
+            {{- end }}
+            {{- end }}
