@@ -39,7 +39,7 @@ spec:
         workshop.redhat.com/environment: dev
         workshop.redhat.com/cluster: '{{.name}}'
     spec:
-      project: workshop-multicluster
+      project: platform-workload-nonprod
       source:
         repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
         targetRevision: main

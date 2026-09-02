@@ -13,7 +13,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
   namespace: openshift-gitops
 spec:
-  project: workshop-multicluster
+  project: governance
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main

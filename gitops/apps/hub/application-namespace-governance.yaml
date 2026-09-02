@@ -16,7 +16,7 @@ metadata:
     workshop.redhat.com/component: namespace-governance
     workshop.redhat.com/environment: hub
 spec:
-  project: workshop-multicluster
+  project: governance
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main

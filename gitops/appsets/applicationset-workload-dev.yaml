@@ -38,20 +38,26 @@ spec:
           elements:
           - producto: keycloak
             namespace: keycloak
+            proyecto: platform-workload-nonprod
           - producto: connectivity-link
             namespace: kuadrant-system
+            proyecto: platform-workload-nonprod
           - producto: cert-manager
             namespace: cert-manager
+            proyecto: platform-workload-nonprod
           # Gobierno de los namespaces de la ruta de datos: cuota, limites y RBAC.
           # Va por Argo y no por Policy para que funcione tambien sin ACM.
           - producto: namespace-governance
             namespace: kuadrant-system
+            proyecto: governance
           # El puente con ESO: cada cluster necesita su ClusterSecretStore para
           # que sus ExternalSecret puedan leer del almacen, que vive en el hub.
           - producto: openbao-store
             namespace: external-secrets
+            proyecto: platform-workload-nonprod
           - producto: kafka
             namespace: kafka
+            proyecto: platform-workload-nonprod
           # MetalLB solo aplica en BARE-METAL. En un cloud (AWS/Azure/GCP) el proveedor
           # ya provisiona un balanceador por cada Service LoadBalancer, y MetalLB en L2
           # no funciona: la red virtual no reenvia el ARP gratuito del que depende.
@@ -71,7 +77,9 @@ spec:
         workshop.redhat.com/environment: dev
         workshop.redhat.com/cluster: '{{.name}}'
     spec:
-      project: workshop-multicluster
+      # El dominio lo declara cada componente en el `list`: el gobierno no
+      # comparte sobre de permisos con la configuracion de un producto.
+      project: '{{.proyecto}}'
       source:
         repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
         targetRevision: main

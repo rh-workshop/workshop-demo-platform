@@ -48,7 +48,10 @@ spec:
         workshop.redhat.com/component: acs
         workshop.redhat.com/cluster: '{{.name}}'
     spec:
-      project: workshop-multicluster
+      # El agente de ACS es plataforma, y el proyecto lo decide el AMBIENTE del
+      # cluster: prod y contingencia no comparten sobre de permisos con dev y
+      # test. El hub va a platform-hub, donde vive Central.
+      project: '{{ if eq .metadata.labels.environment "hub" }}platform-hub{{ else if or (eq .metadata.labels.environment "prod") (eq .metadata.labels.environment "contingencia") }}platform-workload-prod{{ else }}platform-workload-nonprod{{ end }}'
       source:
         repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
         targetRevision: main

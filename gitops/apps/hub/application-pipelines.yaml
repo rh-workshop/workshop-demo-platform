@@ -15,7 +15,7 @@ metadata:
     workshop.redhat.com/environment: hub
   namespace: openshift-gitops
 spec:
-  project: workshop-multicluster
+  project: platform-hub
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main

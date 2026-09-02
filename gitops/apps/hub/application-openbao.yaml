@@ -17,7 +17,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  project: workshop-multicluster
+  project: platform-hub
   source:
     repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
     targetRevision: main
