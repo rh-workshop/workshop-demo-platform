@@ -7,6 +7,12 @@
 #
 # Se referencia un unico Placement que abarca todos los roles; los overlays por
 # ambiente los resuelve el ApplicationSet segun la etiqueta del cluster.
+#
+# managedServiceAccountRef fija la IDENTIDAD con la que Argo escribe en cada
+# spoke. Sin el, ACM entrega el token del addon `application-manager`, cuyo
+# ClusterRole es ['*']/['*']/['*']: Argo seria cluster-admin en produccion y el
+# RBAC enumerado del hub no aplicaria a los clusters gestionados. Los permisos
+# reales de esta identidad los declara el ClusterPermission de argocd-push/.
 apiVersion: apps.open-cluster-management.io/v1beta1
 kind: GitOpsCluster
 metadata:
@@ -21,6 +27,7 @@ spec:
   argoServer:
     argoNamespace: openshift-gitops
     cluster: local-cluster
+  managedServiceAccountRef: argocd-push
   placementRef:
     apiVersion: cluster.open-cluster-management.io/v1beta1
     kind: Placement
