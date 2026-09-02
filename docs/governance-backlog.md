@@ -256,16 +256,21 @@ sujeto — al ser el único, ACM elimina el binding entero.
 
 ## E. Integridad del cambio
 
-### E.1 Sin CODEOWNERS ni ramas protegidas — ALTO
-El mismo repo y la misma rama contienen los ClusterRoles, el RBAC por namespace,
-las políticas de flota y la configuración de un producto. Nada obliga a que un
-cambio de RBAC lo apruebe seguridad. Reparto propuesto:
+### E.1 CODEOWNERS — HECHO (falta activar la protección de rama)
+El mismo repo y la misma rama contenían los ClusterRoles, el RBAC por namespace,
+las políticas de flota y la configuración de un producto: un cambio de RBAC
+necesitaba la misma aprobación que un cambio de color en un panel.
 
-| Ruta | Aprobadores |
-|---|---|
-| `bootstrap/**`, `acm/gitops/base/policies/**`, `gitops/clusters/**` | Seguridad, 2 revisores |
-| `gitops/apps/**`, `gitops/appsets/**` | Líder de plataforma |
-| `**/overlays/prod/**`, `**/overlays/contingencia/**` | Plataforma + ventana de cambio |
+Los tres repos llevan ya `.github/CODEOWNERS`. En plataforma el eje es el
+**dominio** (plano de control y gobierno exigen seguridad; los overlays de prod y
+contingencia, ventana de cambio); en los repos de aplicaciones el eje es el
+**ambiente** — dev y test los aprueba el equipo, prod y contingencia también quien
+opera. `base/` cuenta como producción, porque lo heredan todos los ambientes.
+
+**Pendiente y necesario:** activar en cada repo "Require review from Code Owners"
+sobre la rama por defecto y crear los equipos en la organización. Sin la
+protección de rama el fichero es documentación, no un control — y sin los equipos,
+GitHub lo ignora en silencio. Los nombres son marcadores `@CHANGE_ME_ORG/*`.
 
 ### E.2 Ventanas de mantenimiento — ALTO
 Ningún AppProject define `syncWindows`. Un banco tiene cierres de mes y batch
@@ -278,9 +283,9 @@ GPG** (ni SSH ni sigstore), verifica el commit HEAD, y Azure DevOps no firma los
 merges automáticamente — habría que firmar desde el pipeline de promoción. En Argo
 CD 3.5 `signatureKeys` se sustituye por `sourceIntegrity`.
 
-### E.4 Validación determinista en el PR — ALTO
+### E.4 Validación determinista en el PR — HECHO
 **El punto de mayor retorno de todo el backlog.** Cinco de los seis defectos de
-esta auditoría se habrían detectado antes del merge:
+esta auditoría se detectan ahora antes del merge:
 
 | Control | Qué habría detectado |
 |---|---|
@@ -290,6 +295,20 @@ esta auditoría se habrían detectado antes del merge:
 | Conftest: kinds ⊆ whitelist del AppProject | El `Deployment` bloqueado por el proyecto |
 | Conftest: `verbs: ["*"]` prohibido | Permisos excesivos |
 | Cruce con recursos de políticas ACM | El LimitRange con dos dueños |
+
+Implementado como Task `manifest-validate` y Pipeline `validate-manifests` en
+`workshop-pipelines/gitops/`, disparados por `on-event: [pull_request]` desde el
+`.tekton/` de los tres repos. El repo de plataforma se registró en Pipelines as
+Code, donde faltaba.
+
+Cada control se probó reproduciendo el defecto que lo motiva: un `CHANGE_ME` en un
+overlay de prod, un `ClusterRole` con comodín y un `Secret` fuera de la allow-list
+del AppProject — los tres detenidos. Y los repos actuales pasan limpios: 26
+overlays renderizan, cero marcadores, cero comodines.
+
+El control del AppProject queda desactivado en el repo de plataforma (`appproject:
+""`): allí conviven manifiestos de varios proyectos y compararlos contra uno solo
+daría falsos positivos. Se recupera con la partición de B.1.
 
 ### E.5 `FailOnSharedResource` y `orphanedResources` — BAJO
 Dos Applications pueden pelearse por el mismo recurso sin que nadie se entere.
@@ -385,9 +404,11 @@ quedan Compliant en los 5 clusters, el ClusterSecretStore sigue `Valid` con los 
 ExternalSecret sincronizando, y el break-glass inicia sesion como cluster-admin
 sin pasar por Keycloak.
 
-**Fase 2 — el control que evita repetir esta auditoría (1-2 semanas)**
-E.4 (validación en el PR) · E.1 (CODEOWNERS). Se hacen pronto porque **cada día sin
-esto es otro defecto que llega a producción sin ser visto**.
+**Fase 2 — HECHA.** E.4 (validación en el PR) · E.1 (CODEOWNERS).
+
+Queda una acción fuera de Git: activar "Require review from Code Owners" en la
+rama por defecto de los tres repos y crear los equipos de la organización. Hasta
+entonces CODEOWNERS sugiere revisores pero no los exige.
 
 **Fase 3 — la división (2-4 semanas, requiere ventana)**
 B.1 (8 AppProjects) · C.2 (roles de UI) · C.3 (grupos) · A.2 (dos instancias) ·

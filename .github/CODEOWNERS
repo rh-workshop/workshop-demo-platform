@@ -1,0 +1,67 @@
+# Quien debe revisar cada cambio.
+#
+# Este repositorio mezcla cosas con radios de impacto muy distintos: el mismo
+# merge puede cambiar el color de un panel o el RBAC de cinco clusters. Sin este
+# fichero, ambos cambios necesitan exactamente la misma aprobacion, que es lo que
+# una auditoria de segregacion de funciones marca como hallazgo.
+#
+# El reparto sigue los dominios de docs/governance-backlog.md: quien decide sobre
+# un dominio es quien aprueba sus cambios.
+#
+# COMO SE ACTIVA: los equipos deben existir en la organizacion de GitHub y la rama
+# protegerse con "Require review from Code Owners". Sin la proteccion de rama esto
+# es documentacion, no un control -- ver E.1 del backlog.
+#
+# Los nombres de equipo son marcadores: sustituir por los reales al adoptar.
+
+# Por defecto, plataforma. Las reglas de abajo lo afinan (gana la ultima que
+# coincide, asi que las mas especificas van al final).
+*                                       @CHANGE_ME_ORG/platform
+
+# ---------------------------------------------------------------- Plano de control
+# Los ClusterRole de Argo, los AppProject y el CR ArgoCD: quien toca esto decide
+# que puede hacer GitOps en toda la flota. Un error aqui no lo detecta ningun
+# control posterior, porque son los controles.
+/bootstrap/manifests/                   @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+/bootstrap/ansible/                     @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+
+# ------------------------------------------------------------------- Gobierno
+# Politicas de flota, cuotas, limites y RBAC por namespace. Definen lo que un
+# equipo puede consumir y quien entra en su namespace.
+/acm/gitops/base/policies/              @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+/namespace-governance/                  @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+
+# --------------------------------------------------------------- Destinos GitOps
+# A que clusters llega Argo y con que identidad. Cambiar un Placement o el
+# GitOpsCluster redirige despliegues enteros.
+/gitops/clusters/                       @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+/gitops/apps/                           @CHANGE_ME_ORG/platform
+/gitops/appsets/                        @CHANGE_ME_ORG/platform
+
+# -------------------------------------------------------------------- Seguridad
+# Politicas de ACS, verificacion de firma y el almacen de secretos.
+/acs/                                   @CHANGE_ME_ORG/security
+/openbao/                               @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+/openbao-store/                         @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+
+# ------------------------------------------------------- Ambientes productivos
+# Los overlays de prod y contingencia van con ventana de cambio. La regla cubre
+# cualquier componente: keycloak, kafka, connectivity-link, quay...
+/*/gitops/overlays/prod/                @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/change-advisory
+/*/gitops/overlays/contingencia/        @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/change-advisory
+/service-mesh/helm/envs/values-prod.yaml           @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/change-advisory
+/service-mesh/helm/envs/values-contingencia.yaml   @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/change-advisory
+
+# ------------------------------------------------------------------------ CI/CD
+# Los Pipeline y Task que corren con credenciales de registro y de Git.
+/workshop-pipelines/                    @CHANGE_ME_ORG/platform @CHANGE_ME_ORG/security
+/.tekton/                               @CHANGE_ME_ORG/platform
+
+# -------------------------------------------------------------- Este fichero
+# Cambiar quien aprueba es, en si mismo, un cambio de control de acceso.
+/.github/CODEOWNERS                     @CHANGE_ME_ORG/security
+
+# ---------------------------------------------------------------- Documentacion
+# Sin aprobador extra: la documentacion no despliega nada.
+/docs/                                  @CHANGE_ME_ORG/platform
+/README.md                              @CHANGE_ME_ORG/platform

@@ -1,0 +1,41 @@
+# Lectura de los AppProject para la validacion de Pull Requests.
+#
+# La Task manifest-validate compara los kinds que renderiza un overlay contra la
+# allow-list del AppProject destino, para que un recurso no permitido falle en el
+# PR y no en el sync. Para eso necesita LEER el AppProject.
+#
+# Solo lectura y solo AppProjects: el CI no crea ni modifica proyectos, que son la
+# barandilla del propio Argo. Es un Role namespaced en openshift-gitops, no un
+# ClusterRole -- los AppProject viven ahi y en ningun otro sitio.
+#
+# LO APLICA EL BOOTSTRAP, no Argo: `openshift-gitops` no es destino de ningun
+# AppProject a proposito -- quien puede escribir en el namespace de Argo es
+# administrador de Argo, asi que ese namespace queda fuera del alcance de los
+# repositorios que Argo sincroniza.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: appproject-reader
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [appprojects]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: builder-appproject-reader
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: builder
+    namespace: workshop-demo-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: appproject-reader

@@ -19,6 +19,7 @@ resources:
   # Politicas DEPLOY de ACS sobre el overlay renderizado, antes de promocionar el digest.
   - deployment-check-task.yaml
   - task-image-sign.yaml
+  - task-manifest-validate.yaml
   - task-image-scan.yaml
   - task-sbom-generate.yaml
   # Comprueba que lo desplegado RESPONDE: Healthy en Argo no implica alcanzable.
@@ -27,5 +28,6 @@ resources:
   - pipeline-ci-build-image.yaml
   - pipeline-cd-deploy-application.yaml
   - pipeline-promote-image.yaml
+  - pipeline-validate-manifests.yaml
   # Pipelines as Code: el CI lo dispara el evento de Git, no una persona.
   - repository-pipelines-as-code.yaml

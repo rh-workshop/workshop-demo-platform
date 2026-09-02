@@ -92,6 +92,8 @@
       - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-multicluster.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-workshop.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-default.yaml"
+      # Lectura de AppProjects para la validacion de PRs (Task manifest-validate).
+      - "{{ repo_root }}/bootstrap/manifests/rolebinding-builder-appproject-read.yaml"
     # Inventario de clusters por defecto: SOLO el hub. El inventario real, con
     # los spokes y su acceso, vive en clusters.yml (copiar de clusters.example.yml).
     managed_clusters:

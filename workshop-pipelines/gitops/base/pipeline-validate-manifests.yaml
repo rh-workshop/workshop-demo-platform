@@ -1,0 +1,70 @@
+# Pipeline de validacion de configuracion: la puerta de entrada de todo Pull
+# Request a un repositorio de manifiestos.
+#
+# ES BARATO Y VA PRIMERO. No construye ni publica nada: clona, renderiza y
+# comprueba. Un PR que no pasa aqui no llega a revision humana, porque lo que
+# comprueba es mecanico y no merece el tiempo de nadie.
+#
+# COBERTURA. Los seis controles de la Task manifest-validate corresponden uno a
+# uno con defectos que esta plataforma ya sufrio en produccion. La lista completa,
+# con lo que fallo en cada caso, esta en la cabecera de la Task.
+#
+# DONDE SE DECLARA QUE CORRE: en el `.tekton/` de cada repositorio de config, con
+# un PipelineRun disparado por `on-event: [pull_request]`. Este Pipeline solo
+# define QUE se comprueba; cada repo decide contra que AppProject y en que
+# ambientes un marcador es un error.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: validate-manifests
+spec:
+  description: >-
+    Renderiza los overlays de un repositorio de configuracion y los valida contra
+    el apiserver, el AppProject destino y las reglas de la plataforma, antes de
+    que el cambio pueda mezclarse.
+  params:
+    - name: repo-url
+      type: string
+    - name: revision
+      type: string
+      default: ""
+    - name: appproject
+      type: string
+      description: AppProject destino; vacio omite ese control.
+      default: ""
+    - name: fail-on-placeholder
+      type: string
+      description: Ambientes donde un marcador CHANGE_ME es un error.
+      default: "test,prod,contingencia"
+  workspaces:
+    - name: source
+      description: Espacio de trabajo donde se clona el repositorio.
+  tasks:
+    - name: clone
+      taskRef:
+        # La Task la aporta el catalogo de OpenShift Pipelines, igual que en el
+        # resto de pipelines del repo.
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: git-clone}
+          - {name: namespace, value: openshift-pipelines}
+      params:
+        - {name: URL, value: $(params.repo-url)}
+        - {name: REVISION, value: $(params.revision)}
+      workspaces:
+        - {name: output, workspace: source}
+
+    - name: validate
+      runAfter: [clone]
+      taskRef:
+        resolver: cluster
+        params:
+          - {name: kind, value: task}
+          - {name: name, value: manifest-validate}
+          - {name: namespace, value: workshop-demo-dev}
+      params:
+        - {name: appproject, value: $(params.appproject)}
+        - {name: fail-on-placeholder, value: $(params.fail-on-placeholder)}
+      workspaces:
+        - {name: source, workspace: source}

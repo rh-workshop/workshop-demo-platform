@@ -125,3 +125,25 @@ spec:
     webhook_secret:
       name: pac-webhook-secret
       key: webhook.secret
+---
+# Repositorio de PLATAFORMA. No construye ni despliega desde aqui: se registra para
+# que sus Pull Requests pasen la validacion de manifiestos antes del merge, igual
+# que los repos de aplicaciones. Es el repo con mas alcance -- toca RBAC, politicas
+# de flota y configuracion de productos en 5 clusters -- asi que es el que menos
+# puede permitirse un cambio sin revisar.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  annotations:
+    # El CRD lo trae OpenShift Pipelines: si el sync corre antes de que el operador termine, el dry-run no debe invalidar la Application.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: workshop-demo-platform-config
+spec:
+  url: https://github.com/rh-workshop/workshop-demo-platform-config
+  git_provider:
+    secret:
+      name: pac-git-token
+      key: token
+    webhook_secret:
+      name: pac-webhook-secret
+      key: webhook.secret

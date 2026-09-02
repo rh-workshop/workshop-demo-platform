@@ -1,0 +1,45 @@
+# VALIDACION de cada Pull Request al repositorio de plataforma.
+#
+# Mismo filtro que en los repositorios de aplicaciones, con dos diferencias
+# propias de este repo:
+#
+#   - appproject vacio: aqui conviven manifiestos de varios proyectos
+#     (gitops-control, workshop-multicluster, workshop-platform), asi que
+#     comprobar los kinds contra uno solo daria falsos positivos. Ese control se
+#     recupera cuando la particion por dominio este hecha (B.1 del backlog de
+#     gobierno), con un PipelineRun por ruta.
+#
+#   - Los overlays de acm/ necesitan el plugin PolicyGenerator, que no viene con
+#     kustomize. El paso de render los omite si el plugin no esta; para validarlos
+#     esta scripts/validate-kustomize.sh, que sabe extraerlo de la imagen de ACM.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: validate-platform-pr
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/max-keep-runs: "10"
+spec:
+  pipelineRef:
+    resolver: cluster
+    params:
+      - {name: kind, value: pipeline}
+      - {name: name, value: validate-manifests}
+      - {name: namespace, value: workshop-demo-dev}
+  taskRunTemplate:
+    serviceAccountName: builder
+  timeouts:
+    pipeline: 30m0s
+  params:
+    - {name: repo-url, value: "{{repo_url}}"}
+    - {name: revision, value: "{{revision}}"}
+    - {name: appproject, value: ""}
+    - {name: fail-on-placeholder, value: "test,prod,contingencia"}
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi

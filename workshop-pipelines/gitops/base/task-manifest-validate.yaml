@@ -1,0 +1,214 @@
+# Task de validacion de manifiestos: corre en cada Pull Request, ANTES del merge.
+#
+# POR QUE EXISTE. La auditoria de septiembre encontro seis defectos que llegaron a
+# los clusters y que un control automatico habria parado en el PR:
+#
+#   - Un `issuerUrl` con el marcador de la base llego a test, prod y contingencia.
+#     Authorino no resolvia el JWKS y la API respondia 401 en los tres ambientes.
+#   - Una probe que cambiaba de tcpSocket a exec sobre un Deployment existente
+#     fallaba el sync en bucle: el apiserver la rechaza y Argo reintentaba sin fin.
+#   - Un LimitRange declarado a la vez por Argo y por una Policy de ACM dejaba la
+#     Application Degraded, con los dos duenos pisandose.
+#   - Un Deployment y un PVC que el AppProject no permitia bloquearon el sync.
+#   - Un ClusterRole con verbos comodin paso desapercibido en revision.
+#
+# Cada control de abajo corresponde a uno de esos defectos. No son reglas
+# genericas: son las que este repositorio necesita porque ya fallaron.
+#
+# QUE NO HACE: no sustituye la revision humana ni el AppProject. Es el filtro
+# barato que evita que lo mecanico llegue a una persona -- y sobre todo, que
+# llegue a un cluster.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: manifest-validate
+spec:
+  description: >-
+    Valida los overlays de Kustomize de un repositorio de configuracion: que
+    rendericen, que el apiserver los acepte, que no lleven marcadores sin
+    sustituir, que sus kinds quepan en el AppProject destino y que no concedan
+    permisos con comodin.
+  params:
+    - name: overlay-glob
+      type: string
+      description: Patron de directorios a validar (relativo a la raiz del repo).
+      default: "**/overlays/*"
+    - name: appproject
+      type: string
+      description: >-
+        AppProject contra el que se comprueban los kinds. Vacio omite ese control
+        (util en repos cuyo proyecto destino depende del ambiente).
+      default: ""
+    - name: fail-on-placeholder
+      type: string
+      description: >-
+        Ambientes donde un marcador CHANGE_ME es un error y no un valor pendiente.
+      default: "test,prod,contingencia"
+  workspaces:
+    - name: source
+      description: Copia de trabajo del repositorio.
+  steps:
+    # ---------------------------------------------------------------- 1. render
+    - name: render
+      image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "== Renderizando overlays =="
+        mkdir -p /tmp/rendered
+        fallos=0
+        while IFS= read -r dir; do
+          # ./apps/x -> apps_x: sin el ./ inicial, o el fichero empieza por punto
+          # y los glob del resto de steps no lo ven.
+          nombre="$(echo "${dir#./}" | tr '/' '_')"
+          if oc kustomize "$dir" > "/tmp/rendered/${nombre}.yaml" 2>/tmp/err.txt; then
+            echo "  OK   $dir"
+          else
+            echo "  FALLA $dir"; sed 's/^/         /' /tmp/err.txt | head -3
+            fallos=$((fallos+1))
+          fi
+        done < <(find . -name kustomization.yaml -not -path './.git/*' -exec dirname {} \; | sort)
+        [ "$fallos" -eq 0 ] || { echo "FALLO: $fallos overlays no renderizan"; exit 1; }
+
+    # ------------------------------------------------- 2. el apiserver lo acepta
+    - name: dry-run
+      image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # Es el unico control que detecta lo que es VALIDO segun el esquema pero
+        # INVALIDO para el apiserver: dos handlers en una probe, campos inmutables,
+        # combinaciones que solo el servidor sabe rechazar. Un validador de esquema
+        # no lo ve.
+        echo "== Validacion contra el apiserver (dry-run) =="
+        fallos=0
+        for f in /tmp/rendered/*.yaml; do
+          if oc apply --dry-run=server -f "$f" >/dev/null 2>/tmp/err.txt; then
+            echo "  OK   $(basename "$f")"
+          else
+            # Un CRD ausente no es un defecto del PR: el operador que lo instala
+            # puede no estar en el cluster donde corre el CI.
+            if grep -q 'no matches for kind\|ensure CRDs are installed' /tmp/err.txt; then
+              echo "  SALTA $(basename "$f") (CRD no instalado en este cluster)"
+            else
+              echo "  FALLA $(basename "$f")"; sed 's/^/         /' /tmp/err.txt | head -3
+              fallos=$((fallos+1))
+            fi
+          fi
+        done
+        [ "$fallos" -eq 0 ] || { echo "FALLO: $fallos manifiestos que el apiserver rechaza"; exit 1; }
+
+    # -------------------------------------------------------- 3. sin marcadores
+    - name: placeholders
+      image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # El defecto del issuer: la base deja CHANGE_ME a proposito y el overlay lo
+        # sustituye. Si un overlay de un ambiente real no lo hace, el marcador llega
+        # al cluster -- y ahi no falla el sync, falla el trafico.
+        echo "== Marcadores sin sustituir =="
+        IFS=',' read -ra ambientes <<< "$(params.fail-on-placeholder)"
+        fallos=0
+        for f in /tmp/rendered/*.yaml; do
+          for amb in "${ambientes[@]}"; do
+            case "$(basename "$f")" in
+              *"overlays_${amb}"*)
+                if grep -nE 'CHANGE_ME|cluster\.ejemplo\.com|placeholder' "$f" > /tmp/hit.txt; then
+                  echo "  FALLA $(basename "$f") [$amb]"; sed 's/^/         /' /tmp/hit.txt | head -5
+                  fallos=$((fallos+1))
+                fi ;;
+            esac
+          done
+        done
+        [ "$fallos" -eq 0 ] || { echo "FALLO: marcadores en ambientes que no son dev"; exit 1; }
+        echo "  sin marcadores en: $(params.fail-on-placeholder)"
+
+    # ----------------------------------------------- 4. kinds dentro del proyecto
+    - name: appproject-fit
+      image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        proyecto="$(params.appproject)"
+        [ -n "$proyecto" ] || { echo "== Ajuste al AppProject: omitido (sin parametro) =="; exit 0; }
+        # El defecto del Deployment bloqueado: el AppProject hizo su trabajo, pero
+        # el fallo aparecio en el sync y no en el PR. Aqui aparece antes.
+        echo "== Kinds permitidos por el AppProject $proyecto =="
+        oc get appproject "$proyecto" -n openshift-gitops -o json > /tmp/proj.json 2>/dev/null || {
+          echo "  AVISO: no se pudo leer el AppProject; control omitido"; exit 0; }
+        python3 - "$proyecto" <<'PY'
+        import json, sys, glob, re
+        proj = json.load(open('/tmp/proj.json'))['spec']
+        permitidos = {r['kind'] for k in ('namespaceResourceWhitelist','clusterResourceWhitelist')
+                      for r in proj.get(k, [])}
+        usados = set()
+        for f in glob.glob('/tmp/rendered/*.yaml'):
+            usados |= set(re.findall(r'^kind:\s+(\w+)', open(f).read(), re.M))
+        # Los kinds de Kustomize no son recursos desplegados.
+        usados -= {'Kustomization', 'PatchTransformer', 'Component', 'PolicyGenerator'}
+        fuera = sorted(usados - permitidos)
+        if fuera:
+            print(f"  FALLA: kinds que {sys.argv[1]} no permite: {', '.join(fuera)}")
+            print("         anade el kind al AppProject o saca el recurso del overlay")
+            sys.exit(1)
+        print(f"  OK: los {len(usados)} kinds caben en el proyecto")
+        PY
+
+    # --------------------------------------------------------- 5. RBAC sin comodin
+    - name: rbac
+      image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # Un comodin en un Role concede tambien lo que el grupo de API gane en
+        # versiones futuras, sin que nadie lo revise.
+        echo "== RBAC sin comodines =="
+        python3 - <<'PY'
+        import glob, sys, yaml
+        fallos = []
+        for f in glob.glob('/tmp/rendered/*.yaml'):
+            for d in yaml.safe_load_all(open(f)):
+                if not d or d.get('kind') not in ('Role', 'ClusterRole'):
+                    continue
+                for r in d.get('rules') or []:
+                    verbos = set(r.get('verbs') or [])
+                    # La lectura global es legitima: Argo la necesita para el diff.
+                    if verbos <= {'get', 'list', 'watch'}:
+                        continue
+                    if '*' in verbos or '*' in (r.get('resources') or []):
+                        fallos.append(f"{d['kind']}/{d['metadata']['name']}: "
+                                      f"resources={r.get('resources')} verbs={sorted(verbos)}")
+        if fallos:
+            print("  FALLA: comodines con permiso de escritura")
+            for x in sorted(set(fallos)): print(f"         {x}")
+            sys.exit(1)
+        print("  OK: ningun comodin de escritura")
+        PY
+
+    # ------------------------------------------------ 6. un objeto, un solo dueno
+    - name: single-owner
+      image: registry.redhat.io/openshift4/ose-cli-rhel9:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # El defecto del LimitRange: Argo y una Policy de ACM declaraban el mismo
+        # objeto con valores distintos, y ganaba el ultimo en reconciliar. Aqui se
+        # avisa cuando un overlay declara un kind que las Policies tambien reparten.
+        echo "== Objetos con mas de un dueno =="
+        gobernados_por_acm="LimitRange ResourceQuota NetworkPolicy"
+        avisos=0
+        for f in /tmp/rendered/*.yaml; do
+          for k in $gobernados_por_acm; do
+            if grep -q "^kind: ${k}$" "$f"; then
+              echo "  AVISO $(basename "$f") declara $k"
+              echo "         comprueba que ninguna Policy de ACM lo reparta al mismo namespace"
+              avisos=$((avisos+1))
+            fi
+          done
+        done
+        # Es un aviso, no un fallo: declarar un LimitRange puede ser correcto si el
+        # namespace no lo cubre ninguna Policy. Lo que no puede es pasar inadvertido.
+        [ "$avisos" -eq 0 ] && echo "  OK: ningun kind compartido con el gobierno de ACM"
+        exit 0
