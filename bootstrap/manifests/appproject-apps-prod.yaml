@@ -6,6 +6,14 @@
 #
 # Aqui es donde entran las ventanas de mantenimiento (syncWindows) y la revision
 # de quien opera el ambiente.
+#
+# VENTANAS DE MANTENIMIENTO. Dos bloqueos: el proceso nocturno (22:00-06:00) y el
+# cierre de mes (del 28 al 31). Durante ellos no entra ningun cambio, tenga o no
+# aprobacion -- `manualSync: false` impide saltarselos desde la interfaz, que es
+# lo que los convierte en un control y no en una recomendacion.
+#
+# Horario de America/Guayaquil, no UTC: una ventana en la zona equivocada bloquea
+# a media tarde y deja abierta la madrugada.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -51,3 +59,18 @@ spec:
     kind: RateLimitPolicy
   - group: networking.istio.io
     kind: DestinationRule
+  syncWindows:
+  - kind: deny
+    schedule: 0 22 * * *
+    duration: 8h
+    timeZone: America/Guayaquil
+    applications:
+    - '*'
+    manualSync: false
+  - kind: deny
+    schedule: 0 0 28-31 * *
+    duration: 24h
+    timeZone: America/Guayaquil
+    applications:
+    - '*'
+    manualSync: false

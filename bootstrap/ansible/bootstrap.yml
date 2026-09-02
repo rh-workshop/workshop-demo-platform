@@ -87,11 +87,16 @@
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-namespace-governance.yaml"
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-policy.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-gitops-control.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-platform.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-preview.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-multicluster.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-workshop.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-default.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-governance.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-tuning.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-platform-hub.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-platform-workload-nonprod.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-platform-workload-prod.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-apps-nonprod.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-apps-prod.yaml"
       # Lectura de AppProjects para la validacion de PRs (Task manifest-validate).
       - "{{ repo_root }}/bootstrap/manifests/rolebinding-builder-appproject-read.yaml"
     # Inventario de clusters por defecto: SOLO el hub. El inventario real, con

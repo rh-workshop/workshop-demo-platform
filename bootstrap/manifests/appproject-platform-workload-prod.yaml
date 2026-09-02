@@ -4,6 +4,14 @@
 # Partido por criticidad y no solo por dominio: es la unica barandilla que impide
 # que un manifiesto pensado para desarrollo aterrice en un namespace de
 # produccion. El AppProject no mira de donde viene el cambio, mira a donde va.
+#
+# VENTANAS DE MANTENIMIENTO. Dos bloqueos: el proceso nocturno (22:00-06:00) y el
+# cierre de mes (del 28 al 31). Durante ellos no entra ningun cambio, tenga o no
+# aprobacion -- `manualSync: false` impide saltarselos desde la interfaz, que es
+# lo que los convierte en un control y no en una recomendacion.
+#
+# Horario de America/Guayaquil, no UTC: una ventana en la zona equivocada bloquea
+# a media tarde y deja abierta la madrugada.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -112,3 +120,18 @@ spec:
     kind: PodMonitor
   - group: rbac.authorization.k8s.io
     kind: RoleBinding
+  syncWindows:
+  - kind: deny
+    schedule: 0 22 * * *
+    duration: 8h
+    timeZone: America/Guayaquil
+    applications:
+    - '*'
+    manualSync: false
+  - kind: deny
+    schedule: 0 0 28-31 * *
+    duration: 24h
+    timeZone: America/Guayaquil
+    applications:
+    - '*'
+    manualSync: false

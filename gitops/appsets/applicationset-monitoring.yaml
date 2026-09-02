@@ -89,6 +89,13 @@ spec:
             duration: 30s
             factor: 2
             maxDuration: 10m
+        # SYNC AUTOMATICO, valido SOLO porque hoy este dominio se limita a un
+        # ConfigMap de retencion y al plugin de consola: cambiarlos no reinicia
+        # nada. En cuanto entre aqui un MachineConfig, KubeletConfig o el CR Etcd
+        # hay que RETIRAR el bloque `automated` entero -- no basta selfHeal:
+        # false. Un rollout de nodos disparado por un commit puede matar al propio
+        # controller de Argo a mitad de sync, y revertir no repara rapido porque
+        # la correccion dispara otro rollout. Ver D.3 del backlog de gobierno.
         automated:
           # prune: false a propósito. El ConfigMap lo consume el Cluster
           # Monitoring Operator, dueño del namespace openshift-monitoring; si

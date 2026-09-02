@@ -83,18 +83,94 @@ spec:
     defaultPolicy: ""
     scopes: "[groups]"
     policy: |
+      # ─────────────────────── ADMINISTRACION ───────────────────────
+      # Via de rescate: la pone el operador y se conserva.
       g, system:cluster-admins, role:admin
       g, cluster-admins, role:admin
-      # El CI sincroniza SOLO desarrollo. El glob workshop-platform/* abarcaba
-      # tambien app-*-prod y app-*-contingencia, asi que quien leyera el Secret del
-      # CI -- que vive en el namespace de dev -- desplegaba a produccion.
-      # Test, prod y contingencia los sincroniza una persona con su propio grupo.
-      #
-      # La politica se asigna DIRECTAMENTE a la cuenta local, no a traves de un
-      # rol: con SSO activo, un grupo del proveedor que se llamara igual que el
-      # rol heredaria sus permisos.
-      p, pipeline, applications, get, workshop-platform/*, allow
-      p, pipeline, applications, sync, workshop-platform/*-dev, allow
+      # Grupo nominal de administradores de Argo: pocas personas, revisado.
+      g, platform-admins, role:admin
+
+      # ──────────────── OPERADOR DE PLATAFORMA ────────────────
+      # Ve y sincroniza plataforma en los 5 clusters. Git es la fuente: no crea
+      # ni edita Applications desde la interfaz.
+      p, role:platform-operator, applications, get,      platform-hub/*,               allow
+      p, role:platform-operator, applications, sync,     platform-hub/*,               allow
+      p, role:platform-operator, applications, action/*, platform-hub/*,               allow
+      p, role:platform-operator, logs,         get,      platform-hub/*,               allow
+      p, role:platform-operator, applications, get,      platform-workload-nonprod/*,  allow
+      p, role:platform-operator, applications, sync,     platform-workload-nonprod/*,  allow
+      p, role:platform-operator, applications, action/*, platform-workload-nonprod/*,  allow
+      p, role:platform-operator, logs,         get,      platform-workload-nonprod/*,  allow
+      p, role:platform-operator, applications, get,      platform-workload-prod/*,     allow
+      p, role:platform-operator, applications, sync,     platform-workload-prod/*,     allow
+      p, role:platform-operator, applications, action/*, platform-workload-prod/*,     allow
+      p, role:platform-operator, logs,         get,      platform-workload-prod/*,     allow
+      p, role:platform-operator, applications, get,      governance/*,                 allow
+      p, role:platform-operator, applications, sync,     governance/*,                 allow
+      p, role:platform-operator, applications, get,      tuning/*,                     allow
+      p, role:platform-operator, applications, get,      gitops-control/*,             allow
+      p, role:platform-operator, applicationsets, get,   */*,                          allow
+      p, role:platform-operator, projects,     get,      *,                            allow
+      p, role:platform-operator, clusters,     get,      *,                            allow
+      p, role:platform-operator, repositories, get,      *,                            allow
+      # tuning reinicia nodos: se sincroniza en ventana y solo por un admin.
+      p, role:platform-operator, applications, sync,     tuning/*,                     deny
+
+      # ──────────────── DESARROLLO DE APLICACIONES ────────────────
+      # Lectura en los cuatro ambientes para diagnosticar; accion solo donde no
+      # hay clientes. El deny es explicito para que ampliar un allow por error
+      # mas adelante no abra produccion.
+      p, role:app-developer, applications, get,      apps-nonprod/*,  allow
+      p, role:app-developer, applications, sync,     apps-nonprod/*,  allow
+      p, role:app-developer, applications, action/*, apps-nonprod/*,  allow
+      p, role:app-developer, logs,         get,      apps-nonprod/*,  allow
+      p, role:app-developer, applications, get,      apps-prod/*,     allow
+      p, role:app-developer, applications, sync,     apps-prod/*,     deny
+      p, role:app-developer, applications, action/*, apps-prod/*,     deny
+      p, role:app-developer, logs,         get,      apps-prod/*,     deny
+
+      # ──────────────── GESTION DE RELEASE ────────────────
+      # Despliega a produccion, no desarrolla: la otra mitad de la segregacion.
+      p, role:release-manager, applications, get,      apps-nonprod/*, allow
+      p, role:release-manager, applications, get,      apps-prod/*,    allow
+      p, role:release-manager, applications, sync,     apps-prod/*,    allow
+      p, role:release-manager, applications, action/*, apps-prod/*,    allow
+      p, role:release-manager, logs,         get,      apps-prod/*,    allow
+      p, role:release-manager, applications, sync,     apps-nonprod/*, deny
+
+      # ──────────────── AUDITORIA ────────────────
+      # Lo ve todo y no toca nada. Sin logs: en produccion pueden llevar datos
+      # de clientes, y auditar no requiere leerlos.
+      p, role:auditor, applications,    get, */*, allow
+      p, role:auditor, applicationsets, get, */*, allow
+      p, role:auditor, projects,        get, *,   allow
+      p, role:auditor, clusters,        get, *,   allow
+      p, role:auditor, repositories,    get, *,   allow
+      p, role:auditor, logs,            get, */*, deny
+
+      # ──────────────── DENEGACIONES TRANSVERSALES ────────────────
+      # exec da los privilegios de la cuenta del pod y el audit log registra a
+      # Argo, no a la persona: para eso esta `oc rsh`. override rompe GitOps,
+      # porque sincroniza algo distinto de lo que dice Git.
+      p, role:platform-operator, exec,         create,   */*, deny
+      p, role:app-developer,     exec,         create,   */*, deny
+      p, role:release-manager,   exec,         create,   */*, deny
+      p, role:auditor,           exec,         create,   */*, deny
+      p, role:platform-operator, applications, override, */*, deny
+      p, role:app-developer,     applications, override, */*, deny
+      p, role:release-manager,   applications, override, */*, deny
+
+      # ──────────────── CUENTA LOCAL DEL CI ────────────────
+      # Politica directa, no via rol: con SSO activo un grupo que se llamara
+      # igual que el rol heredaria sus permisos.
+      p, pipeline, applications, get,  apps-nonprod/*,      allow
+      p, pipeline, applications, sync, apps-nonprod/*-dev,  allow
+
+      # ──────────────── GRUPOS ────────────────
+      g, platform-operators, role:platform-operator
+      g, app-developers,     role:app-developer
+      g, release-managers,   role:release-manager
+      g, platform-viewers,   role:auditor
   # Health checks personalizados: sin ellos Argo marca Healthy recursos que aún no están operativos.
   resourceHealthChecks:
     # Application anidada (patrón app-of-apps): propaga el estado real de salud de la app hija.

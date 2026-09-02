@@ -91,7 +91,7 @@ generador de los AppSets la lee, y esa lectura la cubre la regla global.
 
 ## B. Frontera de despliegue
 
-### B.1 `workshop-multicluster` concentra 50 de 69 Applications — ALTO
+### B.1 `workshop-multicluster` concentraba 50 de 69 Applications — HECHO
 El eje de división actual es *de qué repositorio viene*, no dominio ni criticidad.
 El resultado es un sobre único que mezcla el CR de ACM, un RoleBinding de gobierno
 y un ConfigMap de retención de Prometheus, con `server: '*'` sobre 23 namespaces de
@@ -110,8 +110,19 @@ y un ConfigMap de retención de Prometheus, con `server: '*'` sobre 23 namespace
 | `apps-prod` | 6 apps de negocio | `*-prod`, `*-contingencia` |
 | `workshop-preview` | previews de PR | cluster de dev |
 
-Los AppSets ya están partidos por ambiente, así que el cambio es una línea
-`project:` en cada uno. El mapa de migración cuadra las 69 apps.
+Migradas las 69 sin recrear un solo recurso: cambiar `spec.project` no toca lo
+desplegado, porque Argo rastrea por nombre de Application. El reparto final cuadra
+con el previsto — 14 en cada `platform-workload-*`, 12 en `apps-nonprod`, 11 en
+`platform-hub`, 6 en `apps-prod` y en `governance`, 5 en `tuning`, 1 en
+`gitops-control`.
+
+Antes de migrar se comprobó que cada Application cabe en su proyecto destino
+(kinds y namespaces contra la allow-list). Solo un recurso no encajaba: el CR
+`Console` que declaraba `connectivity-link` — su propio comentario lo llamaba
+"decisión del administrador del cluster", que es tuning y no configuración de
+producto. Se movió al componente `tuning`, creado para eso.
+
+`workshop-multicluster` y `workshop-platform` quedaron vacíos y se retiraron.
 
 **Por qué también por ambiente:** el patrón dominante en la industria es por
 equipo/dominio, y partir por ambiente difumina el *ownership*. Pero el AppProject
@@ -171,7 +182,7 @@ y no a través de un rol, porque con SSO activo un grupo que se llamara igual
 heredaría sus permisos; y se retiró `login`, que una cuenta de automatización no
 necesita.
 
-### C.2 No hay roles intermedios: o admin o nada — ALTO
+### C.2 No había roles intermedios: o admin o nada — HECHO
 Solo existe `role:admin` para cluster-admins. Los grupos `platform-admins`,
 `app-developers` y `platform-viewers` que referencian los RoleBindings **no existen
 ni en la política ni como Group**. Roles propuestos: `platform-operator`,
@@ -180,9 +191,13 @@ ni en la política ni como Group**. Roles propuestos: `platform-operator`,
 porque pueden contener datos de clientes).
 
 **Límite verificado:** el RBAC de Argo solo filtra por `<project>/<app>`. **No se
-puede filtrar por label ni por cluster destino.** La separación por ambiente
-funciona porque los AppSets nombran las Applications `<app>-<env>`, pero es solo
-visibilidad: la barandilla real sigue siendo el AppProject (B.1).
+puede filtrar por label ni por cluster destino.** Con los proyectos ya partidos
+por ambiente (B.1), el filtro es exacto y no depende de convenciones de nombres.
+
+Los 6 roles quedaron probados uno a uno con `argocd admin settings rbac can`:
+`app-developer` sincroniza en no-productivos y tiene *deny* explícito en
+producción, `release-manager` justo al revés, `auditor` ve todo y no toca nada —
+tampoco los logs, que en producción pueden llevar datos de clientes.
 
 ### C.3 Grupos: en el IdP, no en Git — MEDIO
 Gestionarlos en Keycloak con `claims.groups` evita dos fuentes de verdad para altas
@@ -190,7 +205,7 @@ y bajas. En Git queda el contrato: los nombres referenciados por la política.
 Contrapartida a documentar: la pertenencia se refresca al iniciar sesión, así que
 una baja exige deshabilitar al usuario en el IdP, no solo sacarlo del grupo.
 
-### C.4 Desactivar el terminal web (`exec`) — MEDIO
+### C.4 Terminal web (`exec`) — HECHO
 La doc de Argo advierte que da *"los mismos privilegios que la ServiceAccount del
 pod"*, y el audit log registra al SA de Argo, **no a la persona**. `oc rsh` queda
 auditado con identidad real.
@@ -223,7 +238,7 @@ Al incorporar grupos y cuotas cluster-scoped, un nombre por namespace obliga a
 inventar un componente hermano. Estructura: `cluster/` (Group, PriorityClass,
 ClusterResourceQuota), `profiles/` y `namespaces/<ns>/`.
 
-### D.3 Separar `governance` de `platform-tuning` — ALTO
+### D.3 Separar `governance` de `platform-tuning` — HECHO
 El tuning de nodos (MachineConfig, KubeletConfig, Tuned) y del plano de control
 (APIServer, etcd) **no** es gobierno: si un commit se equivoca, los nodos reinician
 en cadena y revertir no repara rápido, porque la corrección dispara otro rollout.
@@ -272,7 +287,7 @@ sobre la rama por defecto y crear los equipos en la organización. Sin la
 protección de rama el fichero es documentación, no un control — y sin los equipos,
 GitHub lo ignora en silencio. Los nombres son marcadores `@CHANGE_ME_ORG/*`.
 
-### E.2 Ventanas de mantenimiento — ALTO
+### E.2 Ventanas de mantenimiento — HECHO
 Ningún AppProject define `syncWindows`. Un banco tiene cierres de mes y batch
 nocturno en los que nada debe cambiar en producción aunque haya un commit.
 `manualSync: false` en la ventana de bloqueo impide saltársela.
@@ -410,11 +425,19 @@ Queda una acción fuera de Git: activar "Require review from Code Owners" en la
 rama por defecto de los tres repos y crear los equipos de la organización. Hasta
 entonces CODEOWNERS sugiere revisores pero no los exige.
 
-**Fase 3 — la división (2-4 semanas, requiere ventana)**
-B.1 (8 AppProjects) · C.2 (roles de UI) · C.3 (grupos) · A.2 (dos instancias) ·
-D.2 y D.3 (`governance` y `platform-tuning`). En este orden: la frontera primero,
-las personas después, la instancia al final. Migrar por lotes de riesgo creciente
-—tuning, apps no-productivas, gobierno, plataforma— verificando entre cada uno.
+**Fase 3 — HECHA en su mayor parte.** B.1 (8 AppProjects) · C.2 (roles de UI) ·
+C.4 (`exec`) · D.3 (tuning separado) · E.2 (ventanas).
+
+Se migró por lotes de riesgo creciente —tuning, aplicaciones no productivas, el
+resto— verificando entre cada uno que ninguna Application se rompía. Las 69
+quedaron sanas.
+
+**Pendientes de la fase**, ambos por depender de terceros:
+- **C.3 (grupos)**: los roles referencian `platform-operators`, `app-developers`,
+  `release-managers` y `platform-viewers`, que deben crearse en Keycloak con el
+  claim `groups`. Hasta entonces los roles existen pero nadie los tiene.
+- **A.2 (dos instancias)**: separar la identidad de la máquina en el hub. Es
+  independiente del resto y no bloquea nada.
 
 **Fase 4 — continuidad y evidencia (1-2 meses)**
 F.1 (backup del hub, con restore probado) · G.1 (audit log al SIEM) · F.4 (etcd) ·
