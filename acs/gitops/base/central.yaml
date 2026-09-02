@@ -59,7 +59,8 @@ spec:
 
   # Scanner v4 es el motor vigente. El indexer solo trabaja cuando entra una
   # imagen nueva: reservar 1,5 cores por replica de forma permanente para un
-  # trabajo a rafagas es justo lo que conviene evitar.
+  # trabajo a rafagas es justo lo que conviene evitar. Su BASE DE DATOS es otra
+  # cosa —sostiene conexiones continuas de toda la flota— y va aparte, abajo.
   scannerV4:
     indexer:
       resources:
@@ -77,14 +78,24 @@ spec:
         limits:
           cpu: "1"
           memory: 3Gi
+    # LA BASE DEL SCANNER ES LA EXCEPCION AL RECORTE DE ARRIBA. Con 2 cores y 4Gi
+    # se quedaba CLAVADA en su techo (2002m de 2 CPU, 4094Mi de 4Gi) en cuanto los
+    # cinco clusters empezaron a reportar a la vez: el `-- ping` de sanidad pasaba
+    # de milisegundos a 63 SEGUNDOS, el indexer no lograba conectar
+    # ("connection refused") y el scanner entero quedaba UNHEALTHY.
+    #
+    # No es una carga a rafagas como el indexer: es una base de datos que sostiene
+    # conexiones de todos los indexers de la flota, y su demanda crece con el
+    # numero de clusters vigilados. El request sigue bajo —lo que reserva de
+    # verdad—; lo que sube es el TECHO, que solo se consume si hace falta.
     db:
       resources:
         requests:
-          cpu: 250m
-          memory: 1Gi
+          cpu: 500m
+          memory: 2Gi
         limits:
-          cpu: "2"
-          memory: 4Gi
+          cpu: "4"
+          memory: 8Gi
 
   # Scanner v2 (legacy) convive con v4 mientras haya integraciones que lo usen.
   # Reserva 2 cores por defecto para un componente en retirada.
