@@ -199,11 +199,22 @@ Los 6 roles quedaron probados uno a uno con `argocd admin settings rbac can`:
 producción, `release-manager` justo al revés, `auditor` ve todo y no toca nada —
 tampoco los logs, que en producción pueden llevar datos de clientes.
 
-### C.3 Grupos: en el IdP, no en Git — MEDIO
-Gestionarlos en Keycloak con `claims.groups` evita dos fuentes de verdad para altas
-y bajas. En Git queda el contrato: los nombres referenciados por la política.
-Contrapartida a documentar: la pertenencia se refresca al iniciar sesión, así que
-una baja exige deshabilitar al usuario en el IdP, no solo sacarlo del grupo.
+### C.3 Grupos: en el IdP, no en Git — HECHO
+Faltaban dos piezas, no una: los grupos **y** el mapeo del claim. El proveedor
+`rhbk` no declaraba `claims.groups`, así que aunque se crearan en Keycloak nunca
+habrían llegado a OpenShift.
+
+Creados los cinco grupos en el realm `sso`, añadido el mapper `groups` al cliente
+`idp-4-ocp` con `full.path=false` (nombres simples, como espera la política de
+Argo) y declarado el claim en el IdP. Probado de extremo a extremo: al iniciar
+sesión, OpenShift creó el `Group` con la anotación
+`oauth.openshift.io/generated: true` y Argo resolvió el rol correspondiente.
+
+La pertenencia vive solo en el IdP, no en Git: versionarla crearía una segunda
+fuente de verdad. Contrapartida operativa, documentada en
+[`identity-and-groups.md`](identity-and-groups.md): se refresca al iniciar sesión,
+así que una baja exige deshabilitar al usuario en Keycloak, no solo sacarlo del
+grupo.
 
 ### C.4 Terminal web (`exec`) — HECHO
 La doc de Argo advierte que da *"los mismos privilegios que la ServiceAccount del
@@ -432,12 +443,8 @@ Se migró por lotes de riesgo creciente —tuning, aplicaciones no productivas, 
 resto— verificando entre cada uno que ninguna Application se rompía. Las 69
 quedaron sanas.
 
-**Pendientes de la fase**, ambos por depender de terceros:
-- **C.3 (grupos)**: los roles referencian `platform-operators`, `app-developers`,
-  `release-managers` y `platform-viewers`, que deben crearse en Keycloak con el
-  claim `groups`. Hasta entonces los roles existen pero nadie los tiene.
-- **A.2 (dos instancias)**: separar la identidad de la máquina en el hub. Es
-  independiente del resto y no bloquea nada.
+**Pendiente de la fase:** A.2 (dos instancias de Argo), que separa la identidad de
+la máquina en el hub. Es independiente del resto y no bloquea nada.
 
 **Fase 4 — continuidad y evidencia (1-2 meses)**
 F.1 (backup del hub, con restore probado) · G.1 (audit log al SIEM) · F.4 (etcd) ·
