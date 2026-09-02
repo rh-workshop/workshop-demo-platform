@@ -1,0 +1,31 @@
+# Permisos de la cuenta de emergencia en un cluster gestionado.
+#
+# Sin esto el proveedor break-glass autentica pero no autoriza: la persona entra
+# y no puede hacer nada, que en una emergencia equivale a no poder entrar.
+#
+# cluster-admin es deliberado y es la unica concesion de ese nivel en la
+# plataforma. El supuesto de uso es "Keycloak no responde y hay que repararlo":
+# un rol acotado obligaria a adivinar de antemano que hara falta tocar.
+#
+# El nombre no puede coincidir con un usuario que ya exista via Keycloak: con
+# mappingMethod claim, OpenShift rechaza que dos identidades reclamen el mismo
+# usuario y el login falla con 500.
+#
+# La cuenta no es para el dia a dia -- el acceso normal va por Keycloak con roles
+# acotados. El audit log registra el usuario, asi que una regla sobre ese nombre
+# en el SIEM (G.1 del backlog) avisa de cada acceso.
+apiVersion: rbac.open-cluster-management.io/v1alpha1
+kind: ClusterPermission
+metadata:
+  name: break-glass-admin
+  namespace: CHANGE_ME_CLUSTER_NAMESPACE
+spec:
+  clusterRoleBinding:
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+    subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: breakglass1

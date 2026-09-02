@@ -147,16 +147,32 @@ usa `object-templates-raw` con `lookup`: lee el proveedor del propio cluster y l
 reinyecta tal cual, aportando únicamente el claim. Verificado en los cuatro
 spokes — cada uno conservó su issuer.
 
-### Riesgo abierto: los spokes no tienen break-glass
+### El break-glass de los spokes
 
-Los cuatro spokes tienen **un solo proveedor**, `rhbk`. Si su Keycloak no
-responde, nadie entra en ese cluster — ni para arreglarlo. Es el mismo problema
-que el hub ya resolvió.
+Cada spoke tiene **dos** proveedores: `rhbk` para el día a día y `break-glass`
+(htpasswd) para cuando Keycloak no responde. Sin el segundo, un Keycloak caído
+deja el cluster sin forma de entrar a repararlo.
 
-Se cierra replicando el proveedor htpasswd en cada spoke
-(`bootstrap/manifests/oauth-spoke.reference.yaml`), con su propio Secret: no
-puede compartirse desde el hub, porque el hash vive en un Secret local de cada
-cluster.
+Son tres piezas, y ninguna sirve sin las otras dos:
+
+| Pieza | Cómo llega | Por qué así |
+|---|---|---|
+| El Secret con el hash | `ManifestWork` por cluster | Es un secreto: no puede vivir en Git |
+| El proveedor en el `OAuth` | Policy `require-break-glass-idp` | No lleva material sensible, solo el nombre del Secret |
+| `cluster-admin` para la cuenta | `ClusterPermission` de ACM | Autenticar sin autorizar no sirve de nada en una emergencia |
+
+La Policy usa `musthave` sobre la lista de `identityProviders`: **añade** el
+proveedor sin tocar `rhbk`. Verificado en los cuatro — cada uno conserva su
+issuer y su claim `groups`.
+
+**La cuenta se llama `breakglass1`, no `admin`.** Con `mappingMethod: claim`,
+OpenShift rechaza que dos identidades reclamen el mismo usuario: si ya existe un
+`admin` que entró por Keycloak, el login htpasswd falla con
+`cannot be claimed by identity ... already mapped to [rhbk:...]` y un HTTP 500.
+El nombre debe ser exclusivo de este proveedor.
+
+Probado de extremo a extremo: login correcto en los cuatro spokes, `whoami`
+devuelve `breakglass1` y `auth can-i '*' '*'` responde `yes`.
 
 ## Acceso de emergencia
 

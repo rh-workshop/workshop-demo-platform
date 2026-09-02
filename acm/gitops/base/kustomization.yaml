@@ -47,6 +47,10 @@ resources:
   # hub ya lo tiene y su OAuth se gestiona aparte.
   - policies/require-oidc-groups-claim/policy.yaml
   - policies/require-oidc-groups-claim/placementbinding-workload.yaml
+  # La via de acceso que no depende de Keycloak: con un unico proveedor OIDC,
+  # un Keycloak caido deja el cluster sin forma de entrar a repararlo.
+  - policies/require-break-glass-idp/policy.yaml
+  - policies/require-break-glass-idp/placementbinding-workload.yaml
   - policies/require-acs-init-bundle/policy.yaml
   - policies/require-acs-init-bundle/placementbinding.yaml
   # Observabilidad multi-cluster: metricas de todos los clusters gestionados,

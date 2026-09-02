@@ -1,0 +1,21 @@
+# Une la Policy con el Placement: "aplica require-break-glass-idp a los clusters
+# que selecciona clusters-workload". Sin este binding la Policy no evalua nada.
+#
+# Solo workload: el hub ya usa htpasswd como unico proveedor y su OAuth se
+# gestiona aparte (bootstrap/manifests/oauth-hub.reference.yaml).
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  annotations:
+    # El CRD lo trae el propio MCH de este sync: sin esto, el dry-run del arranque en frio invalida el sync entero de la app acm.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  name: require-break-glass-idp-binding-workload
+  namespace: open-cluster-management
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: clusters-workload
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: require-break-glass-idp
