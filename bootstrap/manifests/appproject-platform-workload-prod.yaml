@@ -23,26 +23,51 @@ spec:
     warn: true
   sourceRepos:
   - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  # DESTINOS NOMINALES, NUNCA `server: '*'`. El comodin autoriza cualquier cluster
+  # registrado en Argo, incluido el hub bajo el nombre `local-cluster`: una
+  # Application con ese destino escribe con el token del addon de ACM (cluster-admin)
+  # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
+  # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - server: '*'
+  - name: cluster-prod
     namespace: keycloak
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: keycloak
+  - name: cluster-prod
     namespace: kuadrant-system
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: kuadrant-system
+  - name: cluster-prod
     namespace: platform-gateway
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: platform-gateway
+  - name: cluster-prod
     namespace: cert-manager
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: cert-manager
+  - name: cluster-prod
     namespace: kafka
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: kafka
+  - name: cluster-prod
     namespace: istio-system
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: istio-system
+  - name: cluster-prod
     namespace: istio-cni
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: istio-cni
+  - name: cluster-prod
     namespace: external-secrets
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: external-secrets
+  - name: cluster-prod
     namespace: stackrox
-  - server: '*'
+  - name: cluster-contingencia
+    namespace: stackrox
+  - name: cluster-prod
+    namespace: metallb-system
+  - name: cluster-contingencia
     namespace: metallb-system
   clusterResourceWhitelist:
   - group: ''

@@ -15,26 +15,51 @@ spec:
     warn: true
   sourceRepos:
   - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  # DESTINOS NOMINALES, NUNCA `server: '*'`. El comodin autoriza cualquier cluster
+  # registrado en Argo, incluido el hub bajo el nombre `local-cluster`: una
+  # Application con ese destino escribe con el token del addon de ACM (cluster-admin)
+  # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
+  # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - server: '*'
+  - name: cluster-dev
     namespace: keycloak
-  - server: '*'
+  - name: cluster-test
+    namespace: keycloak
+  - name: cluster-dev
     namespace: kuadrant-system
-  - server: '*'
+  - name: cluster-test
+    namespace: kuadrant-system
+  - name: cluster-dev
     namespace: platform-gateway
-  - server: '*'
+  - name: cluster-test
+    namespace: platform-gateway
+  - name: cluster-dev
     namespace: cert-manager
-  - server: '*'
+  - name: cluster-test
+    namespace: cert-manager
+  - name: cluster-dev
     namespace: kafka
-  - server: '*'
+  - name: cluster-test
+    namespace: kafka
+  - name: cluster-dev
     namespace: istio-system
-  - server: '*'
+  - name: cluster-test
+    namespace: istio-system
+  - name: cluster-dev
     namespace: istio-cni
-  - server: '*'
+  - name: cluster-test
+    namespace: istio-cni
+  - name: cluster-dev
     namespace: external-secrets
-  - server: '*'
+  - name: cluster-test
+    namespace: external-secrets
+  - name: cluster-dev
     namespace: stackrox
-  - server: '*'
+  - name: cluster-test
+    namespace: stackrox
+  - name: cluster-dev
+    namespace: metallb-system
+  - name: cluster-test
     namespace: metallb-system
   clusterResourceWhitelist:
   - group: ''

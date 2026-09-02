@@ -15,24 +15,35 @@ spec:
     warn: true
   sourceRepos:
   - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  # DESTINOS NOMINALES, NUNCA `server: '*'`. El comodin autoriza cualquier cluster
+  # registrado en Argo, incluido el hub bajo el nombre `local-cluster`: una
+  # Application con ese destino escribe con el token del addon de ACM (cluster-admin)
+  # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
+  # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - server: '*'
+  - name: in-cluster
     namespace: open-cluster-management
-  - server: '*'
+  - name: in-cluster
     namespace: open-cluster-management-observability
-  - server: '*'
+  - name: cluster-dev
     namespace: kuadrant-system
-  - server: '*'
+  - name: cluster-test
+    namespace: kuadrant-system
+  - name: cluster-prod
+    namespace: kuadrant-system
+  - name: cluster-contingencia
+    namespace: kuadrant-system
+  - name: in-cluster
     namespace: platform-gateway
-  - server: '*'
+  - name: in-cluster
     namespace: workshop-demo-dev
-  - server: '*'
+  - name: in-cluster
     namespace: quay-enterprise
-  - server: '*'
+  - name: in-cluster
     namespace: stackrox
-  - server: '*'
+  - name: in-cluster
     namespace: developer-hub
-  - server: '*'
+  - name: in-cluster
     namespace: openshift-pipelines
   clusterResourceWhitelist:
   - group: ''
