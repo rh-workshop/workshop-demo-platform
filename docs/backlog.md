@@ -4,6 +4,10 @@ Mejoras acordadas pero **no implementadas todavía**: primero se valida que el
 bootstrap arranca de cero de punta a punta; luego se refactoriza sobre una base
 que ya sabemos que funciona.
 
+> Lo relativo a **permisos, identidad, segregación de funciones y evidencia para
+> auditoría** vive en [`governance-backlog.md`](governance-backlog.md), organizado
+> por dominio de decisión.
+
 > **Norma al aplicarlas: no eliminar operadores ni componentes.** Si uno no aplica
 > a un entorno, se **comenta** con el motivo — nunca se borra. Un componente
 > borrado se pierde para el resto de entornos; uno comentado se reactiva con una

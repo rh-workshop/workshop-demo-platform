@@ -17,6 +17,10 @@ Este es el patrón canónico documentado por Red Hat: la cadena
 > **¿Vas a adoptar esta base con tus propios clusters/repos/apps?** Todo lo
 > específico de un adoptante es un dato: el checklist completo, en orden, está
 > en [`docs/adopcion-cliente.md`](docs/adopcion-cliente.md).
+>
+> **¿Vas a llevarlo a un entorno regulado?** El modelo de permisos, la
+> segregación de funciones y la evidencia para auditoría están en
+> [`docs/governance-backlog.md`](docs/governance-backlog.md).
 
 - **`ManagedClusterSetBinding`** vincula el cluster set al namespace de Argo.
 - **`Placement`** selecciona los clusters destino por su etiqueta `environment`
