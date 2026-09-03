@@ -68,14 +68,42 @@ data:
       path    = "/openbao/data"
       node_id = "NODE_ID"
 
-      retry_join { leader_api_addr = "https://openbao-0.openbao-internal:8200" }
-      retry_join { leader_api_addr = "https://openbao-1.openbao-internal:8200" }
-      retry_join { leader_api_addr = "https://openbao-2.openbao-internal:8200" }
+      # leader_ca_cert_file es OBLIGATORIO con TLS. Al unirse al cluster, el
+      # proceso SERVIDOR no usa BAO_CACERT -- esa variable es del cliente `bao` --
+      # asi que sin esto el join falla con "x509: certificate signed by unknown
+      # authority" y las replicas 1 y 2 nunca forman quorum. El sintoma engana:
+      # los tres pods arrancan y solo openbao-0 aparece como peer.
+      retry_join {
+        leader_api_addr       = "https://openbao-0.openbao-internal:8200"
+        leader_tls_servername = "openbao-0.openbao-internal"
+        leader_ca_cert_file   = "/openbao/tls/ca.crt"
+      }
+      retry_join {
+        leader_api_addr       = "https://openbao-1.openbao-internal:8200"
+        leader_tls_servername = "openbao-1.openbao-internal"
+        leader_ca_cert_file   = "/openbao/tls/ca.crt"
+      }
+      retry_join {
+        leader_api_addr       = "https://openbao-2.openbao-internal:8200"
+        leader_tls_servername = "openbao-2.openbao-internal"
+        leader_ca_cert_file   = "/openbao/tls/ca.crt"
+      }
     }
 
     # Direcciones con las que cada replica se anuncia al resto del cluster Raft.
     api_addr     = "https://POD_NAME.openbao-internal:8200"
     cluster_addr = "https://POD_NAME.openbao-internal:8201"
+
+    # El almacen ETIQUETA SUS PROPIOS PODS con su estado (active / standby /
+    # sealed / initialized) y marca como NO-LISTO al que este sellado o en
+    # standby. El Service deja de enrutarle sin que haga falta un probe que
+    # adivine ese estado desde fuera.
+    #
+    # Importa sobre todo tras un reinicio: las replicas arrancan SELLADAS, y sin
+    # esto el Service podria mandar peticiones a una replica que no puede
+    # responderlas. Requiere que el ServiceAccount pueda parchear su propio pod
+    # (Role openbao-service-registration).
+    service_registration "kubernetes" {}
 
     # Sin telemetria a un colector externo: las metricas se exponen en /v1/sys/metrics
     # y las recoge Prometheus del cluster.
@@ -167,6 +195,15 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            # service_registration los exige para saber QUE pod debe etiquetar.
+            - name: BAO_K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: BAO_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: BAO_ADDR
               value: https://127.0.0.1:8200
             # El certificado lo firma una CA propia del cluster; sin esto el

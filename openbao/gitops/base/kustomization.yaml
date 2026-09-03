@@ -13,6 +13,8 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - service.yaml
+  # Permiso para que el almacen etiquete sus pods (service_registration).
+  - rbac.yaml
   # TLS entre replicas y con los clientes: el almacen ya no habla en claro.
   - certificate.yaml
   # Entrada desde los clusters de carga: sus ExternalSecret viven fuera de este cluster.
