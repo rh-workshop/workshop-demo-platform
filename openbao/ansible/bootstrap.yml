@@ -1,22 +1,25 @@
 ---
-# Arranque del almacen de secretos: token de acceso y carga inicial.
+# Arranque del almacen de secretos: inicializacion, politicas y tokens.
 #
-# POR QUE ES UN PLAYBOOK. Dos cosas que no pueden ir por Argo:
-#   1. El TOKEN con el que External Secrets se autentica. Aunque en modo dev no
-#      custodie nada sensible, versionar un token sienta un precedente que este
-#      repo no debe tener.
-#   2. Los VALORES de los secretos. Casi todos se obtienen consultando una API
+# POR QUE ES UN PLAYBOOK. Tres cosas que no pueden ir por Argo:
+#   1. La INICIALIZACION del almacen. Genera las claves de desello, que no pueden
+#      vivir en Git ni en el cluster: son lo que protege el almacen de quien
+#      tenga acceso al cluster.
+#   2. Los TOKENS con los que External Secrets se autentica. Un token en Git es
+#      un secreto en Git.
+#   3. Los VALORES de los secretos. Casi todos se obtienen consultando una API
 #      externa (tokens de robot de Quay, llaves de S3): no existen hasta que
 #      alguien los pide, asi que no hay nada que declarar en Git.
 #
-# ESTO NO CAMBIA CON EL PROVEEDOR. Con Azure Key Vault seguiria haciendo falta un
-# paso que genere el valor y lo deposite; ESO cambia DONDE se guarda y COMO se
-# entrega, no quien lo crea.
+# EL ALMACEN ARRANCA SELLADO. Tras un despliegue nuevo hay que inicializarlo y
+# desellar CADA replica con 3 de las 5 claves de Shamir. Es intencionadamente
+# manual: un almacen que se desella solo no protege de nada, porque las claves
+# tendrian que estar donde el proceso pueda leerlas.
 #
-# RECARGA TRAS UN REINICIO. En modo dev el estado vive en memoria: si el pod se
-# reinicia, el almacen queda vacio. Este playbook es idempotente y reejecutable —
-# esa es la fricción que se acepta a cambio de no tener que desellar a mano.
+# TRAS UN REINICIO el almacen vuelve a estar SELLADO, pero NO vacio: el estado
+# persiste en Raft (PVC por replica). Solo hay que desellar, no recargar.
 #
+#   export BAO_OPERATOR_TOKEN='<token raiz o de operador>'
 #   ansible-playbook openbao/ansible/bootstrap.yml
 - name: Arrancar el almacen de secretos y cargar los valores iniciales
   hosts: localhost
@@ -29,34 +32,79 @@
 
   vars:
     openbao_namespace: openbao
-    # Nombre que referencian el StatefulSet y el ClusterSecretStore.
-    token_secret: openbao-dev-token
+    # Reparto de las claves de desello: hacen falta 3 de 5 para abrir el almacen.
+    # Ninguna persona sola puede desellarlo, y se tolera perder dos claves.
+    shamir_shares: 5
+    shamir_threshold: 3
 
   tasks:
-    # El token se genera UNA vez y se conserva: regenerarlo en cada ejecucion
-    # invalidaria el ClusterSecretStore y dejaria todos los ExternalSecret
-    # fallando hasta el siguiente sync.
-    - name: Comprobar si el token del almacen ya existe
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Secret
-        namespace: "{{ openbao_namespace }}"
-        name: "{{ token_secret }}"
-      register: token_actual
+    # INICIALIZACION. Ocurre UNA sola vez en la vida del almacen: crea el estado
+    # en Raft, genera las claves de Shamir y el token raiz. Reejecutarla sobre un
+    # almacen ya inicializado devuelve 400 y no destruye nada — por eso se
+    # comprueba antes en vez de asumir.
+    #
+    # ESTE PLAYBOOK NO CUSTODIA LAS CLAVES. Las imprime una vez y es
+    # responsabilidad de los custodios guardarlas fuera del cluster (gestor de
+    # contrasenas corporativo, sobres sellados). Guardarlas en un Secret del
+    # mismo cluster anularia el sellado: quien tuviera acceso al cluster tendria
+    # las claves y el almacen dejaria de proteger de nada.
+    - name: Comprobar si el almacen ya esta inicializado
+      ansible.builtin.command:
+        argv: [oc, exec, -n, "{{ openbao_namespace }}", openbao-0, --, sh, -c,
+               "BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt bao status -format=json"]
+      register: estado_inicial
+      changed_when: false
+      failed_when: false
 
-    - name: Generar el token del almacen si falta
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: "{{ token_secret }}"
-            namespace: "{{ openbao_namespace }}"
-          stringData:
-            token: "{{ lookup('password', '/dev/null length=32 chars=hexdigits') | lower }}"
-      when: token_actual.resources | length == 0
+    - name: Inicializar el almacen si es la primera vez
+      ansible.builtin.command:
+        argv: [oc, exec, -n, "{{ openbao_namespace }}", openbao-0, --, sh, -c,
+               "BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt bao operator init -key-shares={{ shamir_shares }} -key-threshold={{ shamir_threshold }} -format=json"]
+      register: init_out
+      when: not (estado_inicial.stdout | default('{}') | from_json).get('initialized', false)
       no_log: true
+
+    - name: Mostrar las claves UNA sola vez para su custodia
+      ansible.builtin.debug:
+        msg: >-
+          GUARDA ESTO AHORA, NO SE VUELVE A MOSTRAR. Claves de desello:
+          {{ (init_out.stdout | from_json).unseal_keys_b64 | join(' | ') }}
+          -- Token raiz: {{ (init_out.stdout | from_json).root_token }}
+          -- Repartelas entre {{ shamir_shares }} custodios distintos; hacen falta
+          {{ shamir_threshold }} para desellar. El token raiz se usa para el
+          arranque y despues se REVOCA (bao token revoke -self).
+      when: init_out is not skipped
+
+    # DESELLADO. Cada replica arranca sellada y necesita `shamir_threshold`
+    # claves. Es intencionadamente manual: automatizarlo con las claves en el
+    # cluster equivaldria a no sellar.
+    - name: Comprobar si el almacen esta sellado
+      ansible.builtin.command:
+        argv: [oc, exec, -n, "{{ openbao_namespace }}", openbao-0, --, sh, -c,
+               "BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt bao status -format=json"]
+      register: estado_sello
+      changed_when: false
+      failed_when: false
+
+    - name: Parar si el almacen esta sellado
+      ansible.builtin.fail:
+        msg: >-
+          El almacen esta SELLADO. Desellalo antes de seguir, en CADA replica
+          (openbao-0, -1, -2), con {{ shamir_threshold }} claves distintas:
+            oc exec -n {{ openbao_namespace }} openbao-N -- sh -c
+            'BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt bao operator unseal'
+          Repite el comando una vez por clave. Despues reejecuta este playbook.
+      when: (estado_sello.stdout | default('{"sealed":true}') | from_json).get('sealed', true)
+
+    # El token raiz NO se versiona ni se guarda en el cluster: lo aporta quien
+    # ejecuta el playbook, por variable de entorno, y solo vive en esta ejecucion.
+    - name: Exigir el token de operacion
+      ansible.builtin.fail:
+        msg: >-
+          Falta el token de operacion. Exportalo antes de ejecutar:
+            export BAO_OPERATOR_TOKEN='<token raiz o de un operador con permisos>'
+          No se guarda en ningun Secret: el almacen ya no tiene un token conocido.
+      when: lookup('env', 'BAO_OPERATOR_TOKEN') | length == 0
 
     # El pod solo esta listo cuando responde su health: hasta entonces no admite
     # escrituras. El namespace y el StatefulSet los crea Argo.
@@ -76,41 +124,17 @@
       retries: 60
       delay: 10
 
-    - name: Recuperar el token para hablar con el almacen
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Secret
-        namespace: "{{ openbao_namespace }}"
-        name: "{{ token_secret }}"
-      register: token_info
-      no_log: true
-
     - name: Fijar los datos de acceso
       ansible.builtin.set_fact:
-        bao_token: "{{ token_info.resources[0].data.token | b64decode }}"
+        # Del ENTORNO, no de un Secret: el almacen ya no tiene un token conocido
+        # y guardarlo en el cluster reintroduciria lo que el sellado evita.
+        bao_token: "{{ lookup('env', 'BAO_OPERATOR_TOKEN') }}"
         bao_pod_name: "{{ bao_pod.resources[0].metadata.name }}"
       no_log: true
 
-    # COPIA PARA ACM. Los hub templates de una Policy solo pueden leer secretos
-    # del namespace `open-cluster-management`; sin esta copia, la Policy
-    # require-vault-token no puede replicar el token a los clusters de carga y
-    # falla con "the namespace argument is restricted to open-cluster-management".
-    - name: Publicar el token donde ACM puede leerlo
-      kubernetes.core.k8s:
-        state: present
-        apply: true
-        server_side_apply:
-          field_manager: bootstrap-ansible
-          force_conflicts: true
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: "{{ token_secret }}"
-            namespace: open-cluster-management
-          stringData:
-            token: "{{ bao_token }}"
-      no_log: true
+    # El token de OPERACION no se copia a ningun sitio. Lo que ACM replica a los
+    # spokes son los tokens POR ENTORNO que se emiten mas abajo, cada uno con su
+    # politica de solo lectura acotada.
 
     # SEGMENTACION POR ENTORNO. Sin esto hay UN solo token con acceso a todo el
     # arbol `secret/platform/`: el que se replica a dev lee tambien
@@ -141,7 +165,7 @@
           - sh
           - -c
           - >-
-            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt BAO_TOKEN={{ bao_token }}
             sh -c 'cat <<POLICY | bao policy write eso-read-{{ item }} -
 
             path "secret/data/platform/keycloak/db-{{ item }}" { capabilities = ["read"] }
@@ -171,7 +195,7 @@
           - sh
           - -c
           - >-
-            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt BAO_TOKEN={{ bao_token }}
             sh -c 'cat <<POLICY | bao policy write eso-read-hub -
 
             path "secret/data/platform/keycloak/db-hub" { capabilities = ["read"] }
@@ -200,7 +224,7 @@
           - sh
           - -c
           - >-
-            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt BAO_TOKEN={{ bao_token }}
             bao token create -policy=eso-read-{{ item }} -period=720h
             -display-name=eso-{{ item }} -format=json
       loop: [dev, test, prod, contingencia]
@@ -242,7 +266,7 @@
           - sh
           - -c
           - >-
-            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt BAO_TOKEN={{ bao_token }}
             bao token create -policy=eso-read-hub -period=720h
             -display-name=eso-hub -format=json
       register: token_hub

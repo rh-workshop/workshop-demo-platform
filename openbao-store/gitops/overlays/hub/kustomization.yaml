@@ -9,4 +9,14 @@ patches:
     patch: |
       - op: replace
         path: /spec/provider/vault/server
-        value: http://openbao.openbao.svc:8200
+        value: https://openbao.openbao.svc:8200
+      # La CA que firma el certificado del almacen. Sin ella ESO rechaza la
+      # conexion con "x509: certificate signed by unknown authority": el
+      # certificado lo emite la CA interna del cluster, no una publica.
+      - op: add
+        path: /spec/provider/vault/caProvider
+        value:
+          type: Secret
+          name: openbao-tls
+          namespace: openbao
+          key: ca.crt
