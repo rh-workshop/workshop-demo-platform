@@ -41,6 +41,14 @@ rules:
     resources: [deployments, statefulsets]
     verbs: [create, update, patch, delete]
 
+  # Kubernetes impide conceder permisos que uno no tiene: para que Argo pueda
+  # crear el Role que deja a OpenBao etiquetar sus propios pods
+  # (service_registration "kubernetes"), el propio controlador debe poder
+  # parchear pods. Solo etiquetas y anotaciones: sin create, delete ni exec.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [patch, update]
+
   # Gobierno por namespace: cuotas, limites y aislamiento de red.
   - apiGroups: [""]
     resources: [resourcequotas, limitranges]
