@@ -27,6 +27,24 @@
 #     phishing interno contra quien si es cluster-admin.
 #
 # Ambos se aplican en produccion por el playbook, con revision.
+  # LECTURA AMPLIA (`['*']/['*']: get,list,watch`). Es un REQUISITO de Argo, no
+  # un descuido: el controlador construye un cache del cluster entero para
+  # calcular el diff, y necesita listar TODO -- incluidos `secrets` y los CRDs
+  # que instale cualquier operador. Se intento acotarla y el resultado fue el
+  # cache sin construir y todas las Applications del spoke en Unknown:
+  #
+  #   - Enumerar grupos de API falla en cuanto un operador anade un CRD nuevo
+  #     (paso con extensions.kuadrant.io y con core.strimzi.io).
+  #   - Excluir `secrets` rompe el arranque del cache: Argo los lista para
+  #     diffear los Secret que el mismo gestiona.
+  #
+  # QUE SI ACOTA EL RIESGO, y es donde hay que mirar: la ESCRITURA de abajo va
+  # enumerada recurso por recurso, y `secrets` NO esta entre lo que puede
+  # escribir. Argo puede leer un secreto para compararlo con Git, no crearlo ni
+  # modificarlo. El riesgo residual -- fabricar un Role con `secrets: get` via la
+  # escritura de `roles`/`rolebindings` -- no amplia nada: ya tiene esa lectura.
+  # Cerrarlo de verdad exige quitarle `roles`/`rolebindings`, que rompe el
+  # despliegue del RBAC por namespace que este mismo repo gobierna.
 apiVersion: rbac.open-cluster-management.io/v1alpha1
 kind: ClusterPermission
 metadata:
@@ -36,243 +54,9 @@ spec:
   clusterRole:
     rules:
     - apiGroups:
-      - ''
+      - '*'
       resources:
-      - namespaces
-      - services
-      - configmaps
-      - serviceaccounts
-      - persistentvolumeclaims
-      - resourcequotas
-      - limitranges
-      - pods
-      - events
-      - endpoints
-      - nodes
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - apps
-      resources:
-      - deployments
-      - statefulsets
-      - replicasets
-      - daemonsets
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - batch
-      resources:
-      - jobs
-      - cronjobs
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - policy
-      resources:
-      - poddisruptionbudgets
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.k8s.io
-      resources:
-      - networkpolicies
-      - ingresses
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - rbac.authorization.k8s.io
-      resources:
-      - roles
-      - rolebindings
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - route.openshift.io
-      resources:
-      - routes
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - apiextensions.k8s.io
-      resources:
-      - customresourcedefinitions
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - external-secrets.io
-      resources:
-      - externalsecrets
-      - clustersecretstores
-      - secretstores
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - operator.openshift.io
-      resources:
-      - externalsecretsconfigs
-      - consoles
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - cert-manager.io
-      resources:
-      - certificates
-      - clusterissuers
-      - issuers
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - gateway.networking.k8s.io
-      resources:
-      - gateways
-      - httproutes
-      - gatewayclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - kuadrant.io
-      resources:
-      - kuadrants
-      - authpolicies
-      - ratelimitpolicies
-      - tlspolicies
-      - dnspolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - operator.authorino.kuadrant.io
-      resources:
-      - authorinos
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - limitador.kuadrant.io
-      resources:
-      - limitadors
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - k8s.keycloak.org
-      resources:
-      - keycloaks
-      - keycloakrealmimports
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - kafka.strimzi.io
-      resources:
-      - kafkas
-      - kafkanodepools
-      - kafkatopics
-      - kafkausers
-      - kafkarebalances
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - sailoperator.io
-      resources:
-      - istios
-      - istiocnis
-      - istiorevisiontags
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - security.istio.io
-      resources:
-      - peerauthentications
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - networking.istio.io
-      resources:
-      - destinationrules
-      - virtualservices
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - platform.stackrox.io
-      resources:
-      - securedclusters
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - config.stackrox.io
-      resources:
-      - securitypolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - monitoring.coreos.com
-      resources:
-      - podmonitors
-      - servicemonitors
-      - prometheusrules
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - metallb.io
-      resources:
-      - metallbs
-      - ipaddresspools
-      - l2advertisements
-      verbs:
-      - get
-      - list
-      - watch
-    - apiGroups:
-      - operators.coreos.com
-      resources:
-      - subscriptions
-      - clusterserviceversions
-      - installplans
-      - operatorgroups
+      - '*'
       verbs:
       - get
       - list
