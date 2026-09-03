@@ -1,0 +1,41 @@
+# Permiso para que el almacen etiquete sus propios pods.
+#
+# `service_registration "kubernetes"` hace que cada replica escriba su estado en
+# las etiquetas de SU pod (`vault-active`, `vault-sealed`, `vault-initialized`) y
+# marque como no-listo al que este sellado o en standby. Para eso necesita
+# `patch` sobre pods -- sin este Role el almacen arranca igual, pero registra
+# "failed to update state" en bucle y el Service sigue enrutando a replicas
+# selladas.
+#
+# Acotado al MINIMO: solo `get`/`patch`/`update` sobre `pods`, y solo en su
+# namespace (Role, no ClusterRole). No puede crear ni borrar pods, ni ver nada
+# fuera de `openbao`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao-service-registration
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao-service-registration
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: openbao
+    namespace: openbao
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao-service-registration
