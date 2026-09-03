@@ -1,6 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# El AppProject workshop-multicluster NO va aquí: lo crea el bootstrap
+# Los AppProject NO van aquí: los crea el bootstrap
 # (bootstrap/manifests/), porque la barandilla no se instala a sí misma.
 resources:
   # El gobierno de namespaces y ACM NO estan aqui: los sincroniza la INSTANCIA
@@ -26,5 +26,10 @@ resources:
   # despliega el ApplicationSet de servicios) y el permiso de descarga de imagen
   # va DENTRO de cada servicio (apps/<servicio>/base): ninguno amerita Application propia.
   - hub/application-workshop-pipelines.yaml
-  - ../clusters
+  # `../clusters` NO esta aqui: declara GitOpsCluster, Placement y
+  # ManagedClusterSetBinding, y el controller de esta instancia solo tiene
+  # lectura sobre esos kinds desde que la escritura se movio a gobierno. Dejarlo
+  # hacia que el sync fallara con `forbidden` en un cluster nuevo -- en el actual
+  # sobrevivia solo porque los objetos ya existian. Lo sincroniza
+  # gitops/apps-governance/.
   - ../appsets

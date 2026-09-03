@@ -76,7 +76,7 @@ spec:
   # Cuenta LOCAL para el CD del pipeline: el paso argocd-task-sync-and-wait deja
   # de usar `admin` (cuya password vive en argocd-env-secret, en el namespace del
   # CI). Aunque alguien leyera ese Secret, esta cuenta solo puede get/sync en el
-  # proyecto workshop-platform — no controla los 3 clusters.
+  # proyecto apps-nonprod — no controla los clusters workload.
   extraConfig:
     # Sin `login`: es una cuenta de automatizacion, no entra por la UI.
     accounts.pipeline: apiKey

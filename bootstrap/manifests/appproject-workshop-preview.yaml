@@ -1,6 +1,6 @@
 # AppProject de los previews EFÍMEROS por Pull Request.
 #
-# Proyecto propio y más estrecho que workshop-platform: los previews despliegan
+# Proyecto propio y más estrecho que apps-nonprod: los previews despliegan
 # código de PRs AÚN NO revisados, así que su barandilla debe ser la mínima — solo
 # los namespaces efímeros demo-service-pr-* y solo los kinds que renderiza el
 # overlay del demo-service. Un PR que intente colar un kind nuevo (un CronJob, un

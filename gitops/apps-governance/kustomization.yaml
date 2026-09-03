@@ -11,3 +11,7 @@ resources:
   # aislamiento de red, antes de que nada despliegue dentro.
   - application-namespace-governance.yaml
   - application-acm.yaml
+  # Registro de clusters en ACM: GitOpsCluster, Placement y
+  # ManagedClusterSetBinding. Vive aqui porque el GitOpsCluster decide CON QUE
+  # IDENTIDAD escribe Argo en cada spoke, y solo esta instancia puede escribirlo.
+  - ../clusters

@@ -7,8 +7,7 @@
 #   1. Instala los operadores del hub (GitOps y ACM) y espera a que estén sanos.
 #   2. Aplica el CR ArgoCD (tuning de la instancia) con server-side apply.
 #   3. Aplica el RBAC extra del controller (ClusterRole argocd-gateway-api).
-#   4. Crea TODOS los AppProjects (gitops-control, workshop-platform,
-#      workshop-multicluster, workshop) — nadie usa project: default.
+#   4. Crea TODOS los AppProjects de las dos instancias — nadie usa project: default.
 #   5. Siembra credenciales (repo-creds de Argo) desde el entorno, nunca de Git.
 #   6. Aplica las root Applications: el único punto de entrega a Argo CD.
 #   7. Espera a que Argo levante el MultiClusterHub y ACM quede Running.
@@ -88,7 +87,6 @@
       # no colisionar con los homonimos de la instancia de cargas.
       - "{{ repo_root }}/bootstrap/manifests/appproject-gov-governance.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-gov-gitops-control.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/appproject-gov-tuning.yaml"
       # La semilla de la instancia de gobierno: a partir de aqui gobierna Argo.
       - "{{ repo_root }}/bootstrap/manifests/application-governance-root.yaml"
       # El rol base va PRIMERO: con defaultClusterScopedRoleDisabled el operador no
@@ -100,10 +98,8 @@
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-gateway-api.yaml"
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-operators.yaml"
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-namespace-governance.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-policy.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-gitops-control.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-workshop-preview.yaml"
-      - "{{ repo_root }}/bootstrap/manifests/appproject-workshop.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-default.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-governance.yaml"
       - "{{ repo_root }}/bootstrap/manifests/appproject-tuning.yaml"

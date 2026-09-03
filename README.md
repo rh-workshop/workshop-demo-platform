@@ -8,9 +8,21 @@ despliegue** (`workshop-config`).
 
 ## Modelo mental: GitOps central multi-cluster
 
-Hay **un solo Argo CD, en el cluster hub**, con Red Hat ACM. Desde ahí se
-despliega a los clusters workload (dev, test, prod, contingencia — un cluster
-por ambiente; los que existan), importados por ACM. No hay un Argo por cluster.
+Hay **dos instancias de Argo CD, ambas en el cluster hub**, con Red Hat ACM.
+Desde ahí se despliega a los clusters workload (dev, test, prod, contingencia —
+un cluster por ambiente; los que existan), importados por ACM. **No hay un Argo
+por cluster**: lo que separa a las dos instancias es el PRIVILEGIO, no el destino.
+
+| Instancia | Namespace | Qué sincroniza |
+|---|---|---|
+| Cargas | `openshift-gitops` | Productos de plataforma y aplicaciones de negocio |
+| Gobierno | `gitops-governance` | Lo que acuña privilegio: Policies de ACM, Groups de OpenShift, el registro de clusters y las políticas de admisión |
+
+El corte existe porque una sola identidad que despliega cargas **y** puede
+escribir `Group` (la pertenencia a `platform-admins` da cluster-admin del hub y
+admin de ACM en los cinco clusters) o `Policy` de ACM (ejecución remota cuyo
+controlador en cada spoke es `*/*/*`) concentra demasiado: un compromiso por la
+vía de una aplicación permitiría acuñar privilegio en toda la flota.
 Este es el patrón canónico documentado por Red Hat: la cadena
 **`ManagedClusterSetBinding` → `Placement` → `GitOpsCluster` → `ApplicationSet`**.
 
