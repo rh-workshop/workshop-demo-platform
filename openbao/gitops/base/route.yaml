@@ -24,8 +24,25 @@ spec:
     kind: Service
     name: openbao
   port:
-    targetPort: http
+    targetPort: https
   tls:
-    termination: edge
+    # REENCRYPT, no edge. Con edge el router descifra y habla al pod en CLARO:
+    # ahora el almacen solo escucha TLS, asi que edge falla la conexion al
+    # backend -- y aunque funcionara, los secretos viajarian sin cifrar dentro
+    # del cluster. destinationCACertificate lleva la CA interna (workshop-ca)
+    # que firma el certificado del almacen: el router no la conoce de serie y
+    # sin ella rechaza el backend por certificado desconocido.
+    termination: reencrypt
+    destinationCACertificate: |
+      -----BEGIN CERTIFICATE-----
+      MIIBcDCCARagAwIBAgIUW516I94bsoJxWbelOQtvdGksHsowCgYIKoZIzj0EAwIw
+      FjEUMBIGA1UEAxMLd29ya3Nob3AtY2EwHhcNMjYwOTAyMTQ0NDU4WhcNMzYwODMw
+      MTQ0NDU4WjAWMRQwEgYDVQQDEwt3b3Jrc2hvcC1jYTBZMBMGByqGSM49AgEGCCqG
+      SM49AwEHA0IABIYobNFsC4fN4U/b2Sjacr672bztjp+XeZEyng2UR/J+t/meXxDs
+      iyr0iGFdrdpREt99cUs9cdSoQhVGd328HxWjQjBAMA4GA1UdDwEB/wQEAwICpDAP
+      BgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBRKd5UaBg7buNuA6WZVVgD2g5xNQDAK
+      BggqhkjOPQQDAgNIADBFAiEA850iNQoLkr+FaM8+lfOGBoEtGQkc5lICHHBb9+F2
+      XosCIA0IcFsWfViVrHzQY/jUn0dQ4wP1CwTReeVIIsvaF8de
+      -----END CERTIFICATE-----
     # Nadie debe hablar con el almacen en claro, ni siquiera por error.
     insecureEdgeTerminationPolicy: Redirect
