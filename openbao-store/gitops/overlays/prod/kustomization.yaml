@@ -7,6 +7,15 @@ resources:
   - ../../base
 
 patches:
+  # El nombre del secreto del token difiere del hub: aqui lo crea la Policy de
+  # ACM require-vault-token, que lo deposita como `openbao-eso-token` con el
+  # token de ESTE entorno (politica eso-read-<entorno>). En el hub el token vive
+  # con el nombre del entorno porque conviven varios en el mismo namespace.
+  - target: {kind: ClusterSecretStore, name: platform-vault}
+    patch: |
+      - op: replace
+        path: /spec/provider/vault/auth/tokenSecretRef/name
+        value: openbao-eso-token
   - target: {kind: ClusterSecretStore, name: platform-vault}
     patch: |
       - op: replace
