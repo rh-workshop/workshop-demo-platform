@@ -34,17 +34,17 @@ spec:
   # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
   # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: workshop-demo-prod
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: workshop-demo-prod
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: workshop-demo-contingencia
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: workshop-demo-contingencia
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: kafka
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: kafka
   clusterResourceWhitelist:
   - group: ''

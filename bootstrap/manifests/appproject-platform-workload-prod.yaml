@@ -29,45 +29,45 @@ spec:
   # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
   # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: keycloak
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: keycloak
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: kuadrant-system
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: kuadrant-system
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: platform-gateway
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: platform-gateway
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: cert-manager
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: cert-manager
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: kafka
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: kafka
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: istio-system
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: istio-system
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: istio-cni
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: istio-cni
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: external-secrets
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: external-secrets
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: stackrox
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: stackrox
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: metallb-system
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: metallb-system
   clusterResourceWhitelist:
   - group: ''
