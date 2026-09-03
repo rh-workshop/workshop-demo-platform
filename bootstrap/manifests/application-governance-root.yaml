@@ -1,0 +1,33 @@
+# App-of-apps de la instancia de GOBIERNO.
+#
+# Equivalente a `platform-root` en la instancia de cargas, pero sincroniza
+# `gitops/apps-governance/`: las Applications que declaran lo que acuña
+# privilegio en la flota (Policies de ACM, Groups de OpenShift, el registro de
+# clusters y las politicas de admision).
+#
+# LA APLICA EL BOOTSTRAP, no otra Application: es la semilla de la instancia, y
+# nada dentro de ella puede crearla. A partir de aqui gobierna Argo.
+#
+# `prune: false` deliberado: retirar una Application de Git no debe borrar
+# Policies que gobiernan cuatro clusters. La baja es un paso manual y consciente.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: governance-root
+  namespace: gitops-governance
+  labels:
+    workshop.redhat.com/layer: gitops
+    workshop.redhat.com/component: governance-root
+spec:
+  project: gitops-control
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: gitops/apps-governance
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-governance
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

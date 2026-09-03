@@ -11,7 +11,7 @@ metadata:
   annotations:
     # Wave 0: ACM instala el MultiClusterHub y con él los CRDs (Placement, GitOpsCluster) que la wave 3 necesita.
     argocd.argoproj.io/sync-wave: "0"
-  namespace: openshift-gitops
+  namespace: gitops-governance
 spec:
   project: governance
   source:
