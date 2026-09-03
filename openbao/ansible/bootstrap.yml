@@ -311,5 +311,6 @@
         msg: >-
           Almacen listo en openbao/openbao.svc:8200. El ClusterSecretStore
           `platform-vault` lo expone a los ExternalSecret de cualquier namespace,
-          y sus valores nunca pasan por Git. OJO: en modo dev el estado vive en
-          MEMORIA — si el pod se reinicia, reejecuta este playbook.
+          y sus valores nunca pasan por Git. El estado persiste en Raft: tras un
+          reinicio solo hay que DESELLAR cada replica (3 claves), no reejecutar
+          este playbook ni recargar secretos.

@@ -98,15 +98,12 @@ data:
     api_addr     = "https://POD_NAME.openbao-internal.openbao.svc.cluster.local:8200"
     cluster_addr = "https://POD_NAME.openbao-internal.openbao.svc.cluster.local:8201"
 
-    # El almacen ETIQUETA SUS PROPIOS PODS con su estado (active / standby /
-    # sealed / initialized) y marca como NO-LISTO al que este sellado o en
-    # standby. El Service deja de enrutarle sin que haga falta un probe que
-    # adivine ese estado desde fuera.
-    #
-    # Importa sobre todo tras un reinicio: las replicas arrancan SELLADAS, y sin
-    # esto el Service podria mandar peticiones a una replica que no puede
-    # responderlas. Requiere que el ServiceAccount pueda parchear su propio pod
-    # (Role openbao-service-registration).
+    # El almacen ETIQUETA SUS PROPIOS PODS con su estado (`openbao-active`,
+    # `openbao-sealed`, `openbao-initialized`, `openbao-version`). Permite ver de
+    # un vistazo que replica esta sellada tras un reinicio (`oc get pods -L
+    # openbao-sealed,openbao-active`) y enrutar solo a la activa si un Service
+    # selecciona por esas etiquetas. Requiere que el ServiceAccount pueda
+    # parchear su propio pod (Role openbao-service-registration).
     service_registration "kubernetes" {}
 
     # Sin telemetria a un colector externo: las metricas se exponen en /v1/sys/metrics
@@ -121,21 +118,16 @@ kind: StatefulSet
 metadata:
   name: openbao
   namespace: openbao
-  annotations:
-    # `serviceName` y `volumeClaimTemplates` son INMUTABLES: pasar de la version
-    # en memoria (sin PVC, Service `openbao`) a esta obliga a recrear el objeto,
-    # y un `apply` normal falla con "updates to statefulset spec [...] are
-    # forbidden". Replace=true hace que Argo borre y recree en vez de parchear.
-    #
-    # Los PVC NO se borran con el StatefulSet: quedan y se reasocian por nombre
-    # (data-openbao-0...), asi que el estado de Raft sobrevive a este reemplazo.
-    #
-    # Force=true es IMPRESCINDIBLE junto a Replace: `Replace` por si solo hace un
-    # `kubectl replace`, que sigue siendo un update y vuelve a chocar con los
-    # campos inmutables ("updates to statefulset spec [...] are forbidden"). Con
-    # Force, Argo borra y recrea. Sin ambos, el sync de TODA la Application queda
-    # bloqueado reintentando el StatefulSet.
-    argocd.argoproj.io/sync-options: Replace=true,Force=true
+  # SIN `Replace=true,Force=true`. Esa opcion hace que Argo BORRE Y RECREE el
+  # StatefulSet en CADA sync y en CADA reintento, con lo que las tres replicas
+  # mueren y vuelven selladas cada vez que la Application se sincroniza. Es una
+  # herramienta de migracion, no un estado permanente.
+  #
+  # `serviceName`, `volumeClaimTemplates` y `podManagementPolicy` son INMUTABLES.
+  # Si alguna vez hay que cambiarlos, la migracion es un paso MANUAL y unico:
+  #   oc delete statefulset openbao -n openbao --cascade=orphan
+  # Deja los pods y los PVC en pie; Argo crea el StatefulSet nuevo, que adopta
+  # los pods por su selector y los PVC por su nombre (data-openbao-N).
   labels:
     app.kubernetes.io/name: openbao
     app.kubernetes.io/part-of: workshop-gitops
@@ -155,6 +147,24 @@ spec:
   # (`bao operator init`) es un paso MANUAL posterior, y hasta entonces las tres
   # replicas solo se buscan entre si.
   podManagementPolicy: Parallel
+  # OnDelete, NO RollingUpdate. Un cambio en la plantilla (imagen, probes,
+  # recursos) NO reinicia ninguna replica por si solo: el operador borra los pods
+  # uno a uno, cuando decide, y desella cada uno antes de seguir con el
+  # siguiente. Con RollingUpdate cualquier sync de Argo tumbaria las tres
+  # replicas en cadena, que arrancarian SELLADAS sin nadie para desellarlas, y
+  # el almacen quedaria sin servicio hasta que alguien lo notase.
+  #
+  # Es la estrategia del chart oficial de OpenBao: primero se renuevan las
+  # replicas en standby y la activa al final, para que el liderazgo no caiga en
+  # un nodo con una version anterior.
+  updateStrategy:
+    type: OnDelete
+  # Los PVC sobreviven al StatefulSet: borrarlo (migracion de campos inmutables)
+  # o reducir replicas no destruye el estado de Raft. Es el valor por defecto,
+  # pero explicito: de estos discos depende que el almacen sea persistente.
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
   selector:
     matchLabels:
       app.kubernetes.io/name: openbao

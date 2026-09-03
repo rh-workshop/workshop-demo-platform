@@ -45,8 +45,21 @@ spec:
           port: 8200
 ---
 # Trafico ENTRE REPLICAS: Raft usa el 8201 para replicar y elegir lider, y el
-# 8200 para reenviar peticiones al nodo activo. Sin esta regla las tres replicas
-# arrancan pero no forman cluster, y el almacen queda sin quorum.
+# 8200 para reenviar peticiones al nodo activo.
+#
+# SOLO INGRESS, A PROPOSITO. Se intento acotar tambien el egress y no fue viable:
+# con `policyTypes: [Egress]` la resolucion DNS deja de funcionar aunque se abra
+# el puerto 53 a la red de servicios, a la de pods e incluso a 0.0.0.0/0
+# (comprobado con las tres reglas activas a la vez). El join de Raft muere
+# entonces en `lookup ...: i/o timeout` y el cluster no llega a formarse.
+#
+# La causa es el cache de DNS por nodo que interpone OpenShift: la peticion sale
+# hacia el ClusterIP pero la atiende un proceso en la IP del host, y el plugin de
+# red no la reconcilia con la regla de egress.
+#
+# Restringir el egress de este pod aporta poco: el almacen no inicia conexiones
+# salvo a sus propias replicas. Lo que hay que controlar es QUIEN ENTRA, y eso lo
+# cubre el Ingress de aqui mas la politica de ESO.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -60,7 +73,6 @@ spec:
       app.kubernetes.io/name: openbao
   policyTypes:
     - Ingress
-    - Egress
   ingress:
     - from:
         - podSelector:
@@ -71,34 +83,3 @@ spec:
           port: 8200
         - protocol: TCP
           port: 8201
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: openbao
-      ports:
-        - protocol: TCP
-          port: 8200
-        - protocol: TCP
-          port: 8201
-    # Resolucion DNS: sin ella una replica no encuentra a las otras por nombre y
-    # el join de Raft muere en "TLS handshake timeout" -- el sintoma engana,
-    # porque parece un problema de certificados y es de DNS.
-    #
-    # PUERTO 53, no 5353. El Service `dns-default` de OpenShift expone 53/UDP y
-    # 53/TCP; 5353 es el puerto del operador de DNS, no el del resolutor. Con
-    # 5353 la consulta se descarta en silencio y `nslookup` responde NXDOMAIN.
-    #
-    # Se abre por IP (`ipBlock` de la red de servicios) y no por
-    # `namespaceSelector`: el pod consulta al ClusterIP del Service `dns-default`
-    # (172.30.0.10), y una NetworkPolicy evalua la IP DESTINO, no el namespace al
-    # que pertenece el Service. Con namespaceSelector la consulta se queda en
-    # "connection timed out" aunque el label del namespace sea correcto.
-    - to:
-        - ipBlock:
-            cidr: 172.30.0.0/16
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
