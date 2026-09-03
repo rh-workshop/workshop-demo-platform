@@ -17,9 +17,37 @@ spec:
   selector:
     app.kubernetes.io/name: openbao
   ports:
-    - name: http
+    - name: https
       port: 8200
-      targetPort: http
+      targetPort: https
+---
+# Service HEADLESS (clusterIP: None). No balancea: resuelve al nombre DNS de CADA
+# replica (openbao-0.openbao-internal). Es como se encuentran entre si los nodos
+# Raft, y lo que hace util un StatefulSet frente a un Deployment.
+#
+# publishNotReadyAddresses es imprescindible: durante la formacion del cluster
+# ninguna replica esta lista (arrancan SELLADAS), y sin esto no aparecerian en
+# DNS ni podrian verse para elegir lider. Un almacen sellado no esta listo para
+# servir secretos, pero si para hablar con sus pares.
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao-internal
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: openbao
+  ports:
+    - name: https
+      port: 8200
+      targetPort: https
+    - name: cluster
+      port: 8201
+      targetPort: cluster
 ---
 # Identidad del propio almacen. Sin permisos extra: no necesita leer nada del
 # cluster, solo servir su API.

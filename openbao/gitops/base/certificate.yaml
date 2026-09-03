@@ -1,0 +1,42 @@
+# Certificado TLS del almacen.
+#
+# Cubre los tres nombres con los que se le habla: el Service de cliente
+# (openbao.openbao.svc), el headless de Raft con cada replica
+# (openbao-N.openbao-internal) y localhost, que usa el propio binario para
+# hablarse a si mismo al inicializar.
+#
+# Lo emite la CA interna del cluster (workshop-ca), no una publica: es trafico
+# INTERNO entre pods. La Route de entrada desde los spokes lleva su propio
+# certificado publico, gestionado por el router.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: openbao-tls
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  secretName: openbao-tls
+  duration: 8760h
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: workshop-ca
+    kind: ClusterIssuer
+  commonName: openbao.openbao.svc
+  dnsNames:
+    - openbao
+    - openbao.openbao
+    - openbao.openbao.svc
+    - openbao.openbao.svc.cluster.local
+    - openbao-0.openbao-internal
+    - openbao-1.openbao-internal
+    - openbao-2.openbao-internal
+    - openbao-0.openbao-internal.openbao.svc.cluster.local
+    - openbao-1.openbao-internal.openbao.svc.cluster.local
+    - openbao-2.openbao-internal.openbao.svc.cluster.local
+    - localhost
+  ipAddresses:
+    - 127.0.0.1

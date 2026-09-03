@@ -43,3 +43,51 @@ spec:
       ports:
         - protocol: TCP
           port: 8200
+---
+# Trafico ENTRE REPLICAS: Raft usa el 8201 para replicar y elegir lider, y el
+# 8200 para reenviar peticiones al nodo activo. Sin esta regla las tres replicas
+# arrancan pero no forman cluster, y el almacen queda sin quorum.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-raft-peer-traffic
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: openbao
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: openbao
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+    # Resolucion DNS: sin ella una replica no encuentra a las otras por nombre.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: UDP
+          port: 5353
+        - protocol: TCP
+          port: 5353

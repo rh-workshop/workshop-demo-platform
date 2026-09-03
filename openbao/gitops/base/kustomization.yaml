@@ -13,6 +13,8 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - service.yaml
+  # TLS entre replicas y con los clientes: el almacen ya no habla en claro.
+  - certificate.yaml
   # Entrada desde los clusters de carga: sus ExternalSecret viven fuera de este cluster.
   - route.yaml
   # Permite la ENTRADA desde el namespace de ESO. La regla de SALIDA vive en

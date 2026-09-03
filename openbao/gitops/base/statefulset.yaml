@@ -1,48 +1,114 @@
 # OpenBao: el almacen de secretos de la plataforma.
 #
 # QUE ES. El fork open source de HashiCorp Vault, bajo la Linux Foundation, tras
-# el cambio de Vault a licencia BUSL. Misma API y mismos conceptos, asi que todo
-# lo que se valide aqui vale para Vault y para el patron de ESO.
+# el cambio de Vault a licencia BUSL. Misma API y mismos conceptos.
 #
-# QUE PAPEL CUMPLE. Guarda los secretos que hoy siembra Ansible. External
-# Secrets los lee de aqui y los materializa como Secret en el cluster que los
-# necesita, de modo que en Git solo vive el ExternalSecret — que dice DE DONDE
-# leer, nunca el valor. Es lo que permite que Argo gobierne tambien los secretos.
+# QUE PAPEL CUMPLE. Guarda los secretos que siembran los playbooks de cada
+# producto. External Secrets los lee de aqui y los materializa como Secret en el
+# cluster que los necesita, de modo que en Git solo vive el ExternalSecret — que
+# dice DE DONDE leer, nunca el valor. Es lo que permite que Argo gobierne
+# tambien los secretos.
 #
 # UN SOLO ALMACEN, EN EL HUB. Los spokes NO llevan su propia instancia: leen de
-# esta por red, exactamente igual que leerian el Key Vault corporativo del
-# cliente. Una instancia por cluster serian cinco almacenes desconectados, cinco
-# inicializaciones y cinco desellados — y un secreto guardado en el hub no lo
-# veria dev.
+# esta por su Route, con un token acotado a su entorno (politica
+# eso-read-<entorno>). Una instancia por cluster serian cinco almacenes
+# desconectados, cinco inicializaciones y cinco desellados.
 #
-# ################## NO-PRODUCCION ##################
+# ################## MODO PRODUCCION ##################
 #
-# Esta instancia es para VALIDAR EL PATRON, no para custodiar secretos reales:
+# ALMACENAMIENTO RAFT, NO MEMORIA. El almacen persiste en disco (PVC por replica)
+# y replica por Raft entre las tres. Lo que hace falta para un almacen de
+# secretos de verdad:
 #
-#   - Modo `dev`: arranca DESELLADO y con un token raiz conocido. Un OpenBao de
-#     verdad arranca sellado y exige claves de desello repartidas entre varias
-#     personas (Shamir) o un dispositivo de sello automatico — como el TPM.
-#   - El estado vive EN MEMORIA: al reiniciar el pod se pierde y hay que recargar
-#     los secretos. Por eso el cargador es idempotente y reejecutable.
-#   - Sin TLS propio ni alta disponibilidad.
+#   - Los secretos SOBREVIVEN al reinicio del pod. Con `inmem` se perdian en cada
+#     reinicio y habia que reejecutar el bootstrap entero.
+#   - Tolera la caida de UNA replica sin perder quorum (3 nodos, quorum 2). Con
+#     una sola replica, un reinicio dejaba sin secretos a los cinco clusters.
+#   - El estado es auditable y respaldable (snapshot de Raft).
 #
-# EN PRODUCCION el almacen es EXTERNO al cluster y corporativo (Azure Key Vault
-# en el caso de este cliente). Eso ademas elimina una dependencia circular que
-# aqui se acepta a proposito: si el almacen vive dentro del cluster, el cluster
-# necesita secretos para arrancar y el almacen necesita el cluster para existir.
-# Aqui no bloquea porque ningun secreto de este almacen hace falta para levantar
-# Argo ni ACM — entran despues.
+# ARRANCA SELLADO. No hay token raiz conocido ni desellado automatico: tras el
+# primer despliegue hay que inicializar y desellar con las claves de Shamir, que
+# se reparten entre custodios distintos. Ese es el procedimiento del playbook
+# openbao/ansible/bootstrap.yml, y es deliberado que exija intervencion: un
+# almacen que se desella solo no protege de quien tenga acceso al cluster.
+#
+# TLS. La comunicacion entre replicas y con los clientes va cifrada con el
+# certificado que emite cert-manager (secret `openbao-tls`), no en claro.
+#
+# DEPENDENCIA CIRCULAR. El almacen vive dentro del cluster que necesita secretos.
+# No bloquea porque ningun secreto de este almacen hace falta para levantar Argo
+# ni ACM — entran despues. Si algun dia lo hiciera, el almacen tendria que salir
+# del cluster.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-config
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/part-of: workshop-gitops
+data:
+  # La configuracion del servidor. `bao server -config` la lee al arrancar; sin
+  # ella el binario exige -dev y arranca en memoria.
+  config.hcl: |
+    ui = true
+
+    # Escucha TLS. El certificado lo emite cert-manager y lo monta el pod; sin
+    # TLS los secretos viajarian en claro por la red del cluster.
+    listener "tcp" {
+      address       = "0.0.0.0:8200"
+      tls_cert_file = "/openbao/tls/tls.crt"
+      tls_key_file  = "/openbao/tls/tls.key"
+    }
+
+    # Raft: almacenamiento integrado y replicado. `node_id` sale del nombre del
+    # pod, que en un StatefulSet es estable (openbao-0, -1, -2) y sobrevive al
+    # reprogramado -- por eso un StatefulSet y no un Deployment.
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "NODE_ID"
+
+      retry_join { leader_api_addr = "https://openbao-0.openbao-internal:8200" }
+      retry_join { leader_api_addr = "https://openbao-1.openbao-internal:8200" }
+      retry_join { leader_api_addr = "https://openbao-2.openbao-internal:8200" }
+    }
+
+    # Direcciones con las que cada replica se anuncia al resto del cluster Raft.
+    api_addr     = "https://POD_NAME.openbao-internal:8200"
+    cluster_addr = "https://POD_NAME.openbao-internal:8201"
+
+    # Sin telemetria a un colector externo: las metricas se exponen en /v1/sys/metrics
+    # y las recoge Prometheus del cluster.
+    telemetry {
+      prometheus_retention_time = "30s"
+      disable_hostname          = true
+    }
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: openbao
   namespace: openbao
+  annotations:
+    # `serviceName` y `volumeClaimTemplates` son INMUTABLES: pasar de la version
+    # en memoria (sin PVC, Service `openbao`) a esta obliga a recrear el objeto,
+    # y un `apply` normal falla con "updates to statefulset spec [...] are
+    # forbidden". Replace=true hace que Argo borre y recree en vez de parchear.
+    #
+    # Los PVC NO se borran con el StatefulSet: quedan y se reasocian por nombre
+    # (data-openbao-0...), asi que el estado de Raft sobrevive a este reemplazo.
+    argocd.argoproj.io/sync-options: Replace=true
   labels:
     app.kubernetes.io/name: openbao
     app.kubernetes.io/part-of: workshop-gitops
 spec:
-  serviceName: openbao
-  replicas: 1
+  # El Service headless: da a cada replica un nombre DNS estable
+  # (openbao-0.openbao-internal), que es como se encuentran entre si en Raft.
+  serviceName: openbao-internal
+  replicas: 3
+  # OrderedReady: las replicas arrancan de una en una. Con Raft importa —
+  # varias inicializandose a la vez compiten por formar el cluster.
+  podManagementPolicy: OrderedReady
   selector:
     matchLabels:
       app.kubernetes.io/name: openbao
@@ -52,9 +118,24 @@ spec:
         app.kubernetes.io/name: openbao
     spec:
       serviceAccountName: openbao
+      # Reparte las replicas entre nodos distintos: tres replicas en el mismo
+      # nodo no toleran la caida de ese nodo, que es justo lo que evitan.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: openbao
+              topologyKey: kubernetes.io/hostname
+      # Al parar, da tiempo a ceder el liderazgo Raft antes de que muera el proceso.
+      terminationGracePeriodSeconds: 30
       volumes:
-        # Efimero a proposito: en modo dev el estado del almacen vive en memoria,
-        # asi que nada de lo que se escriba aqui tiene por que sobrevivir.
+        - name: config
+          configMap:
+            name: openbao-config
+        - name: tls
+          secret:
+            secretName: openbao-tls
         - name: home
           emptyDir: {}
       containers:
@@ -62,55 +143,77 @@ spec:
           # Imagen oficial del proyecto, fijada por version: un tag movil haria
           # que el almacen cambie de version en un reinicio sin que nadie lo decida.
           image: ghcr.io/openbao/openbao:2.6.1
-          args: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+          # La config lleva el node_id resuelto desde el nombre del pod: el
+          # fichero del ConfigMap es igual para las tres y cada una escribe el suyo.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              sed -e "s/NODE_ID/${POD_NAME}/g" -e "s/POD_NAME/${POD_NAME}/g" \
+                /openbao/config/config.hcl > /tmp/config.hcl
+              exec bao server -config=/tmp/config.hcl
           ports:
-            - name: http
+            - name: https
               containerPort: 8200
+            - name: cluster
+              containerPort: 8201
           env:
-            # Token raiz del modo dev. NO es un secreto real: en modo dev el
-            # token es conocido por diseno y el almacen no custodia nada
-            # sensible. En produccion no existe este concepto.
-            - name: BAO_DEV_ROOT_TOKEN_ID
+            - name: POD_NAME
               valueFrom:
-                secretKeyRef:
-                  name: openbao-dev-token
-                  key: token
+                fieldRef:
+                  fieldPath: metadata.name
             - name: BAO_ADDR
-              value: http://127.0.0.1:8200
-            # El modo dev escribe un fichero de token en el HOME al arrancar.
+              value: https://127.0.0.1:8200
+            # El certificado lo firma una CA propia del cluster; sin esto el
+            # propio binario no se fia de su vecino al unirse al cluster Raft.
+            - name: BAO_CACERT
+              value: /openbao/tls/ca.crt
             # La imagen declara HOME=/home/openbao, pero OpenShift ejecuta el
             # contenedor con un UID ALEATORIO que no tiene ese directorio: el
-            # binario cae entonces a `/`, que es de solo lectura, y muere con
-            # "open /.vault-token.tmp: permission denied" — en bucle y DESPUES de
-            # anunciar "vault is unsealed", lo que despista al diagnosticar.
-            #
-            # No basta con reapuntar HOME por variable: el proceso resuelve el
-            # home del usuario. Hay que MONTAR algo escribible justo en la ruta
-            # que la imagen espera.
+            # binario cae a `/`, que es de solo lectura. Hay que montar algo
+            # escribible en la ruta que la imagen espera.
             - name: HOME
               value: /home/openbao
           volumeMounts:
+            - name: config
+              mountPath: /openbao/config
+            - name: tls
+              mountPath: /openbao/tls
+            - name: data
+              mountPath: /openbao/data
             - name: home
               mountPath: /home/openbao
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: [ALL]}
-          # Cotas explicitas: sin limite, el almacen puede competir por memoria
-          # con las cargas del cluster. Es un servicio ligero.
           resources:
-            requests: {cpu: 50m, memory: 128Mi}
-            limits: {cpu: 500m, memory: 512Mi}
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          # SELLADO NO ES NO-LISTO PARA EL READINESS DEL POD, pero SI para el
+          # Service: un almacen sellado responde a la API y no entrega secretos.
+          # 501 = sellado, 503 = en standby, 200 = activo y desellado.
           readinessProbe:
             httpGet:
-              # 204 = inicializado, desellado y activo. En modo dev lo esta desde
-              # el arranque; con este probe el Service no enruta hasta que responde.
-              path: /v1/sys/health
-              port: http
-            initialDelaySeconds: 5
+              path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 10
             periodSeconds: 10
+          # El liveness NO mira el sellado: un almacen sellado esta sano, solo
+          # esperando sus claves. Reiniciarlo por estar sellado seria un bucle.
           livenessProbe:
             httpGet:
-              path: /v1/sys/health
-              port: http
-            initialDelaySeconds: 15
+              path: /v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 60
             periodSeconds: 30
+  # Un disco POR REPLICA. Es lo que convierte el almacen en persistente: el
+  # StatefulSet reasocia cada PVC a su replica aunque el pod se reprograme.
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 2Gi
