@@ -1,0 +1,513 @@
+# Permisos con los que Argo CD escribe en un cluster de carga.
+#
+# El companero del ManagedServiceAccount: aquel emite la identidad, este declara
+# que puede hacer. Sin el, ACM entrega el token del addon `application-manager`
+# (ClusterRole ['*']/['*']/['*']) y Argo escribe en produccion como
+# cluster-admin, con el endurecimiento del hub sin efecto en los spokes.
+#
+# LA LECTURA VA ENUMERADA, no `['*']/['*']`. Argo necesita leer para calcular el
+# diff, pero un comodin de lectura incluye `secrets`, y combinado con la
+# escritura de `roles`/`rolebindings` de aqui abajo permite fabricar un Role con
+# `secrets: get` y bindearselo: lectura efectiva de todos los secretos del
+# cluster desde un commit. Enumerar cuesta mantener una linea al anadir un
+# producto y es lo que impide esa ruta.
+#
+# Al anadir un componente a la plataforma hay que anadir su grupo de API aqui, o
+# la Application queda OutOfSync con "forbidden: cannot create/patch".
+#
+# PERFIL PROD (prod, contingencia). Identico al de nonprod salvo dos recortes: en
+# produccion NO se cambia desde un commit ni de donde salen los secretos ni lo
+# que ve el administrador en la consola.
+#
+#   - clustersecretstores: repuntar el store a otro vault, o ampliar sus
+#     `conditions`, es un cambio de la raiz de confianza de los secretos.
+#     `externalsecrets` si se conserva: es la peticion de un secreto concreto,
+#     acotada por las conditions del store.
+#   - consoles: inyectar un ConsolePlugin o una URL en la consola de OpenShift es
+#     phishing interno contra quien si es cluster-admin.
+#
+# Ambos se aplican en produccion por el playbook, con revision.
+apiVersion: rbac.open-cluster-management.io/v1alpha1
+kind: ClusterPermission
+metadata:
+  name: argocd-push
+  namespace: CHANGE_ME_CLUSTER_NAMESPACE
+spec:
+  clusterRole:
+    rules:
+    - apiGroups:
+      - ''
+      resources:
+      - namespaces
+      - services
+      - configmaps
+      - serviceaccounts
+      - persistentvolumeclaims
+      - resourcequotas
+      - limitranges
+      - pods
+      - events
+      - endpoints
+      - nodes
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - apps
+      resources:
+      - deployments
+      - statefulsets
+      - replicasets
+      - daemonsets
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - batch
+      resources:
+      - jobs
+      - cronjobs
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - policy
+      resources:
+      - poddisruptionbudgets
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - networking.k8s.io
+      resources:
+      - networkpolicies
+      - ingresses
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - rbac.authorization.k8s.io
+      resources:
+      - roles
+      - rolebindings
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - route.openshift.io
+      resources:
+      - routes
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - apiextensions.k8s.io
+      resources:
+      - customresourcedefinitions
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - external-secrets.io
+      resources:
+      - externalsecrets
+      - clustersecretstores
+      - secretstores
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - operator.openshift.io
+      resources:
+      - externalsecretsconfigs
+      - consoles
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - cert-manager.io
+      resources:
+      - certificates
+      - clusterissuers
+      - issuers
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gateways
+      - httproutes
+      - gatewayclasses
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - kuadrant.io
+      resources:
+      - kuadrants
+      - authpolicies
+      - ratelimitpolicies
+      - tlspolicies
+      - dnspolicies
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - operator.authorino.kuadrant.io
+      resources:
+      - authorinos
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - limitador.kuadrant.io
+      resources:
+      - limitadors
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - k8s.keycloak.org
+      resources:
+      - keycloaks
+      - keycloakrealmimports
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - kafka.strimzi.io
+      resources:
+      - kafkas
+      - kafkanodepools
+      - kafkatopics
+      - kafkausers
+      - kafkarebalances
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - sailoperator.io
+      resources:
+      - istios
+      - istiocnis
+      - istiorevisiontags
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - security.istio.io
+      resources:
+      - peerauthentications
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - networking.istio.io
+      resources:
+      - destinationrules
+      - virtualservices
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - platform.stackrox.io
+      resources:
+      - securedclusters
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - config.stackrox.io
+      resources:
+      - securitypolicies
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - monitoring.coreos.com
+      resources:
+      - podmonitors
+      - servicemonitors
+      - prometheusrules
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - metallb.io
+      resources:
+      - metallbs
+      - ipaddresspools
+      - l2advertisements
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - operators.coreos.com
+      resources:
+      - subscriptions
+      - clusterserviceversions
+      - installplans
+      - operatorgroups
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroups:
+      - ''
+      resources:
+      - namespaces
+      verbs:
+      - create
+      - update
+      - patch
+    - apiGroups:
+      - ''
+      resources:
+      - services
+      - configmaps
+      - serviceaccounts
+      - persistentvolumeclaims
+      - resourcequotas
+      - limitranges
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - apps
+      resources:
+      - deployments
+      - statefulsets
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - networking.k8s.io
+      resources:
+      - networkpolicies
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - policy
+      resources:
+      - poddisruptionbudgets
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - rbac.authorization.k8s.io
+      resources:
+      - roles
+      - rolebindings
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - route.openshift.io
+      resources:
+      - routes
+      - routes/custom-host
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - external-secrets.io
+      resources:
+      - externalsecrets
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - operator.openshift.io
+      resources:
+      - externalsecretsconfigs
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - cert-manager.io
+      resources:
+      - certificates
+      - clusterissuers
+      - issuers
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - gateway.networking.k8s.io
+      resources:
+      - gateways
+      - httproutes
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - kuadrant.io
+      resources:
+      - kuadrants
+      - authpolicies
+      - ratelimitpolicies
+      - tlspolicies
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - operator.authorino.kuadrant.io
+      resources:
+      - authorinos
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - limitador.kuadrant.io
+      resources:
+      - limitadors
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - k8s.keycloak.org
+      resources:
+      - keycloaks
+      - keycloakrealmimports
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - kafka.strimzi.io
+      resources:
+      - kafkas
+      - kafkanodepools
+      - kafkatopics
+      - kafkausers
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - sailoperator.io
+      resources:
+      - istios
+      - istiocnis
+      - istiorevisiontags
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - security.istio.io
+      resources:
+      - peerauthentications
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - networking.istio.io
+      resources:
+      - destinationrules
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - platform.stackrox.io
+      resources:
+      - securedclusters
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - config.stackrox.io
+      resources:
+      - securitypolicies
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - monitoring.coreos.com
+      resources:
+      - podmonitors
+      - servicemonitors
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - metallb.io
+      resources:
+      - metallbs
+      - ipaddresspools
+      - l2advertisements
+      verbs:
+      - create
+      - update
+      - patch
+      - delete
+  clusterRoleBinding:
+    subject:
+      apiGroup: authentication.open-cluster-management.io
+      kind: ManagedServiceAccount
+      name: argocd-push
