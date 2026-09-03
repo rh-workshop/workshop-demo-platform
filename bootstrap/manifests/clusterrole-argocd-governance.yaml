@@ -1,0 +1,124 @@
+# Permisos del controlador de la instancia de GOBIERNO.
+#
+# Son los que se RETIRAN de la instancia de cargas: todo lo que puede acuñar
+# privilegio en la flota. Aqui se concentran a proposito, en una instancia que no
+# despliega aplicaciones y cuya unica fuente es el repositorio de plataforma.
+#
+# Es plano de control: lo aplica el bootstrap, no una Application — un componente
+# no debe poder ampliarse sus propios permisos desde un repositorio que el mismo
+# sincroniza.
+#
+# Los recursos se enumeran, nunca `*`: un comodin por grupo de API concede
+# tambien los recursos sensibles que ese grupo contenga.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-governance
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+rules:
+  # LECTURA AMPLIA. El controlador construye un cache del cluster para calcular
+  # el diff y necesita listar todo, incluidos los CRDs que instale cualquier
+  # operador. Acotarlo por grupos enumerados rompe el cache en cuanto aparece un
+  # CRD nuevo; excluir `secrets` rompe el arranque, porque Argo los lista para
+  # diffear los Secret que el mismo gestiona. Lo que se acota es la ESCRITURA.
+  - apiGroups: ['*']
+    resources: ['*']
+    verbs: [get, list, watch]
+
+  # ACM: el hub, la observabilidad de flota y los destinos de despliegue.
+  - apiGroups: [operator.open-cluster-management.io]
+    resources: [multiclusterhubs]
+    verbs: [create, update, patch, delete]
+  - apiGroups: [observability.open-cluster-management.io]
+    resources: [multiclusterobservabilities]
+    verbs: [create, update, patch, delete]
+  - apiGroups: [cluster.open-cluster-management.io]
+    resources: [placements, managedclustersetbindings]
+    verbs: [create, update, patch, delete]
+
+  # POLICIES DE ACM. Es un canal de ejecucion remota: el
+  # config-policy-controller de cada spoke es ['*']/['*']/['*'], asi que una
+  # Policy con `remediationAction: enforce` puede crear cualquier objeto en
+  # cualquier cluster gestionado. Por eso vive AQUI y no en la instancia que
+  # despliega cargas.
+  - apiGroups: [policy.open-cluster-management.io]
+    resources: [policies, placementbindings]
+    verbs: [create, update, patch, delete]
+
+  # GITOPSCLUSTER. Decide con QUE IDENTIDAD escribe Argo en cada spoke
+  # (`managedServiceAccountRef`). Apuntarlo al MSA por defecto de ACM
+  # -- cuyo ClusterRole es ['*']/['*']/['*'] -- convierte a Argo en cluster-admin
+  # de los cuatro spokes de una vez. Solo esta instancia puede escribirlo.
+  - apiGroups: [apps.open-cluster-management.io]
+    resources: [gitopsclusters]
+    verbs: [create, update, patch, delete]
+
+  # GRUPOS DE OPENSHIFT. La pertenencia ES la concesion: `platform-admins` tiene
+  # cluster-admin en el hub, `role:admin` en Argo y admin de ACM en los cinco
+  # clusters. SIN `update` ni `patch`: los manifiestos de Group omiten el campo
+  # `users` y la pertenencia la escribe el servidor OAuth desde el claim del IdP,
+  # asi que basta con crear el objeto. `delete` se conserva porque sin el un
+  # prune legitimo falla con 403.
+  - apiGroups: [user.openshift.io]
+    resources: [groups]
+    verbs: [create, delete]
+
+  # POLITICAS DE ADMISION. Cluster-scoped por naturaleza. No conceden permisos:
+  # solo RECHAZAN peticiones, asi que poder escribirlas no amplia lo que este
+  # controlador puede hacer -- a lo sumo se lo restringe a el tambien.
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [validatingadmissionpolicies, validatingadmissionpolicybindings]
+    verbs: [create, update, patch, delete]
+
+  # Namespaces, cuotas, limites y RBAC LOCAL de los namespaces gobernados. El
+  # RBAC cluster-scoped (ClusterRole/ClusterRoleBinding) NO esta: los bindings de
+  # los grupos los aplica el bootstrap, una vez.
+  - apiGroups: ['']
+    resources: [namespaces, resourcequotas, limitranges, configmaps]
+    verbs: [create, update, patch, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings]
+    verbs: [create, update, patch, delete]
+
+  # Conceder un rol exige tenerlo o poder hacer `bind` sobre el. Acotado por
+  # resourceNames a los que se reparten: un `bind` sin lista, o `escalate`,
+  # permitiria conceder cluster-admin desde un commit.
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    resourceNames: [view, admin]
+    verbs: [bind]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles]
+    resourceNames: [app-developer-no-secrets]
+    verbs: [bind]
+
+  # ExternalSecret de los namespaces de gobierno (el token del vault que consume
+  # la observabilidad de ACM). NO `clustersecretstores`: repuntar el store a otro
+  # vault cambia la raiz de confianza de los secretos, y eso lo aplica el playbook.
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets]
+    verbs: [create, update, patch, delete]
+
+  # NO se concede `clusterrolebindings`, `clusterroles` (salvo `bind` acotado),
+  # `escalate`, `impersonate`, `serviceaccounts/token`, `subscriptions` de OLM ni
+  # `credentialsrequests`. Con cualquiera de ellos, quien mezclara un commit en
+  # el repositorio de gobierno se haria cluster-admin.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-governance
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+subjects:
+  - kind: ServiceAccount
+    name: gitops-governance-argocd-application-controller
+    namespace: gitops-governance
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-governance

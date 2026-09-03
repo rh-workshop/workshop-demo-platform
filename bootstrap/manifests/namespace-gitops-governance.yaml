@@ -1,0 +1,14 @@
+# Namespace de la instancia de Argo CD dedicada al GOBIERNO.
+#
+# Separado de `openshift-gitops` para que las dos instancias no compartan nada:
+# ni ServiceAccount, ni ClusterRole, ni Secret de repositorio, ni cuentas
+# locales. Lo que comprometa a la instancia de cargas no alcanza a esta.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops-governance
+  labels:
+    app.kubernetes.io/part-of: workshop-gitops
+    # El operador de GitOps solo reconcilia CRs ArgoCD en namespaces que puede
+    # ver; con la instalacion AllNamespaces del operador basta con que exista.
+    workshop.redhat.com/layer: infrastructure

@@ -1,0 +1,61 @@
+# Registro de los clusters gestionados en la instancia de GOBIERNO.
+#
+# La instancia de gobierno necesita sus PROPIOS cluster secrets: las Policies de
+# namespace-governance se aplican en los cuatro spokes, y sin registro Argo solo
+# conoce `in-cluster`. El GitOpsCluster de `openshift-gitops` no sirve -- su
+# `argoNamespace` apunta a la otra instancia.
+#
+# MISMA IDENTIDAD, DISTINTO CONSUMIDOR. Se reutiliza el ManagedServiceAccount
+# `argocd-push` de cada spoke: los permisos que necesita el gobierno en un
+# cluster gestionado (namespaces, cuotas, RBAC local, NetworkPolicies) ya estan
+# en su ClusterPermission, y duplicar la identidad significaria duplicar tambien
+# el ClusterPermission y su mantenimiento. Lo que separa a las dos instancias es
+# lo que pueden hacer en el HUB -- acuñar privilegio -- no lo que escriben en un
+# spoke, que en ambos casos esta acotado por el mismo ClusterPermission.
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  annotations:
+    # El CRD lo trae ACM: sin esto, el dry-run del arranque en frio invalida el sync.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "3"
+  name: gitops-cluster-governance
+  namespace: gitops-governance
+spec:
+  argoServer:
+    argoNamespace: gitops-governance
+    cluster: local-cluster
+  managedServiceAccountRef: argocd-push
+  placementRef:
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    kind: Placement
+    name: clusters-all
+    namespace: gitops-governance
+---
+# El Placement que resuelve QUE clusters se registran. Copia del de
+# `openshift-gitops`: el GitOpsCluster solo puede referenciar un Placement de su
+# propio namespace.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "3"
+  name: clusters-all
+  namespace: gitops-governance
+spec:
+  clusterSets:
+    - default
+---
+# Autoriza al namespace de gobierno a usar el ManagedClusterSet `default`. Sin
+# este binding el Placement no resuelve ningun cluster y el registro queda vacio.
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "3"
+  name: default
+  namespace: gitops-governance
+spec:
+  clusterSet: default
