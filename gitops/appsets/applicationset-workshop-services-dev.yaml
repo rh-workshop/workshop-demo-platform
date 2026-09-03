@@ -102,6 +102,21 @@ spec:
         syncOptions:
           - RespectIgnoreDifferences=true
           - CreateNamespace=true
+      # ETIQUETA DE TENANT EN EL NAMESPACE, no solo en la Application. El label
+      # `workshop.redhat.com/component` ya distinguia la Application por
+      # servicio; el namespace que la contiene nacia sin el, asi que ningun
+      # RoleBinding ni Policy podia acotar por equipo -- `app-developers` tenia
+      # `edit` en TODOS los namespaces de negocio por igual, sin poder decir
+      # "el equipo de canary no toca el de circuit-breaker".
+      #
+      # Mismo calculo que el namespace de destino de arriba: no crea un tenant
+      # nuevo, nombra el que ya existe de facto por servicio. RBAC por tenant
+      # queda listo para activarse (RoleBinding acotado por esta etiqueta) en
+      # cuanto existan los grupos de Entra/Keycloak correspondientes; hasta
+      # entonces el RoleBinding generico de ACM sigue dando el mismo acceso.
+      managedNamespaceMetadata:
+        labels:
+          workshop.redhat.com/tenant: '{{if eq (index .path.segments 1) "demo-service"}}workshop-demo{{else}}{{trimSuffix "-service" (index .path.segments 1)}}{{end}}'
   # Si se borra el ApplicationSet, las Applications generadas sobreviven.
   syncPolicy:
     preserveResourcesOnDeletion: true
