@@ -1,0 +1,6 @@
+# Politicas de admision del gobierno de namespaces: reglas que RBAC no sabe
+# expresar porque dependen del CONTENIDO del objeto, no del verbo.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - validatingadmissionpolicy-restrict-serviceaccount.yaml

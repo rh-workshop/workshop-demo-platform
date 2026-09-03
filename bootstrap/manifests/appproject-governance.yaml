@@ -56,6 +56,12 @@ spec:
     kind: Group
   - group: rbac.authorization.k8s.io
     kind: ClusterRoleBinding
+  # Politicas de admision: cluster-scoped por naturaleza, y parte del gobierno
+  # (deciden con QUE identidad puede correr una carga).
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicy
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicyBinding
   namespaceResourceWhitelist:
   - group: ''
     kind: ResourceQuota
