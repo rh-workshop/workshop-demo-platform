@@ -24,33 +24,33 @@ spec:
   # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
   # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: workshop-demo-dev
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: workshop-demo-dev
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: workshop-demo-test
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: workshop-demo-test
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: canary-demo-dev
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: canary-demo-dev
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: circuit-breaker-demo-dev
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: circuit-breaker-demo-dev
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: bluegreen-demo-dev
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: bluegreen-demo-dev
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: api-demo-dev
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: api-demo-dev
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: kafka
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: kafka
   clusterResourceWhitelist:
   - group: ''

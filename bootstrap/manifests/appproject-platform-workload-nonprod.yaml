@@ -21,45 +21,45 @@ spec:
   # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
   # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: keycloak
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: keycloak
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: kuadrant-system
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: kuadrant-system
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: platform-gateway
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: platform-gateway
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: cert-manager
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: cert-manager
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: kafka
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: kafka
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: istio-system
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: istio-system
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: istio-cni
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: istio-cni
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: external-secrets
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: external-secrets
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: stackrox
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: stackrox
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: metallb-system
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: metallb-system
   clusterResourceWhitelist:
   - group: ''

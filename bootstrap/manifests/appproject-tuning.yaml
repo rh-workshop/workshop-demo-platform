@@ -16,21 +16,25 @@ spec:
     warn: true
   sourceRepos:
   - https://github.com/rh-workshop/workshop-demo-platform-config.git
-  # DESTINOS NOMINALES, NUNCA `server: '*'`. El comodin autoriza cualquier cluster
+  # DESTINOS EXPLICITOS, NUNCA `server: '*'`. El hub se identifica por su URL
+  # interna y los spokes por nombre: Argo compara el destino de la Application
+  # TAL CUAL, sin equiparar `name: in-cluster` con la URL. Las Applications del
+  # hub declaran `server: https://kubernetes.default.svc`, asi que el AppProject
+  # debe autorizar esa misma forma o quedan InvalidSpecError. El comodin autoriza cualquier cluster
   # registrado en Argo, incluido el hub bajo el nombre `local-cluster`: una
   # Application con ese destino escribe con el token del addon de ACM (cluster-admin)
   # en vez del RBAC enumerado del controller. Enumerar los clusters por nombre cierra
   # esa via y ademas impide que una app de un ambiente aterrice en otro.
   destinations:
-  - name: in-cluster
+  - server: https://kubernetes.default.svc
     namespace: openshift-monitoring
-  - name: cluster-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: openshift-monitoring
-  - name: cluster-test
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: openshift-monitoring
-  - name: cluster-prod
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: openshift-monitoring
-  - name: cluster-contingencia
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: openshift-monitoring
   clusterResourceWhitelist:
   - group: operator.openshift.io
