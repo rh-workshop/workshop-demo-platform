@@ -5,7 +5,7 @@
 # servicio y este ApplicationSet la detecta solo — sin PR al repo de
 # plataforma y, sobre todo, SIN tocar el plano de gobierno. La plantilla
 # (project, destino, syncPolicy, ignoreDifferences) la define plataforma aquí;
-# el AppProject workshop-platform (allow-list, falla cerrado) acota lo que ese
+# el AppProject apps-nonprod (allow-list, falla cerrado) acota lo que ese
 # repo puede desplegar.
 #
 # El patrón `apps/*/overlays/dev` NO cruza segmentos, así que cada servicio da

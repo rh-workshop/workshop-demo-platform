@@ -28,6 +28,16 @@ spec:
   # gobierno crea Applications en `gitops-governance`.
   - server: https://kubernetes.default.svc
     namespace: gitops-governance
+  # El registro de clusters de la instancia de CARGAS (GitOpsCluster, Placement,
+  # ManagedClusterSetBinding en `openshift-gitops`) tambien se declara aqui: son
+  # los objetos que deciden con que identidad escribe Argo en cada spoke, y la
+  # instancia de cargas no puede escribirlos. Es la direccion segura del
+  # acoplamiento -- la privilegiada escribe en la de cargas, nunca al reves.
+  #
+  # `Application` NO esta en el whitelist para este destino: esta instancia no
+  # crea Applications en la de cargas, solo su registro de clusters.
+  - server: https://kubernetes.default.svc
+    namespace: openshift-gitops
   clusterResourceWhitelist: []
   namespaceResourceWhitelist:
   - group: argoproj.io

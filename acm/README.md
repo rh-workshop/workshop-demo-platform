@@ -7,7 +7,10 @@ hub (`MultiClusterHub`) y las políticas de gobierno (`Policy` + `Placement` +
 ## Se despliega por app-of-apps, como producto hub
 
 ACM vive solo en el cluster hub, así que su Application está en
-`gitops/apps/hub/application-acm.yaml` y apunta a `in-cluster`. No forma parte del
+`gitops/apps-governance/application-acm.yaml` y apunta a `in-cluster`. La
+sincroniza la instancia de GOBIERNO (`gitops-governance`), no la de cargas: las
+Policies de ACM son un canal de ejecución remota en toda la flota y solo esa
+instancia tiene permiso para escribirlas. No forma parte del
 fan-out por ApplicationSet (eso es para los productos workload que van a spokes).
 
 Verificado en vivo sobre **ACM 2.17 / MCE 2.17.1 + OpenShift GitOps 1.21.3**: Argo

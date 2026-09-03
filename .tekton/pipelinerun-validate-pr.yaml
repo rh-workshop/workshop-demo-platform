@@ -4,7 +4,7 @@
 # propias de este repo:
 #
 #   - appproject vacio: aqui conviven manifiestos de varios proyectos
-#     (gitops-control, workshop-multicluster, workshop-platform), asi que
+#     (los AppProjects que declara el bootstrap), asi que
 #     comprobar los kinds contra uno solo daria falsos positivos. Ese control se
 #     recupera cuando la particion por dominio este hecha (B.1 del backlog de
 #     gobierno), con un PipelineRun por ruta.
