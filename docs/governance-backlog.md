@@ -50,17 +50,31 @@ cualquier repo sincronizado alcanza todo lo que la unión permite.
 misma URL de servidor (argoproj/argo-cd#9606, #15027), así que "una identidad por
 dominio en una sola instancia" **no es posible** sin impersonation.
 
-**Impersonation queda descartada de momento:** GitOps 1.21.3 embebe Argo CD 3.4.5,
-donde la función es *alpha* upstream, no aparece en docs.redhat.com y la última
-postura pública de Red Hat la sitúa en Developer Preview ("not supported in any
-way"). La clave `application.sync.impersonation.enforced` llega en Argo CD 3.5.
+**Impersonation queda descartada de momento — corregido tras reverificar contra
+upstream (2026-09-03):** "Service Account Impersonation" (`AppProject.spec.
+destinationServiceAccounts` + `argocd-cm: application.sync.impersonation.enabled`)
+es **Beta desde Argo CD v2.13.0**, no alpha. GitOps 1.21.3 embebe Argo CD **3.4.5**
+(verificado en vivo: `argocd version --client --short`), muy por encima de ese
+umbral — el mecanismo ya está disponible y configurable hoy. La afirmación previa
+de que "llega en Argo CD 3.5" mezclaba esto con `app-sync-using-impersonation.md`
+("Application Sync using Impersonation"), un flujo distinto y más nuevo (since
+v3.5.0) que sí sigue en beta y con matices propios.
+
+Lo que sí sigue siendo cierto, y es la razón real para no adoptarlo todavía:
+**las release notes oficiales de OpenShift GitOps 1.21 no mencionan impersonation
+en ningún punto** — ni GA, ni Technology Preview, ni deprecado. Sin ninguna postura
+pública de Red Hat sobre el feature, no hay SLA ni compromiso de compatibilidad
+para un control de segregación de funciones en un banco. La brecha no es madurez
+upstream (ya resuelta); es ausencia de soporte declarado por el fabricante de la
+distribución que se instala.
 
 **Camino elegido:** dos instancias, que es el modelo GA y documentado —
 `openshift-gitops` cluster-scoped para plataforma y gobierno, y una instancia
 propia para las aplicaciones. Coste ~5-7 pods.
 
-**Reevaluar** cuando OpenShift GitOps incorpore Argo CD ≥ 3.5: entonces
-impersonation permitiría fusionar identidades dentro de la instancia de apps.
+**Reevaluar** cuando Red Hat declare una postura de soporte para impersonation en
+OpenShift GitOps (Technology Preview o GA) — no cuando llegue Argo CD 3.5, que ya
+está superado por la versión instalada. Verificar en cada release notes de GitOps.
 
 ### A.3 Permisos del server y del applicationset-controller — HECHO
 `defaultClusterScopedRoleDisabled` retira los roles cluster-scoped de **todos** los
