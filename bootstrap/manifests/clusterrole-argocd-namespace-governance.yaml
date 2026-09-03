@@ -76,6 +76,15 @@ rules:
     resourceNames:
       - app-developer-no-secrets
     verbs: [bind]
+  # Politicas de admision. Sin `escalate` implicito: una VAP no concede permisos,
+  # solo RECHAZA peticiones, asi que poder escribirlas no amplia lo que el
+  # controlador puede hacer -- a lo sumo se lo restringe a el tambien.
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingadmissionpolicies
+      - validatingadmissionpolicybindings
+    verbs: [get, list, watch, create, update, patch, delete]
   # NO se concede clusterrolebindings ni `escalate`. Argo sincroniza un
   # repositorio Git: con esos permisos, quien pudiera mezclar un commit se haria
   # cluster-admin, que es exactamente lo que se quito al enumerar estos roles.

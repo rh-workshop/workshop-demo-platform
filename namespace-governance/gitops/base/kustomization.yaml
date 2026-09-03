@@ -8,6 +8,9 @@ resources:
   # donde están la consola de gestión y Argo. En los spokes se escribe vía
   # GitOps, no con una sesión de consola.
   - identity
+  # Reglas de admision: lo que RBAC no puede expresar (con QUE identidad corre
+  # una carga, no solo quien la crea).
+  - admission
   # El perfil común lo aplica ahora la Policy require-namespace-isolation; aquí
   # solo quedan las desviaciones propias de un namespace.
   - namespaces/workshop-demo-dev
