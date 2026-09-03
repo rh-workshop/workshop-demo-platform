@@ -3,10 +3,10 @@ kind: Kustomization
 # El AppProject workshop-multicluster NO va aquí: lo crea el bootstrap
 # (bootstrap/manifests/), porque la barandilla no se instala a sí misma.
 resources:
-  # Primero el gobierno de namespaces (sync-wave -1): inventario, cuotas,
-  # RBAC por grupo y aislamiento de red, antes de que nada despliegue dentro.
-  - hub/application-namespace-governance.yaml
-  - hub/application-acm.yaml
+  # El gobierno de namespaces y ACM NO estan aqui: los sincroniza la INSTANCIA
+  # DE GOBIERNO (gitops/apps-governance/), que es la unica con permiso para
+  # escribir Policies, Groups y GitOpsCluster. Esta app-of-apps despliega
+  # productos; no acuña privilegio.
   - hub/application-quay.yaml
   - hub/application-acs.yaml
   - hub/application-pipelines.yaml

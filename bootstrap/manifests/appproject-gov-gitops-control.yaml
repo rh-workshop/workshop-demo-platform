@@ -24,8 +24,10 @@ spec:
   sourceRepos:
   - https://github.com/rh-workshop/workshop-demo-platform-config.git
   destinations:
+  # El namespace de ESTA instancia, no el de la de cargas: la app-of-apps de
+  # gobierno crea Applications en `gitops-governance`.
   - server: https://kubernetes.default.svc
-    namespace: openshift-gitops
+    namespace: gitops-governance
   clusterResourceWhitelist: []
   namespaceResourceWhitelist:
   - group: argoproj.io

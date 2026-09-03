@@ -29,6 +29,11 @@ spec:
   destinations:
     - server: https://kubernetes.default.svc
       namespace: openshift-gitops
+    # El registro de clusters de la instancia de GOBIERNO vive en su namespace.
+    # Lo sincroniza esta app-of-apps igual que el de la instancia de cargas: es
+    # configuracion de destinos, no una barandilla de permisos.
+    - server: https://kubernetes.default.svc
+      namespace: gitops-governance
 
   # Ningún recurso de ámbito de cluster: un root no crea namespaces ni RBAC.
   clusterResourceWhitelist: []

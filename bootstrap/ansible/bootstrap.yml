@@ -76,6 +76,21 @@
     # Manifiestos del plano de control: los aplica este playbook, no Argo.
     manifiestos_bootstrap:
       - "{{ repo_root }}/bootstrap/manifests/argocd.yaml"
+      # ── INSTANCIA DE GOBIERNO ──
+      # El namespace va PRIMERO: el CR ArgoCD vive dentro y el operador no lo
+      # reconcilia si no existe.
+      - "{{ repo_root }}/bootstrap/manifests/namespace-gitops-governance.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/argocd-governance.yaml"
+      # Su rol enumerado, por el mismo motivo que el de la instancia de cargas:
+      # con defaultClusterScopedRoleDisabled el operador no crea ninguno.
+      - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-governance.yaml"
+      # Los AppProject de la instancia de gobierno. Van con el sufijo -gov- para
+      # no colisionar con los homonimos de la instancia de cargas.
+      - "{{ repo_root }}/bootstrap/manifests/appproject-gov-governance.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-gov-gitops-control.yaml"
+      - "{{ repo_root }}/bootstrap/manifests/appproject-gov-tuning.yaml"
+      # La semilla de la instancia de gobierno: a partir de aqui gobierna Argo.
+      - "{{ repo_root }}/bootstrap/manifests/application-governance-root.yaml"
       # El rol base va PRIMERO: con defaultClusterScopedRoleDisabled el operador no
       # crea ninguno, y sin este el controller se queda sin lectura ni escritura.
       - "{{ repo_root }}/bootstrap/manifests/clusterrole-argocd-base.yaml"

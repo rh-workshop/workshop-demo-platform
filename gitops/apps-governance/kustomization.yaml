@@ -1,0 +1,13 @@
+# Applications de la instancia de GOBIERNO.
+#
+# Separadas de `gitops/apps/` a proposito: estas declaran lo que acuña
+# privilegio en la flota -- Policies de ACM, Groups de OpenShift, el
+# GitOpsCluster y las politicas de admision -- y solo la instancia
+# `gitops-governance` tiene permiso para escribirlo.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Gobierno de namespaces (sync-wave -1): inventario, cuotas, RBAC por grupo y
+  # aislamiento de red, antes de que nada despliegue dentro.
+  - application-namespace-governance.yaml
+  - application-acm.yaml

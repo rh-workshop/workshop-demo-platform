@@ -8,3 +8,6 @@ resources:
   - placements/placement-clusters-prod.yaml
   - placements/placement-clusters-contingencia.yaml
   - gitopscluster.yaml
+  # Registro de los mismos clusters en la instancia de gobierno: sin el, sus
+  # Applications solo alcanzan el hub y las Policies no llegan a los spokes.
+  - gitopscluster-governance.yaml
