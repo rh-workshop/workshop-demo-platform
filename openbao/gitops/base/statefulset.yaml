@@ -74,25 +74,29 @@ data:
       # authority" y las replicas 1 y 2 nunca forman quorum. El sintoma engana:
       # los tres pods arrancan y solo openbao-0 aparece como peer.
       retry_join {
-        leader_api_addr       = "https://openbao-0.openbao-internal:8200"
-        leader_tls_servername = "openbao-0.openbao-internal"
+        leader_api_addr       = "https://openbao-0.openbao-internal.openbao.svc.cluster.local:8200"
+        leader_tls_servername = "openbao-0.openbao-internal.openbao.svc.cluster.local"
         leader_ca_cert_file   = "/openbao/tls/ca.crt"
       }
       retry_join {
-        leader_api_addr       = "https://openbao-1.openbao-internal:8200"
-        leader_tls_servername = "openbao-1.openbao-internal"
+        leader_api_addr       = "https://openbao-1.openbao-internal.openbao.svc.cluster.local:8200"
+        leader_tls_servername = "openbao-1.openbao-internal.openbao.svc.cluster.local"
         leader_ca_cert_file   = "/openbao/tls/ca.crt"
       }
       retry_join {
-        leader_api_addr       = "https://openbao-2.openbao-internal:8200"
-        leader_tls_servername = "openbao-2.openbao-internal"
+        leader_api_addr       = "https://openbao-2.openbao-internal.openbao.svc.cluster.local:8200"
+        leader_tls_servername = "openbao-2.openbao-internal.openbao.svc.cluster.local"
         leader_ca_cert_file   = "/openbao/tls/ca.crt"
       }
     }
 
     # Direcciones con las que cada replica se anuncia al resto del cluster Raft.
-    api_addr     = "https://POD_NAME.openbao-internal:8200"
-    cluster_addr = "https://POD_NAME.openbao-internal:8201"
+    # FQDN COMPLETO, no el nombre corto: `openbao-0.openbao-internal` depende del
+    # `search` de /etc/resolv.conf y en el arranque devuelve NXDOMAIN, con lo que
+    # el join muere en "TLS handshake timeout" -- un sintoma que parece de
+    # certificados y es de resolucion de nombres.
+    api_addr     = "https://POD_NAME.openbao-internal.openbao.svc.cluster.local:8200"
+    cluster_addr = "https://POD_NAME.openbao-internal.openbao.svc.cluster.local:8201"
 
     # El almacen ETIQUETA SUS PROPIOS PODS con su estado (active / standby /
     # sealed / initialized) y marca como NO-LISTO al que este sellado o en
