@@ -140,9 +140,17 @@ spec:
   # (openbao-0.openbao-internal), que es como se encuentran entre si en Raft.
   serviceName: openbao-internal
   replicas: 3
-  # OrderedReady: las replicas arrancan de una en una. Con Raft importa —
-  # varias inicializandose a la vez compiten por formar el cluster.
-  podManagementPolicy: OrderedReady
+  # Parallel, NO OrderedReady. Con OrderedReady hay un bloqueo circular al
+  # arrancar en frio: openbao-0 nace SELLADO, asi que nunca pasa a Ready; el
+  # StatefulSet no crea openbao-1 ni -2 hasta que lo este; y openbao-0 no
+  # encuentra a nadie con quien formar quorum, asi que su `retry_join` agota los
+  # intentos y el proceso termina. El resultado es un pod reiniciandose en bucle
+  # y un cluster que no llega a existir.
+  #
+  # Arrancar en paralelo no compite por formar el cluster: la inicializacion
+  # (`bao operator init`) es un paso MANUAL posterior, y hasta entonces las tres
+  # replicas solo se buscan entre si.
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app.kubernetes.io/name: openbao
@@ -240,6 +248,20 @@ spec:
               port: https
               scheme: HTTPS
             initialDelaySeconds: 10
+            periodSeconds: 10
+          # STARTUP PROBE: da tiempo al arranque en frio sin relajar el liveness.
+          # Mientras las tres replicas se buscan para formar quorum, el proceso
+          # esta ocupado en `retry_join` y no siempre contesta a tiempo; con solo
+          # un liveness generoso, el kubelet lo mataba antes de que el cluster
+          # llegara a existir -- y al reiniciarse volvia a empezar, en bucle.
+          # Con startupProbe el liveness NO corre hasta que este pase.
+          # 30 x 10s = hasta 5 minutos para arrancar.
+          startupProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+              port: https
+              scheme: HTTPS
+            failureThreshold: 30
             periodSeconds: 10
           # El liveness NO mira el sellado: un almacen sellado esta sano, solo
           # esperando sus claves. Reiniciarlo por estar sellado seria un bucle.

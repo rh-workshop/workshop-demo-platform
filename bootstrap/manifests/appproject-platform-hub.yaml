@@ -61,6 +61,14 @@ spec:
   - group: sailoperator.io
     kind: IstioRevisionTag
   namespaceResourceWhitelist:
+  # RBAC de namespace: lo necesitan los componentes que dan permisos a su propia
+  # cuenta dentro de su namespace (OpenBao se etiqueta sus pods via
+  # service_registration). Es RBAC LOCAL -- `Role`/`RoleBinding`, nunca sus
+  # equivalentes cluster-scoped, que no estan en clusterResourceWhitelist.
+  - group: rbac.authorization.k8s.io
+    kind: Role
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
   - group: quay.redhat.com
     kind: QuayRegistry
   - group: noobaa.io
