@@ -14,6 +14,12 @@
 #   8. IMPORTA los spokes en ACM (ManagedCluster + KlusterletAddonConfig +
 #      auto-import-secret) y espera a que cada uno quede Available.
 #   9. Homologa las etiquetas environment/role de TODOS los ManagedCluster.
+#   9-ter. IDENTIDAD DE ARGO EN LOS SPOKES: el ManagedServiceAccount con el que
+#      escribe y el ClusterPermission que acota lo que puede escribir. Sin esto
+#      ACM le entrega el token del addon `application-manager` (['*']/['*']/['*'])
+#      y Argo es cluster-admin en producción. El perfil se elige por la etiqueta
+#      `environment`: prod y contingencia reciben el recortado. Incluye también
+#      el acceso humano (break-glass y grupos de plataforma).
 #  10. Genera los secretos de día-0 que falten (quay-config-bundle,
 #      rhdh-backend-secret): su contenido nunca se versiona, y sin ellos el
 #      operador se queda bloqueado sin que Argo pueda desatascarlo. Va al final
@@ -383,6 +389,62 @@
       loop: "{{ managed_clusters }}"
       loop_control:
         label: "{{ item.name }} → environment={{ item.environment }} role={{ item.role }}"
+
+    # --- 9-ter. IDENTIDAD DE ARGO EN CADA SPOKE ---
+    #
+    # Sin estos dos objetos, ACM entrega a Argo el token del addon
+    # `application-manager`, cuyo ClusterRole es ['*']/['*']/['*']: Argo escribe
+    # en produccion como cluster-admin y el RBAC enumerado del hub no aplica a
+    # los clusters gestionados. Es el defecto que estos manifiestos existen para
+    # cerrar, asi que tienen que aplicarse SIEMPRE, no a mano.
+    #
+    # Van despues de homologar etiquetas (seccion 9) porque el perfil se elige
+    # por `environment`: prod y contingencia reciben el recortado -- sin
+    # `clustersecretstores` ni `consoles` -- y dev/test el completo.
+    - name: Emitir la identidad de Argo en cada spoke (ManagedServiceAccount)
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', repo_root + '/gitops/clusters/argocd-push/managedserviceaccount-argocd-push.yaml') | replace('CHANGE_ME_CLUSTER_NAMESPACE', item.name) }}"
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+      loop: "{{ spokes }}"
+      loop_control:
+        label: "{{ item.name }}"
+      tags: [acm, control-plane]
+
+    - name: Acotar lo que Argo puede escribir en cada spoke (ClusterPermission)
+      kubernetes.core.k8s:
+        state: present
+        definition: >-
+          {{ lookup('file', repo_root + '/gitops/clusters/argocd-push/clusterpermission-argocd-push-'
+             + ('prod' if item.environment in ['prod', 'contingencia'] else 'nonprod')
+             + '.yaml') | replace('CHANGE_ME_CLUSTER_NAMESPACE', item.name) }}
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+      loop: "{{ spokes }}"
+      loop_control:
+        label: "{{ item.name }} ({{ 'prod' if item.environment in ['prod', 'contingencia'] else 'nonprod' }})"
+      tags: [acm, control-plane]
+
+    # Acceso HUMANO a los spokes: la cuenta de emergencia y la lectura por grupo.
+    # Mismo motivo que arriba -- se aplicaban a mano y ningun documento decia
+    # quien lo hacia, asi que un cluster nuevo se quedaba sin break-glass.
+    - name: Conceder el acceso humano en cada spoke (break-glass y grupos)
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', item.1) | replace('CHANGE_ME_CLUSTER_NAMESPACE', item.0.name) }}"
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+      loop: "{{ spokes | product([repo_root + '/gitops/clusters/human-access/clusterpermission-break-glass.yaml', repo_root + '/gitops/clusters/human-access/clusterpermission-platform-groups.yaml']) | list }}"
+      loop_control:
+        label: "{{ item.0.name }} — {{ item.1 | basename }}"
+      tags: [acm, control-plane]
 
     # --- 9-bis. Sanar el operador Kuadrant si arrancó antes que sus dependencias ---
     # Bug conocido de RHCL: si el pod del kuadrant-operator arranca antes de que
