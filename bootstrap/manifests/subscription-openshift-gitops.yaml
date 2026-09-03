@@ -20,3 +20,15 @@ spec:
   name: openshift-gitops-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
+  config:
+    env:
+      # Instancias autorizadas a gestionar recursos CLUSTER-SCOPED. Sin esta
+      # variable, el operador crea toda instancia distinta de `openshift-gitops`
+      # en modo namespaced, y sus Applications fallan con "cluster level
+      # Namespace ... can not be managed when in namespaced mode".
+      #
+      # Es una lista, no un comodin: solo estas dos instancias pueden salir de su
+      # namespace, y lo que cada una puede hacer fuera lo acota su ClusterRole
+      # enumerado (argocd-base/-operators/-governance), no esta variable.
+      - name: ARGOCD_CLUSTER_CONFIG_NAMESPACES
+        value: openshift-gitops,gitops-governance

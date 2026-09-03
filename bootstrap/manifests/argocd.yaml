@@ -67,9 +67,12 @@ spec:
     volumes:
       - name: policy-generator
         emptyDir: {}
-  # Namespaces de usuario del workshop autorizados a declarar sus propias Applications.
-  sourceNamespaces:
-    - user*
+  # SIN `sourceNamespaces`. Apps-in-any-namespace permitiria declarar
+  # Applications fuera del namespace de control, y aqui no hace falta: no existen
+  # namespaces de usuario y no se van a crear. Dejarlo declarado seria superficie
+  # de ataque sin funcion -- cualquier namespace que encajara el patron podria
+  # aportar Applications, y la unica barrera seria el `sourceNamespaces` de cada
+  # AppProject.
   # Cuenta LOCAL para el CD del pipeline: el paso argocd-task-sync-and-wait deja
   # de usar `admin` (cuya password vive en argocd-env-secret, en el namespace del
   # CI). Aunque alguien leyera ese Secret, esta cuenta solo puede get/sync en el

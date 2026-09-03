@@ -1,0 +1,225 @@
+# CR ArgoCD de la instancia de GOBIERNO.
+#
+# POR QUE DOS INSTANCIAS. La instancia `openshift-gitops` acumulaba en una sola
+# identidad todo lo que despliega cargas Y todo lo que acuña privilegio:
+# `Group` de OpenShift (la pertenencia a `platform-admins` da cluster-admin del
+# hub y admin de ACM en los cinco clusters), `Policy` de ACM (canal de ejecucion
+# remota cuyo controlador es ['*']/['*']/['*'] en toda la flota), `GitOpsCluster`
+# (decide CON QUE IDENTIDAD escribe Argo en cada spoke) y las politicas de
+# admision. Quien controlara esa instancia heredaba las dos capacidades.
+#
+# Aqui viven SOLO las segundas. La instancia de cargas pierde esos permisos, asi
+# que un compromiso por la via de una aplicacion ya no permite acuñar privilegio;
+# y esta instancia no despliega aplicaciones, asi que su superficie es un
+# unico repositorio y un puñado de objetos de control.
+#
+# ES PLANO DE CONTROL: lo aplica el playbook de bootstrap, NO una Application —
+# Argo no gestiona el componente que puede romperlo. Dia 2 = editar este YAML en
+# Git y reejecutar el playbook.
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: gitops-governance
+  namespace: gitops-governance
+spec:
+  # Exigido por el Policy Generator de ACM: sin el flag, Kustomize ignora el
+  # bloque `generators:` y la app sincroniza de menos SIN error. Esta instancia
+  # es la que sincroniza las Policies, asi que lo necesita.
+  kustomizeBuildOptions: --enable-alpha-plugins
+  # Mismo criterio que la instancia de cargas: sin el ClusterRole comodin del
+  # operador. Los permisos se declaran enumerados en
+  # bootstrap/manifests/clusterrole-argocd-governance.yaml.
+  defaultClusterScopedRoleDisabled: true
+  # SIN `sourceNamespaces`. Esta instancia solo acepta Applications en su propio
+  # namespace: nadie declara gobierno desde fuera.
+  server:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 125m
+        memory: 256Mi
+    route:
+      enabled: true
+  # La memoria del controller la dicta la CACHE DE CLUSTERS, no el numero de
+  # Applications: cachea los mismos cinco clusters que la instancia de cargas
+  # (el hub con ACM expone ~450 CRDs) y con 2Gi muere OOMKilled antes de
+  # terminar la sincronizacion inicial, sin llegar nunca a escribir estado.
+  # Misma talla que la instancia de cargas, que en regimen ronda los 4.3Gi.
+  controller:
+    resources:
+      limits:
+        cpu: "2"
+        memory: 8Gi
+      requests:
+        cpu: 250m
+        memory: 3Gi
+  # Recursos que Argo NO cachea: alta cardinalidad o efimeros (Endpoints,
+  # Leases, TokenReviews, informes de Kyverno, ejecuciones de Tekton...).
+  # Ninguna Application de gobierno los declara; excluirlos reduce la cache y
+  # los watches contra los cinco API servers. Misma lista que la instancia de
+  # cargas para que las dos vean el cluster igual.
+  resourceExclusions: |
+    - apiGroups:
+      - ""
+      - discovery.k8s.io
+      clusters:
+      - '*'
+      kinds:
+      - Endpoints
+      - EndpointSlice
+    - apiGroups:
+      - apiregistration.k8s.io
+      clusters:
+      - '*'
+      kinds:
+      - APIService
+    - apiGroups:
+      - coordination.k8s.io
+      clusters:
+      - '*'
+      kinds:
+      - Lease
+    - apiGroups:
+      - authentication.k8s.io
+      - authorization.k8s.io
+      clusters:
+      - '*'
+      kinds:
+      - SelfSubjectReview
+      - TokenReview
+      - LocalSubjectAccessReview
+      - SelfSubjectAccessReview
+      - SelfSubjectRulesReview
+      - SubjectAccessReview
+    - apiGroups:
+      - certificates.k8s.io
+      clusters:
+      - '*'
+      kinds:
+      - CertificateSigningRequest
+    - apiGroups:
+      - cert-manager.io
+      clusters:
+      - '*'
+      kinds:
+      - CertificateRequest
+    - apiGroups:
+      - cilium.io
+      clusters:
+      - '*'
+      kinds:
+      - CiliumIdentity
+      - CiliumEndpoint
+      - CiliumEndpointSlice
+    - apiGroups:
+      - kyverno.io
+      - reports.kyverno.io
+      - wgpolicyk8s.io
+      clusters:
+      - '*'
+      kinds:
+      - PolicyReport
+      - ClusterPolicyReport
+      - EphemeralReport
+      - ClusterEphemeralReport
+      - AdmissionReport
+      - ClusterAdmissionReport
+      - BackgroundScanReport
+      - ClusterBackgroundScanReport
+      - UpdateRequest
+    - apiGroups:
+      - tekton.dev
+      clusters:
+      - '*'
+      kinds:
+      - TaskRun
+      - PipelineRun
+  # El repo-server necesita el Policy Generator de ACM: `acm/gitops/base` lo
+  # invoca en su bloque `generators:` y sin el binario `kustomize build` falla
+  # con "unable to find plugin root". El binario se copia de la imagen del
+  # operador de suscripciones de ACM al arrancar, en la ruta que Kustomize
+  # busca via KUSTOMIZE_PLUGIN_HOME. Mismo montaje que la instancia de cargas.
+  repo:
+    env:
+      - name: KUSTOMIZE_PLUGIN_HOME
+        value: /etc/kustomize/plugin
+    initContainers:
+      - name: policy-generator-install
+        image: registry.redhat.io/rhacm2/multicluster-operators-subscription-rhel9:v2.17
+        command: ["/bin/bash", "-c"]
+        args:
+          - cp /policy-generator/PolicyGenerator-not-fips-compliant /policy-generator-tmp/PolicyGenerator
+        volumeMounts:
+          - name: policy-generator
+            mountPath: /policy-generator-tmp
+    volumeMounts:
+      - name: policy-generator
+        mountPath: /etc/kustomize/plugin/policy.open-cluster-management.io/v1/policygenerator
+    volumes:
+      - name: policy-generator
+        emptyDir: {}
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 125m
+        memory: 256Mi
+  # SSO por el mismo IdP que la otra instancia: la identidad de las personas no
+  # se duplica. Lo que cambia es QUE puede hacer cada grupo aqui (ver rbac).
+  sso:
+    provider: dex
+    dex:
+      openShiftOAuth: true
+  rbac:
+    scopes: '[groups]'
+    # Sin politica por defecto: quien no encaje una regla no tiene acceso.
+    defaultPolicy: ''
+    policy: |
+      # ─────────────────────── ADMINISTRACION ───────────────────────
+      # Via de rescate del operador y grupo nominal de administracion.
+      g, system:cluster-admins, role:admin
+      g, cluster-admins, role:admin
+      g, platform-admins, role:admin
+
+      # ──────────────── OPERADOR DE PLATAFORMA ────────────────
+      # Ve y sincroniza el gobierno. NO crea ni edita Applications: Git es la
+      # fuente, y el alta de una Application de gobierno pasa por revision.
+      p, role:governance-operator, applications, get,      governance/*, allow
+      p, role:governance-operator, applications, sync,     governance/*, allow
+      p, role:governance-operator, applications, action/*, governance/*, allow
+      p, role:governance-operator, logs,         get,      governance/*, allow
+      p, role:governance-operator, applicationsets, get,   */*,          allow
+      p, role:governance-operator, projects,     get,      *,            allow
+      p, role:governance-operator, clusters,     get,      *,            allow
+      p, role:governance-operator, repositories, get,      *,            allow
+
+      # ──────────────── AUDITORIA ────────────────
+      # Lo ve todo y no toca nada. Sin logs: aqui pasan Policies que pueden
+      # llevar datos de configuracion sensible, y auditar no requiere leerlos.
+      p, role:auditor, applications,    get, */*, allow
+      p, role:auditor, applicationsets, get, */*, allow
+      p, role:auditor, projects,        get, *,   allow
+      p, role:auditor, clusters,        get, *,   allow
+      p, role:auditor, repositories,    get, *,   allow
+      p, role:auditor, logs,            get, */*, deny
+
+      # ──────────────── DENEGACIONES TRANSVERSALES ────────────────
+      # exec da los privilegios de la cuenta del pod y el audit log registra a
+      # Argo, no a la persona. override rompe GitOps: sincroniza algo distinto
+      # de lo que dice Git, y en gobierno eso es un cambio no auditado.
+      p, role:governance-operator, exec,         create,   */*, deny
+      p, role:auditor,             exec,         create,   */*, deny
+      p, role:governance-operator, applications, override, */*, deny
+
+      # ──────────────── GRUPOS ────────────────
+      # Los desarrolladores y los release managers NO aparecen: no tienen nada
+      # que hacer en la instancia que acuña privilegio.
+      g, platform-operators, role:governance-operator
+      g, platform-viewers,   role:auditor
+  # `exec` deshabilitado en el servidor, no solo denegado por RBAC.
+  extraConfig:
+    exec.enabled: 'false'
+    users.anonymous.enabled: 'false'

@@ -1,0 +1,95 @@
+# Gobierno de la flota: cuotas, limites, RBAC por namespace y las Policies de ACM.
+#
+# Un dominio propio porque decide QUE PUEDE CONSUMIR y QUIEN ENTRA en cada
+# namespace -- de los cuatro dominios, el que mas se parece a un control de
+# acceso. Separarlo permite exigir revision de seguridad solo aqui, sin frenar un
+# cambio de configuracion de un producto.
+#
+# COPIA PARA LA INSTANCIA DE GOBIERNO. Mismo dominio y mismos destinos que el
+# AppProject homonimo de `openshift-gitops`, pero en el namespace de la instancia
+# que acuña privilegio. Cuando las Applications de este dominio se migren, la
+# copia de la instancia de cargas se retira.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: governance
+  namespace: gitops-governance
+spec:
+  description: Dominio governance
+  orphanedResources:
+    warn: true
+  sourceRepos:
+  - https://github.com/rh-workshop/workshop-demo-platform-config.git
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: open-cluster-management
+  - server: https://kubernetes.default.svc
+    namespace: open-cluster-management-observability
+  - server: https://kubernetes.default.svc
+    namespace: kuadrant-system
+  - server: https://kubernetes.default.svc
+    namespace: platform-gateway
+  - server: https://kubernetes.default.svc
+    namespace: workshop-demo-dev
+  - server: https://kubernetes.default.svc
+    namespace: quay-enterprise
+  - server: https://kubernetes.default.svc
+    namespace: stackrox
+  - server: https://kubernetes.default.svc
+    namespace: developer-hub
+  - server: https://kubernetes.default.svc
+    namespace: openshift-pipelines
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
+    namespace: kuadrant-system
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
+    namespace: platform-gateway
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
+    namespace: kuadrant-system
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
+    namespace: platform-gateway
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
+    namespace: kuadrant-system
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
+    namespace: platform-gateway
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
+    namespace: kuadrant-system
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
+    namespace: platform-gateway
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: observability.open-cluster-management.io
+    kind: MultiClusterObservability
+  - group: user.openshift.io
+    kind: Group
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicy
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicyBinding
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: rbac.authorization.k8s.io
+    kind: Role
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+  - group: policy.open-cluster-management.io
+    kind: Policy
+  - group: policy.open-cluster-management.io
+    kind: PlacementBinding
+  - group: cluster.open-cluster-management.io
+    kind: Placement
+  - group: cluster.open-cluster-management.io
+    kind: ManagedClusterSetBinding
+  - group: operator.open-cluster-management.io
+    kind: MultiClusterHub
+  - group: external-secrets.io
+    kind: ExternalSecret
+  - group: ''
+    kind: ConfigMap
