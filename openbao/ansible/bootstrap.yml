@@ -182,7 +182,13 @@
       no_log: true
 
     # El hub ademas lee lo que no es de un entorno concreto: la configuracion de
-    # object storage de la observabilidad de ACM, que es unica para la flota.
+    # object storage de la observabilidad de ACM, que es unica para la flota, y
+    # todas las pull credentials de Quay, porque los ExternalSecret de los cinco
+    # entornos se resuelven AQUI.
+    #
+    # `keycloak/db-dev` es una desviacion consciente: el Keycloak que corre en el
+    # hub consume esa ruta, no `db-hub`. Se abre la ruta concreta en vez de un
+    # comodin `db-*`, que le daria tambien las credenciales de produccion.
     - name: Ampliar la policy del hub con los secretos de flota
       ansible.builtin.command:
         argv:
@@ -199,6 +205,8 @@
             sh -c 'cat <<POLICY | bao policy write eso-read-hub -
 
             path "secret/data/platform/keycloak/db-hub" { capabilities = ["read"] }
+
+            path "secret/data/platform/keycloak/db-dev" { capabilities = ["read"] }
 
             path "secret/data/platform/observability" { capabilities = ["read"] }
 
