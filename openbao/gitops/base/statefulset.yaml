@@ -97,7 +97,13 @@ metadata:
     #
     # Los PVC NO se borran con el StatefulSet: quedan y se reasocian por nombre
     # (data-openbao-0...), asi que el estado de Raft sobrevive a este reemplazo.
-    argocd.argoproj.io/sync-options: Replace=true
+    #
+    # Force=true es IMPRESCINDIBLE junto a Replace: `Replace` por si solo hace un
+    # `kubectl replace`, que sigue siendo un update y vuelve a chocar con los
+    # campos inmutables ("updates to statefulset spec [...] are forbidden"). Con
+    # Force, Argo borra y recrea. Sin ambos, el sync de TODA la Application queda
+    # bloqueado reintentando el StatefulSet.
+    argocd.argoproj.io/sync-options: Replace=true,Force=true
   labels:
     app.kubernetes.io/name: openbao
     app.kubernetes.io/part-of: workshop-gitops
