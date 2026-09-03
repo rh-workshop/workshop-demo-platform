@@ -81,13 +81,24 @@ spec:
           port: 8200
         - protocol: TCP
           port: 8201
-    # Resolucion DNS: sin ella una replica no encuentra a las otras por nombre.
+    # Resolucion DNS: sin ella una replica no encuentra a las otras por nombre y
+    # el join de Raft muere en "TLS handshake timeout" -- el sintoma engana,
+    # porque parece un problema de certificados y es de DNS.
+    #
+    # PUERTO 53, no 5353. El Service `dns-default` de OpenShift expone 53/UDP y
+    # 53/TCP; 5353 es el puerto del operador de DNS, no el del resolutor. Con
+    # 5353 la consulta se descarta en silencio y `nslookup` responde NXDOMAIN.
+    #
+    # Se abre por IP (`ipBlock` de la red de servicios) y no por
+    # `namespaceSelector`: el pod consulta al ClusterIP del Service `dns-default`
+    # (172.30.0.10), y una NetworkPolicy evalua la IP DESTINO, no el namespace al
+    # que pertenece el Service. Con namespaceSelector la consulta se queda en
+    # "connection timed out" aunque el label del namespace sea correcto.
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: openshift-dns
+        - ipBlock:
+            cidr: 172.30.0.0/16
       ports:
         - protocol: UDP
-          port: 5353
+          port: 53
         - protocol: TCP
-          port: 5353
+          port: 53
