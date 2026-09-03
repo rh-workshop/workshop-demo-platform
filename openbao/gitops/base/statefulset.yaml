@@ -249,28 +249,26 @@ spec:
               scheme: HTTPS
             initialDelaySeconds: 10
             periodSeconds: 10
-          # STARTUP PROBE: da tiempo al arranque en frio sin relajar el liveness.
-          # Mientras las tres replicas se buscan para formar quorum, el proceso
-          # esta ocupado en `retry_join` y no siempre contesta a tiempo; con solo
-          # un liveness generoso, el kubelet lo mataba antes de que el cluster
-          # llegara a existir -- y al reiniciarse volvia a empezar, en bucle.
-          # Con startupProbe el liveness NO corre hasta que este pase.
-          # 30 x 10s = hasta 5 minutos para arrancar.
+          # STARTUP PROBE POR TCP, no por HTTP. Mientras el almacen esta sellado
+          # y buscando quorum, /v1/sys/health no siempre responde -- y un probe
+          # HTTP que no obtiene respuesta acaba matando el proceso con SIGKILL
+          # (exit 137) justo al agotar failureThreshold. Comprobar que el puerto
+          # ACEPTA es la senal correcta en esta fase: el proceso vive y escucha,
+          # aunque todavia no pueda servir secretos.
+          # 60 x 5s = hasta 5 minutos para arrancar y unirse al cluster Raft.
           startupProbe:
-            httpGet:
-              path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+            tcpSocket:
               port: https
-              scheme: HTTPS
-            failureThreshold: 30
-            periodSeconds: 10
-          # El liveness NO mira el sellado: un almacen sellado esta sano, solo
-          # esperando sus claves. Reiniciarlo por estar sellado seria un bucle.
+            failureThreshold: 60
+            periodSeconds: 5
+          # El liveness tambien va por TCP: un almacen SELLADO esta sano, solo
+          # espera sus claves. Un liveness HTTP lo reiniciaria en bucle tras
+          # cualquier reinicio, porque las replicas arrancan selladas por diseno.
+          # Lo que debe detectar es un proceso muerto o colgado, no uno sellado.
           livenessProbe:
-            httpGet:
-              path: /v1/sys/health?standbyok=true&sealedcode=200&uninitcode=200
+            tcpSocket:
               port: https
-              scheme: HTTPS
-            initialDelaySeconds: 60
+            failureThreshold: 6
             periodSeconds: 30
   # Un disco POR REPLICA. Es lo que convierte el almacen en persistente: el
   # StatefulSet reasocia cada PVC a su replica aunque el pod se reprograme.
