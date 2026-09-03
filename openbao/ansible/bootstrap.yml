@@ -112,6 +112,160 @@
             token: "{{ bao_token }}"
       no_log: true
 
+    # SEGMENTACION POR ENTORNO. Sin esto hay UN solo token con acceso a todo el
+    # arbol `secret/platform/`: el que se replica a dev lee tambien
+    # keycloak/db-prod, quay/pull-prod y el superuser de Quay. Un entorno de
+    # desarrollo no debe poder leer las credenciales de produccion, y en un banco
+    # eso no es una recomendacion.
+    #
+    # El corte es por RUTA: cada entorno recibe una policy que solo abre lo suyo,
+    # y un token emitido con esa policy. La convencion de nombres ya lo permitia
+    # (db-dev, pull-prod, kafka-audit/test...) — lo que faltaba era la policy.
+    #
+    # `quay/superuser` y `quay/admin-token` quedan FUERA de toda policy de
+    # entorno: son credenciales de administracion del registro, no las consume
+    # ningun ExternalSecret, y las usa el playbook de Quay con el token raiz.
+    #
+    # Esto es independiente del backend: la misma particion se traslada tal cual a
+    # Azure Key Vault, donde cada entorno recibe su propio Key Vault o su propio
+    # conjunto de secretos con una identidad distinta.
+    - name: Declarar una policy de lectura por entorno
+      ansible.builtin.command:
+        argv:
+          - oc
+          - exec
+          - -n
+          - "{{ openbao_namespace }}"
+          - "{{ bao_pod_name }}"
+          - --
+          - sh
+          - -c
+          - >-
+            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            sh -c 'cat <<POLICY | bao policy write eso-read-{{ item }} -
+
+            path "secret/data/platform/keycloak/db-{{ item }}" { capabilities = ["read"] }
+
+            path "secret/data/platform/quay/pull-{{ item }}" { capabilities = ["read"] }
+
+            path "secret/data/platform/kafka-audit/{{ item }}" { capabilities = ["read"] }
+
+            path "secret/metadata/platform/*" { capabilities = ["list"] }
+
+            POLICY'
+      loop: [hub, dev, test, prod, contingencia]
+      changed_when: true
+      no_log: true
+
+    # El hub ademas lee lo que no es de un entorno concreto: la configuracion de
+    # object storage de la observabilidad de ACM, que es unica para la flota.
+    - name: Ampliar la policy del hub con los secretos de flota
+      ansible.builtin.command:
+        argv:
+          - oc
+          - exec
+          - -n
+          - "{{ openbao_namespace }}"
+          - "{{ bao_pod_name }}"
+          - --
+          - sh
+          - -c
+          - >-
+            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            sh -c 'cat <<POLICY | bao policy write eso-read-hub -
+
+            path "secret/data/platform/keycloak/db-hub" { capabilities = ["read"] }
+
+            path "secret/data/platform/observability" { capabilities = ["read"] }
+
+            path "secret/data/platform/quay/pull-*" { capabilities = ["read"] }
+
+            path "secret/metadata/platform/*" { capabilities = ["list"] }
+
+            POLICY'
+      changed_when: true
+      no_log: true
+
+    # Un token POR ENTORNO, con su policy. Periodico y renovable: ESO lo renueva
+    # solo mientras siga vivo, y deja de servir si el entorno se retira.
+    - name: Emitir el token de ESO de cada entorno
+      ansible.builtin.command:
+        argv:
+          - oc
+          - exec
+          - -n
+          - "{{ openbao_namespace }}"
+          - "{{ bao_pod_name }}"
+          - --
+          - sh
+          - -c
+          - >-
+            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            bao token create -policy=eso-read-{{ item }} -period=720h
+            -display-name=eso-{{ item }} -format=json
+      loop: [dev, test, prod, contingencia]
+      register: tokens_entorno
+      changed_when: true
+      no_log: true
+
+    # Cada token viaja al namespace del cluster que le corresponde. La Policy de
+    # ACM require-vault-token lo replica desde ahi al spoke.
+    - name: Publicar el token de cada entorno para ACM
+      kubernetes.core.k8s:
+        state: present
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "openbao-token-{{ item.item }}"
+            namespace: open-cluster-management
+          stringData:
+            token: "{{ (item.stdout | from_json).auth.client_token }}"
+      loop: "{{ tokens_entorno.results }}"
+      no_log: true
+
+    # El token del HUB va al namespace del almacen: alli lo lee su propio
+    # ClusterSecretStore, sin pasar por la Policy de ACM (que replica a spokes).
+    - name: Emitir y publicar el token de ESO del hub
+      ansible.builtin.command:
+        argv:
+          - oc
+          - exec
+          - -n
+          - "{{ openbao_namespace }}"
+          - "{{ bao_pod_name }}"
+          - --
+          - sh
+          - -c
+          - >-
+            BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN={{ bao_token }}
+            bao token create -policy=eso-read-hub -period=720h
+            -display-name=eso-hub -format=json
+      register: token_hub
+      changed_when: true
+      no_log: true
+
+    - name: Publicar el token del hub para su ClusterSecretStore
+      kubernetes.core.k8s:
+        state: present
+        apply: true
+        server_side_apply:
+          field_manager: bootstrap-ansible
+          force_conflicts: true
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: openbao-eso-token-hub
+            namespace: "{{ openbao_namespace }}"
+          stringData:
+            token: "{{ (token_hub.stdout | from_json).auth.client_token }}"
+      no_log: true
+
     # AQUI NO SE CARGA NINGUN SECRETO, y es deliberado: cada playbook de producto
     # deposita LO SUYO en el almacen, porque es quien sabe componer ese valor
     # (acm/ansible/observability.yml consulta las credenciales del object storage,
