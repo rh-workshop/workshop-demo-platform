@@ -1,0 +1,105 @@
+---
+# Siembra config.yaml de Quay en el almacén, y desde ahí el ExternalSecret
+# (quay/gitops/base/externalsecret-quay-config-bundle.yaml) toma posesión del
+# Secret quay-config-bundle.
+#
+# REPARTO DE RESPONSABILIDADES:
+#
+#   bootstrap.yml (arranque en frío) -> CREA el Secret quay-config-bundle
+#                      directo en Kubernetes, ANTES de que el almacén exista.
+#                      Huevo-gallina real: sin ese Secret el operador de Quay
+#                      no reconcilia, y OpenBao mismo lo despliega Argo — que
+#                      necesita que el operador de Quay (y el resto del árbol)
+#                      no esté bloqueado. No se puede sembrar el almacén antes
+#                      de que el almacén exista.
+#   Este playbook (aquí) -> lee el Secret YA CREADO por el bootstrap y
+#                      deposita el mismo valor en el almacén, una vez que
+#                      OpenBao ya está vivo (corre después de su import).
+#   ExternalSecret     -> a partir de aquí GOBIERNA el Secret
+#                      (creationPolicy: Owner): lo adopta sin recrearlo,
+#                      porque el contenido en el almacén y en el Secret ya
+#                      coinciden byte a byte. Cambios FUTUROS al config.yaml
+#                      (como habilitar un feature flag) se hacen editando el
+#                      almacén, no con `oc create secret` a mano.
+#
+# NO GENERA CLAVES NUEVAS. SECRET_KEY/DATABASE_SECRET_KEY ya se generaron una
+# vez en el bootstrap; este playbook solo las traslada de donde viven hoy
+# (el Secret) a donde deben vivir a partir de ahora (el almacén). Rotarlas
+# sobre una instancia con datos la deja inservible — no es el propósito aquí.
+#
+# CREDENCIAL: el token de ESO (eso-read-hub) es de SOLO LECTURA a propósito —
+# ver openbao/ansible/bootstrap.yml. Escribir en el almacén exige el token de
+# operación (root o un operador con permisos), que NUNCA se guarda en el
+# cluster: lo aporta quien ejecuta el playbook, por variable de entorno.
+#
+#   export BAO_OPERATOR_TOKEN='<token raiz o de operador>'
+#   ansible-playbook quay/ansible/config-bundle-vault.yml
+
+- name: Sembrar config.yaml de Quay en el almacén
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    quay_namespace: quay-enterprise
+    vault_namespace: openbao
+    # Debe coincidir con el `remoteRef.key` de
+    # quay/gitops/base/externalsecret-quay-config-bundle.yaml.
+    vault_path: platform/quay/config-bundle
+
+  tasks:
+    - name: Exigir el token de operación
+      ansible.builtin.fail:
+        msg: >-
+          Falta el token de operación. Exportalo antes de ejecutar:
+            export BAO_OPERATOR_TOKEN='<token raiz o de un operador con permisos>'
+          El token de ESO (eso-read-hub) es de solo lectura y no sirve para
+          escribir en el almacén.
+      when: lookup('env', 'BAO_OPERATOR_TOKEN') | length == 0
+
+    - name: Leer el Secret quay-config-bundle ya creado por el bootstrap
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        name: quay-config-bundle
+        namespace: "{{ quay_namespace }}"
+      register: quay_config_secret
+      no_log: true
+
+    - name: Sin Secret que trasladar, nada que hacer
+      ansible.builtin.meta: end_play
+      when: quay_config_secret.resources | length == 0
+
+    - name: Localizar el pod del almacén
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ vault_namespace }}"
+        label_selectors:
+          - app.kubernetes.io/name=openbao
+      register: bao_pod
+
+    - name: Copiar el config.yaml al pod del almacén (evita interpolarlo por shell)
+      kubernetes.core.k8s_cp:
+        namespace: "{{ vault_namespace }}"
+        pod: "{{ bao_pod.resources[0].metadata.name }}"
+        remote_path: /tmp/quay-config-bundle.yaml
+        content: "{{ quay_config_secret.resources[0].data['config.yaml'] | b64decode }}"
+      no_log: true
+
+    - name: Depositar config.yaml en el almacén
+      kubernetes.core.k8s_exec:
+        namespace: "{{ vault_namespace }}"
+        pod: "{{ bao_pod.resources[0].metadata.name }}"
+        command: >-
+          env BAO_TOKEN={{ lookup('env', 'BAO_OPERATOR_TOKEN') }}
+          BAO_ADDR=https://127.0.0.1:8200
+          BAO_CACERT=/openbao/tls/ca.crt
+          sh -c "bao kv put -mount=secret {{ vault_path }} config.yaml=@/tmp/quay-config-bundle.yaml"
+      no_log: true
+
+    - name: Limpiar el fichero temporal del pod
+      kubernetes.core.k8s_exec:
+        namespace: "{{ vault_namespace }}"
+        pod: "{{ bao_pod.resources[0].metadata.name }}"
+        command: rm -f /tmp/quay-config-bundle.yaml

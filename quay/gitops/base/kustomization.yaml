@@ -9,3 +9,6 @@ resources:
   # NooBaa no vive en la base: en un cluster de nube sobra, y su cuota hace que el
   # push del CI falle con NOT_ENOUGH_SPACE aunque el disco este casi vacio.
   - quayregistry.yaml
+  # El Secret que referencia configBundleSecret, sincronizado desde el almacen
+  # en vez de un `oc create secret` del bootstrap.
+  - externalsecret-quay-config-bundle.yaml
