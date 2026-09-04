@@ -290,8 +290,8 @@ conexión a Argo CD de esta pareja (nombres fijos, en el namespace del run):
 ARGO_HOST=$(oc get route -n openshift-gitops openshift-gitops-server -o jsonpath='{.spec.host}')
 oc create configmap argocd-env-configmap -n workshop-demo-dev \
   --from-literal=ARGOCD_SERVER="$ARGO_HOST" --from-literal=ARGOCD_OPTS="--grpc-web"
-# Token de la CUENTA TÉCNICA local "pipeline" (rol ci-pipeline: solo get/sync
-# sobre el proyecto workshop-platform), NUNCA el admin de Argo CD.
+# Token de la CUENTA TÉCNICA local "pipeline" (rol ci-pipeline: solo get sobre
+# apps-nonprod/* y sync sobre apps-nonprod/*-dev), NUNCA el admin de Argo CD.
 # La cuenta se declara en el ArgoCD CR (extraConfig accounts.pipeline: apiKey)
 # y su RBAC en spec.rbac.policy; el token se genera vía API o CLI:
 #   argocd account generate-token --account pipeline
