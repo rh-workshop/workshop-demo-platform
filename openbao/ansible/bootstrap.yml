@@ -153,6 +153,25 @@
     # Esto es independiente del backend: la misma particion se traslada tal cual a
     # Azure Key Vault, donde cada entorno recibe su propio Key Vault o su propio
     # conjunto de secretos con una identidad distinta.
+    #
+    # EL MOTOR KV NO VIENE HABILITADO POR DEFECTO. `bao operator init` deja el
+    # almacen sin ningun motor de secretos en `secret/` -- solo trae cubbyhole,
+    # identity y sys. Sin este paso, cualquier `bao kv put -mount=secret ...`
+    # de este o de otro playbook (quay/ansible/, kafka/ansible/, acm/ansible/)
+    # falla con "preflight capability check returned 403" porque el path ni
+    # siquiera existe. version=2 porque todos los ExternalSecret de este repo
+    # usan `secretKey`/`property`, sintaxis de KV v2.
+    - name: Habilitar el motor KV v2 en secret/ (idempotente, falla si ya existe)
+      ansible.builtin.command:
+        argv: [oc, exec, -n, "{{ openbao_namespace }}", "{{ bao_pod_name }}", --, sh, -c,
+               "BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt BAO_TOKEN={{ bao_token }} bao secrets enable -path=secret -version=2 kv"]
+      register: kv_enable
+      changed_when: "'Success' in kv_enable.stdout"
+      failed_when:
+        - kv_enable.rc != 0
+        - "'path is already in use' not in kv_enable.stderr"
+      no_log: true
+
     - name: Declarar una policy de lectura por entorno
       ansible.builtin.command:
         argv:

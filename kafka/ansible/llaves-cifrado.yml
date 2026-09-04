@@ -28,12 +28,20 @@
 
   vars:
     vault_namespace: openbao
-    vault_token_secret: openbao-dev-token
     # Prefijo comun; a cada ambiente se le añade su nombre.
     vault_path_base: platform/kafka-audit
     ambientes: [dev, test, prod, contingencia]
 
   tasks:
+    - name: Exigir el token de operación
+      ansible.builtin.fail:
+        msg: >-
+          Falta el token de operación. Exportalo antes de ejecutar:
+            export BAO_OPERATOR_TOKEN='<token raiz o de un operador con permisos>'
+          Los tokens eso-read-* son de solo lectura y no sirven para escribir
+          en el almacén.
+      when: lookup('env', 'BAO_OPERATOR_TOKEN') | length == 0
+
     - name: Localizar el almacen
       kubernetes.core.k8s_info:
         kind: Pod
@@ -49,25 +57,12 @@
           No hay ningun pod del almacen en {{ vault_namespace }}. Ejecuta antes
           openbao/ansible/bootstrap.yml, que lo arranca y genera su token.
 
-    - name: Recuperar el token del almacen
-      kubernetes.core.k8s_info:
-        kind: Secret
-        namespace: "{{ vault_namespace }}"
-        name: "{{ vault_token_secret }}"
-      register: token_info
-
-    - name: Comprobar que el token existe
-      ansible.builtin.assert:
-        that: token_info.resources | length > 0
-        fail_msg: >-
-          No existe {{ vault_namespace }}/{{ vault_token_secret }}. Ejecuta antes
-          openbao/ansible/bootstrap.yml.
-
     - name: Fijar los datos de acceso
       ansible.builtin.set_fact:
         bao_env: >-
-          env BAO_TOKEN={{ token_info.resources[0].data.token | b64decode }}
-          BAO_ADDR=http://127.0.0.1:8200
+          env BAO_TOKEN={{ lookup('env', 'BAO_OPERATOR_TOKEN') }}
+          BAO_ADDR=https://127.0.0.1:8200
+          BAO_CACERT=/openbao/tls/ca.crt
 
     # Se consulta ANTES de escribir: una llave que ya existe no se toca.
     - name: Comprobar que llaves hay ya depositadas
