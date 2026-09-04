@@ -60,7 +60,9 @@ coincide), `kustomize edit set image` sobre el overlay del entorno destino con e
 MISMO digest, push con reintento y sync opcional de Argo. La credencial de
 promoción (`quay-promotion-credentials`) es **distinta** de la del CI — ver el
 README de `workshop-pipelines/` para su creación y para el modelo RBAC que hace
-de barrera hacia `prod`/`contingencia`. **Sin validar en vivo** (clusters apagados).
+de barrera hacia `prod`/`contingencia`. **Validado en vivo** (2026-09-03):
+`PipelineRun promote-demo-service-test-qmb89` en `Completed`, y el ciclo dev→test
+completo (PR de promoción con revisión y merge) en `workshop-demo-app-config`.
 
 ## 1-ter. SBOM en el pipeline de CI — HECHO
 
@@ -69,7 +71,8 @@ enganchado en el CI tras `resolve-digest` (en paralelo con firma y escaneo; la
 promoción del digest lo espera): `syft` genera el SPDX y `cosign attest` lo
 publica como atestación con la misma llave de firma. No existe imagen Red Hat de
 syft (elección documentada en la propia Task); la atestación sí va con la imagen
-RHTAS de cosign. **Sin validar en vivo** (clusters apagados).
+RHTAS de cosign. **Validado en vivo** (2026-09-03): TaskRuns `*-generate-sbom` en
+`Succeeded` sobre builds reales de `demo-producer`, `dotnet-validacion` y `pipeline-v2`.
 
 ## 1-quater. Canary automático con Argo Rollouts — HECHO
 
@@ -127,7 +130,10 @@ en la plataforma sin revisión. Ahora solo se despliegan los PR con la etiqueta
 `preview`, que únicamente puede poner quien tiene escritura en el repo.
 
 Pendiente: cuotas/NetworkPolicy de `namespace-governance` para los namespaces
-`*-pr-*` (ver 6.4), y validación en vivo (clusters apagados).
+`*-pr-*` (ver 6.4), y validación en vivo — el clúster ya está encendido
+(verificado 2026-09-03) pero el `ApplicationSet workshop-previews-pr` sigue sin
+generar ninguna Application `*-pr-*`: no hay evidencia de que un PR con la
+etiqueta `preview` se haya abierto y probado el flujo completo todavía.
 
 ## 1-sexies. Cadena DevSecOps del CI completada — HECHO
 
@@ -220,8 +226,10 @@ Tekton Chains está configurado (`pipelines/gitops/base/tektonconfig.yaml`:
 Pendiente: renombrar los results a `IMAGE_URL`/`IMAGE_DIGEST` a nivel de
 PipelineRun y añadir una puerta `cosign verify-attestation --type slsaprovenance`
 antes de promocionar. No se hizo ahora porque cambia el contrato de results del
-pipeline (los `PipelineRun` de `runs/` y cualquier consumidor externo) y no se
-puede validar en vivo con los clusters apagados.
+pipeline (los `PipelineRun` de `runs/` y cualquier consumidor externo) — el
+clúster ya está encendido y disponible para validar (verificado 2026-09-03), así
+que la única razón restante para no hacerlo es el alcance del cambio, no la
+disponibilidad de infraestructura.
 
 ### 6.2 Sin VEX: no hay forma declarativa de decir "este CVE no aplica" — MEDIO
 

@@ -12,8 +12,10 @@
 # usuarios se asignan con `oc adm groups add-users`. Es un cluster de operacion
 # con pocas cuentas nominales, no una plataforma de autoservicio.
 #
-# LOS SPOKES SI USAN KEYCLOAK: alli no hay circularidad, porque su Keycloak no
-# depende de ellos mismos. Ver la Policy require-oidc-groups-claim.
+# LOS SPOKES USAN EL MISMO MODELO. Aunque su Keycloak no dependa de ellos mismos
+# y por tanto no haya circularidad tecnica, usarlo para autenticar el cluster que
+# lo aloja y gobierna via GitOps es el mismo problema de fondo: es un producto de
+# la plataforma, no un IdP corporativo externo. Ver oauth-spoke.reference.yaml.
 #
 # ESTE FICHERO ES UNA REFERENCIA, NO SE APLICA POR GITOPS. El Secret con el hash
 # de la contrasena no puede vivir en Git, y el OAuth del cluster es plano de

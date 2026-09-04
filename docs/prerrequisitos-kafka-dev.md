@@ -341,7 +341,7 @@ apps/
 - Sincroniza el **ApplicationSet `kafka-services-dev`** (generador `matrix` =
   `clusterDecisionResource` sobre el Placement `clusters-dev` de ACM × generador `git` de
   directorios), destino: namespace `kafka` del cluster de dev, proyecto Argo
-  `workshop-platform`, con `automated` (prune + selfHeal), reintentos con backoff (hasta
+  `apps-nonprod`, con `automated` (prune + selfHeal), reintentos con backoff (hasta
   20, máx. 10 min) y `CreateNamespace=false` (el namespace lo crea la plataforma).
 - El **AppProject** acota fuente, destinos y kinds permitidos con allow-list que **falla
   cerrado**: los kinds `Kafka`, `KafkaNodePool`, `KafkaTopic`, `KafkaUser` (grupo

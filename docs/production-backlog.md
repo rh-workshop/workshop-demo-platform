@@ -1,8 +1,11 @@
 # Backlog de endurecimiento a producción
 
 Revisión producto por producto (6 informes, ~65 hallazgos) contra la documentación
-oficial de Red Hat y el clúster real. Este material es un **workshop**: las configs
-son de laboratorio y aquí se registra qué falta para llevarlas a producción.
+oficial de Red Hat y el clúster real. **Este material no es un workshop: es la
+plantilla que se copia tal cual a un cliente productivo de banca.** Sin `userXX`,
+sin criterio de "aceptable porque es lab" — este documento registra qué falta
+para que cada producto cumpla el estándar de producción, no una degradación
+intencional que se acepta.
 
 **Leyenda de estado:**
 - ✅ **Aplicado** — corregido en el repo (declarativo, factible en el lab)

@@ -3,8 +3,8 @@
 Este repositorio guarda la configuración de **todos los productos que sostienen
 la plataforma** sobre OpenShift, desplegada por el patrón oficial **Red Hat ACM +
 OpenShift GitOps** desde un hub central. Es el tercer repositorio del modelo,
-junto al de **aplicación** (`workshop-app`) y al de **configuración de
-despliegue** (`workshop-config`).
+junto al de **aplicación** (`workshop-demo-app`) y al de **configuración de
+despliegue** (`workshop-demo-app-config`).
 
 ## Modelo mental: GitOps central multi-cluster
 
@@ -135,10 +135,13 @@ Variables (defaults en el playbook; valores reales en `clusters.yml`, o con `-e`
 > `use_metallb: false` evita instalar un componente inservible que además dejaría
 > el Gateway esperando una IP que nunca llega.
 
-Ese playbook instala los operadores del hub (GitOps, ACM), aplica el CR `ArgoCD`
-y el RBAC del controller, crea **todos** los AppProjects (`gitops-control`,
-`workshop-platform`, `workshop-multicluster`, `workshop`), aplica la Application
-raíz, espera a que Argo deje el `MultiClusterHub` en `Running` y entonces
+Ese playbook instala los operadores del hub (GitOps, ACM), aplica los CR `ArgoCD`
+(cargas y gobierno) y el RBAC de ambos controllers, crea **todos** los
+AppProjects (`gitops-control`, `governance`, `platform-hub`,
+`platform-workload-nonprod`, `platform-workload-prod`, `apps-nonprod`,
+`apps-prod`, `tuning`, `workshop`, `workshop-preview`), aplica las dos
+Applications raíz (`platform-root` y `governance-root`), espera a que Argo deje
+el `MultiClusterHub` en `Running` y entonces
 **importa los spokes en ACM** (namespace + `ManagedCluster` +
 `KlusterletAddonConfig` + `auto-import-secret`, esperando a que cada uno quede
 `Available`) y homologa sus etiquetas `environment`/`role`. El import es
@@ -225,7 +228,7 @@ limita.
 ## Estructura
 
 ```
-workshop-platform/
+workshop-demo-platform-config/
 ├── bootstrap/              # día 0: manifiestos del plano de control + playbook (ansible/)
 ├── vars/                   # platform-vars.yml: el ÚNICO fichero de datos de los playbooks
 │                           # de producto (prefijo de orgs, ambientes, apps, clients)

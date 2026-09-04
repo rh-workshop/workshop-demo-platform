@@ -9,10 +9,17 @@
 > desapareció (sus recursos fueron adoptados sin recrearse) y el AppProject
 > `workshop` dejó de ser drift.
 
-## 1. El estado actual (verificado en el cluster y en los repos)
+## 1. El estado ANTES de la migración (esta sección es histórica)
+
+> Todo lo que sigue en esta sección describe el estado **previo** a la migración
+> de la sección 5. El AppProject `workshop-platform` **ya no existe**: la
+> partición de B.1 (`docs/governance-backlog.md`) lo reemplazó por 8 AppProjects
+> por dominio × criticidad, repartidos entre las dos instancias de Argo CD
+> (`openshift-gitops` para cargas, `gitops-governance` para gobierno). Se
+> conserva como registro de por qué se migró, no como estado actual.
 
 En `workshop-demo-app-config`, la Application `workshop-argocd` (onda 0, en
-`project: default`) despliega `platform/argocd/overlays/dev`, que contiene:
+`project: default`) desplegaba `platform/argocd/overlays/dev`, que contenía:
 
 - el **AppProject `workshop-platform`** — el proyecto que usan las otras 12
   Applications del root: el proyecto se despliega a sí mismo por GitOps;
@@ -216,8 +223,8 @@ Secret escalaba a control total del GitOps de los 3 clusters. Se corrigió en
 DOS capas, para que ninguna dependa de la otra:
 
 1. **Cuenta local `pipeline`** (`bootstrap/manifests/argocd.yaml`:
-   `extraConfig` + `rbac`): solo `get`/`sync` sobre las Applications del
-   proyecto `workshop-platform`. Alta de la password:
+   `extraConfig` + `rbac`): `get` sobre `apps-nonprod/*` y `sync` solo sobre
+   `apps-nonprod/*-dev` (tras la partición de B.1). Alta de la password:
 
    ```bash
    PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)

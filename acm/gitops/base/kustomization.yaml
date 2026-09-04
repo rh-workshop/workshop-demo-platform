@@ -42,15 +42,6 @@ resources:
   - policies/require-no-self-provisioner/policy.yaml
   - policies/require-no-self-provisioner/placementbinding-hub.yaml
   - policies/require-no-self-provisioner/placementbinding-workload.yaml
-  # El claim `groups` del OIDC: sin el, los grupos no llegan al spoke y el
-  # acceso que reparte ACM no encuentra a quien aplicarlo. Solo workload: el
-  # hub ya lo tiene y su OAuth se gestiona aparte.
-  - policies/require-oidc-groups-claim/policy.yaml
-  - policies/require-oidc-groups-claim/placementbinding-workload.yaml
-  # La via de acceso que no depende de Keycloak: con un unico proveedor OIDC,
-  # un Keycloak caido deja el cluster sin forma de entrar a repararlo.
-  - policies/require-break-glass-idp/policy.yaml
-  - policies/require-break-glass-idp/placementbinding-workload.yaml
   # Replicas incompletas: un StatefulSet a 1/2 no se cae, pierde la alta
   # disponibilidad en silencio y se confunde con un despliegue en curso.
   - policies/require-workloads-fully-available/policy.yaml
