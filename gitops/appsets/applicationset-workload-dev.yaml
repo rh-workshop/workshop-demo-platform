@@ -45,11 +45,25 @@ spec:
           - producto: cert-manager
             namespace: cert-manager
             proyecto: platform-workload-nonprod
-          # Gobierno de los namespaces de la ruta de datos: cuota, limites y RBAC.
-          # Va por Argo y no por Policy para que funcione tambien sin ACM.
+          # Gobierno de los namespaces de PLATAFORMA del cluster de dev (la ruta
+          # de datos: kuadrant-system): cuota, limites y RBAC. Va por Argo y no
+          # por Policy para que funcione tambien sin ACM. En governance, no aqui:
+          # es el mismo componente que en el hub gobierna Quay/ACS/etc, y vive
+          # en la instancia de gobierno.
           - producto: namespace-governance
             namespace: kuadrant-system
             proyecto: governance
+          # Gobierno de los namespaces de NEGOCIO del cluster de dev (canary,
+          # bluegreen, circuit-breaker, api): cuota, limites, RBAC de 3 grupos
+          # y aislamiento de red, ANTES de que la Application del servicio
+          # despliegue dentro. En apps-nonprod y wave temprana, no en governance:
+          # el RBAC estandar edit/view/admin no acuña privilegio, y necesita
+          # compartir instancia con las Applications de negocio que dependen de
+          # el para que el sync-wave garantice el orden entre ambas.
+          - producto: namespace-governance-workload
+            namespace: canary-demo-dev
+            proyecto: governance
+            wave: "-1"
           # El puente con ESO: cada cluster necesita su ClusterSecretStore para
           # que sus ExternalSecret puedan leer del almacen, que vive en el hub.
           - producto: openbao-store
@@ -76,6 +90,13 @@ spec:
         workshop.redhat.com/component: '{{.producto}}'
         workshop.redhat.com/environment: dev
         workshop.redhat.com/cluster: '{{.name}}'
+      annotations:
+        # Por defecto sin wave explicita (Argo la trata como 0, junto con el
+        # resto de la lista); namespace-governance-workload la ADELANTA con su
+        # propia entrada `wave` en el `list`, para sincronizar antes que las
+        # Applications de negocio de workshop-services-dev (wave 2) que
+        # dependen de que su namespace ya exista gobernado.
+        argocd.argoproj.io/sync-wave: '{{default "0" .wave}}'
     spec:
       # El dominio lo declara cada componente en el `list`: el gobierno no
       # comparte sobre de permisos con la configuracion de un producto.

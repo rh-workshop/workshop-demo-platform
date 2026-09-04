@@ -1,0 +1,52 @@
+# Gobierno de namespaces de NEGOCIO del hub (workshop-demo-dev): cuota,
+# límites, RBAC de 3 grupos y aislamiento de red.
+#
+# Wave 0, ANTES de las Applications de negocio (workshop-services-dev genera
+# las suyas en wave 2): el namespace debe existir gobernado antes de que algo
+# despliegue dentro, o el primer pod arranca sin cuota/RBAC/red durante la
+# ventana entre CreateNamespace y el sync de este componente.
+#
+# Las Applications de negocio CONSERVAN CreateNamespace=true: Argo lo trata
+# como "crear si falta, adoptar y aplicar metadata si ya existe" — no falla ni
+# recrea nada al encontrar el namespace ya gobernado por esta Application. Es
+# lo que permite que managedNamespaceMetadata (la etiqueta de tenant) se siga
+# aplicando sin que esta Application tenga que saber de tenants.
+#
+# Vive en openshift-gitops (cargas), no en gitops-governance: un RoleBinding a
+# los ClusterRole estándar edit/view/admin no acuña privilegio nuevo en la
+# flota, y necesita compartir instancia con las Applications que dependen de
+# él para que el sync-wave garantice el orden entre ambas.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: config-namespace-governance-workload-hub
+  labels:
+    workshop.redhat.com/layer: infrastructure
+    workshop.redhat.com/component: namespace-governance-workload
+    workshop.redhat.com/environment: hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  namespace: openshift-gitops
+spec:
+  project: governance
+  source:
+    repoURL: https://github.com/rh-workshop/workshop-demo-platform-config.git
+    targetRevision: main
+    path: namespace-governance-workload/gitops/overlays/hub
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: workshop-demo-dev
+  syncPolicy:
+    retry:
+      limit: 20
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+    automated:
+      # prune false: borrar por accidente una cuota o un RoleBinding de un
+      # namespace vivo no debe pasar solo; se poda a mano y con revisión.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

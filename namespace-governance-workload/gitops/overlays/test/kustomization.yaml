@@ -1,0 +1,10 @@
+# Gobierno del namespace de negocio del cluster de test (solo demo-service
+# tiene overlay test; los 4 servicios didácticos son exclusivos de dev).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base/namespaces/workshop-demo-test
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: workshop-platform
+      workshop.redhat.com/environment: test

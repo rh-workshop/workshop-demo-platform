@@ -1,0 +1,13 @@
+# Gobierno de namespaces de negocio del cluster de dev (los 4 servicios
+# didácticos: canary, bluegreen, circuit-breaker, api).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base/namespaces/canary-demo-dev
+  - ../../base/namespaces/bluegreen-demo-dev
+  - ../../base/namespaces/circuit-breaker-demo-dev
+  - ../../base/namespaces/api-demo-dev
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: workshop-platform
+      workshop.redhat.com/environment: dev

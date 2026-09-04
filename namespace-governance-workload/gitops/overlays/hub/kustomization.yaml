@@ -1,0 +1,6 @@
+# Gobierno de namespaces de negocio que corren en el HUB (workshop-demo-dev,
+# asimetría documentada en docs/backlog.md §8).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base/namespaces/workshop-demo-dev

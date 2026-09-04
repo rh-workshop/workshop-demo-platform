@@ -370,19 +370,23 @@ falta otra herramienta (p. ej. `osv-scanner`), que hoy no se añade por la norma
 de dependencias mínimas; quedaría como cuarta excepción espejada si algún día
 compensa.
 
-## 8. Los servicios de dev corren en el HUB; test/prod/contingencia en su cluster
+## 8. Solo `workshop-demo-dev` corre en el HUB; el resto va a su cluster — RESUELTO EN PARTE
 
-Herencia del modelo original del taller: `workshop-services-dev` despliega al
-hub (`kubernetes.default.svc`) y los `HTTPRoute` de dev usan el dominio del hub,
-mientras que los AppSets `workshop-services-test/prod/contingencia` (nuevos)
-despliegan al cluster de su ambiente vía `clusterDecisionResource`. Es una
-asimetría deliberada para no romper el material vivo del workshop (los labs y
-las capturas asumen el hub), pero en una adopción real dev debería ir a su
-spoke como los demás: convertir `workshop-services-dev` al mismo `matrix`
-(clusterDecisionResource × git) que sus hermanos, mover el namespace del CI si
-se quiere co-localizar, y revisar `namespace-governance` (hoy gobierna esos
-namespaces en el hub). No se hizo ahora porque toca la narrativa de varias
-sesiones y no se puede validar en vivo.
+**Actualizado (2026-09-04):** `applicationset-workshop-services-dev.yaml` ya usa
+el mismo `matrix` (`clusterDecisionResource` × `git`) que sus hermanos
+test/prod/contingencia — verificado en vivo. Los 4 servicios didácticos
+(`canary`, `bluegreen`, `circuit-breaker`, `api`) ya despliegan en
+`cluster-dev`, no en el hub. Solo `workshop-demo-dev` (el servicio original,
+con el namespace del CI) sigue en el hub, como asimetría deliberada del
+material del taller — los labs y las capturas la asumen.
+
+`namespace-governance-workload/` (nuevo componente, separado de
+`namespace-governance/`) ya gobierna la asimetría real: overlay `hub` para
+`workshop-demo-dev`, overlay `dev` para los otros 4. Si en el futuro
+`workshop-demo-dev` también se mueve a `cluster-dev`, solo hace falta mover su
+directorio de un overlay al otro en ese componente y actualizar el destino en
+la Application/AppSet correspondiente — ya no hace falta "revisar
+namespace-governance" como pendiente aparte.
 
 ## 9. Almacenamiento de Quay: S3 nativo vía CredentialsRequest (NooBaa solo sin object storage)
 

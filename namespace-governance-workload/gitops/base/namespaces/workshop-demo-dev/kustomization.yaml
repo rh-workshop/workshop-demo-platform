@@ -1,0 +1,22 @@
+# Desviación de workshop-demo-dev: aquí viven los Secrets del CI, así que
+# app-developers recibe un Role sin acceso a ellos en vez del `edit` del perfil
+# app-namespace. Kustomize prohíbe por seguridad referenciar recursos FUERA del
+# árbol de este directorio (LoadRestrictionsRootOnly) y no permite excluir un
+# recurso de un `resources:` de otro directorio, así que el resto del perfil
+# (cuota, límites, RBAC de admin/viewer, las 4 NetworkPolicy) está COPIADO aquí
+# en vez de referenciado desde ../../profiles/app-namespace/. Si el perfil
+# cambia, replicar el cambio aquí también.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: workshop-demo-dev
+resources:
+  - resourcequota-default.yaml
+  - limitrange-default.yaml
+  - rolebinding-platform-admins.yaml
+  - rolebinding-platform-viewers.yaml
+  - networkpolicy-allow-same-namespace.yaml
+  - networkpolicy-allow-from-platform-gateway.yaml
+  - networkpolicy-allow-from-monitoring.yaml
+  - networkpolicy-allow-from-openshift-ingress.yaml
+  - role-app-developers.yaml
+  - rolebinding-app-developers.yaml

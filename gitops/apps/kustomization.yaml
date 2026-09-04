@@ -3,10 +3,17 @@ kind: Kustomization
 # Los AppProject NO van aquí: los crea el bootstrap
 # (bootstrap/manifests/), porque la barandilla no se instala a sí misma.
 resources:
-  # El gobierno de namespaces y ACM NO estan aqui: los sincroniza la INSTANCIA
-  # DE GOBIERNO (gitops/apps-governance/), que es la unica con permiso para
-  # escribir Policies, Groups y GitOpsCluster. Esta app-of-apps despliega
-  # productos; no acuña privilegio.
+  # ACM y el gobierno de namespaces de PLATAFORMA (Quay, ACS, Pipelines...) NO
+  # estan aqui: los sincroniza la INSTANCIA DE GOBIERNO (gitops/apps-governance/),
+  # que es la unica con permiso para escribir Policies, Groups y GitOpsCluster.
+  # Esta app-of-apps despliega productos; no acuña privilegio.
+  #
+  # EXCEPCION: el gobierno de namespaces de NEGOCIO (workshop-demo-dev y
+  # hermanos) SI vive aqui, en namespace-governance-workload-hub. Un RoleBinding
+  # a los ClusterRole estandar edit/view/admin no acuña privilegio nuevo, y
+  # necesita compartir instancia con las Applications de negocio que dependen
+  # de el para que el sync-wave garantice el orden entre ambas.
+  - hub/application-namespace-governance-workload-hub.yaml
   - hub/application-quay.yaml
   - hub/application-acs.yaml
   - hub/application-pipelines.yaml

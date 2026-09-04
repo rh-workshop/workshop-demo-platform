@@ -1,8 +1,8 @@
-# Gobierno de namespaces del cluster de prod.
+# Gobierno del namespace de negocio del cluster de prod.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../base/workload
+  - ../../base/namespaces/workshop-demo-prod
 labels:
   - pairs:
       app.kubernetes.io/part-of: workshop-platform

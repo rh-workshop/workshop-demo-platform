@@ -1,0 +1,14 @@
+# Sobre estándar de los namespaces de aplicación. Coincide a propósito con el
+# que aplica la Policy de ACM `require-resourcequota` (nombre `platform-quota`):
+# la Policy VERIFICA lo que este manifiesto declara, no lo crea por enforce.
+# Si el sobre cambia, este archivo y la Policy se mueven juntos.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-quota
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "24"
+    limits.memory: 24Gi
