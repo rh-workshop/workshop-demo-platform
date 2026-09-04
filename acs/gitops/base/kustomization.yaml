@@ -6,6 +6,7 @@ kind: Kustomization
 # existe una sola vez y solo en el hub.
 resources:
   - central.yaml
+  - externalsecret-acs-smtp.yaml
   - policies/securitypolicy-disallow-latest-tag.yaml
   # Las dos politicas de firma (BUILD y DEPLOY) NO van por Argo: referencian el
   # ID de la SignatureIntegration, que lo genera Central en cada instalacion.
