@@ -231,6 +231,8 @@
 
             path "secret/data/platform/quay/pull-*" { capabilities = ["read"] }
 
+            path "secret/data/platform/quay/config-bundle" { capabilities = ["read"] }
+
             path "secret/metadata/platform/*" { capabilities = ["list"] }
 
             POLICY'
