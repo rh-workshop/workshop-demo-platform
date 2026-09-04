@@ -39,17 +39,21 @@ spec:
           - producto: keycloak
             namespace: keycloak
             proyecto: platform-workload-prod
+            wave: "0"
           - producto: connectivity-link
             namespace: kuadrant-system
             proyecto: platform-workload-prod
+            wave: "0"
           - producto: cert-manager
             namespace: cert-manager
             proyecto: platform-workload-prod
+            wave: "0"
           # Gobierno de los namespaces de la ruta de datos: cuota, limites y RBAC.
           # Va por Argo y no por Policy para que funcione tambien sin ACM.
           - producto: namespace-governance
             namespace: kuadrant-system
             proyecto: governance
+            wave: "0"
           # Gobierno del namespace de NEGOCIO de contingencia (workshop-demo-
           # contingencia, solo demo-service tiene overlay contingencia): cuota,
           # limites, RBAC y aislamiento de red ANTES de que la Application del
@@ -63,9 +67,11 @@ spec:
           - producto: openbao-store
             namespace: external-secrets
             proyecto: platform-workload-prod
+            wave: "0"
           - producto: kafka
             namespace: kafka
             proyecto: platform-workload-prod
+            wave: "0"
           # MetalLB solo aplica en BARE-METAL. En un cloud (AWS/Azure/GCP) el proveedor
           # ya provisiona un balanceador por cada Service LoadBalancer, y MetalLB en L2
           # no funciona: la red virtual no reenvia el ARP gratuito del que depende.
@@ -85,11 +91,13 @@ spec:
         workshop.redhat.com/environment: contingencia
         workshop.redhat.com/cluster: '{{.name}}'
       annotations:
-        # Por defecto sin wave explicita (Argo la trata como 0); namespace-
-        # governance-workload la ADELANTA con su propia entrada `wave` en el
-        # `list`, para sincronizar antes que las Applications de negocio que
-        # dependen de que su namespace ya exista gobernado.
-        argocd.argoproj.io/sync-wave: '{{default "0" .wave}}'
+        # TODA entrada del `list` lleva `wave` explicito -- con
+        # goTemplateOptions: [missingkey=error], `{{default "0" .wave}}` FALLA
+        # si algun elemento no declara la clave. namespace-governance-workload
+        # la ADELANTA a "-1" para sincronizar antes que las Applications de
+        # negocio que dependen de que su namespace ya exista gobernado; el
+        # resto va en "0".
+        argocd.argoproj.io/sync-wave: '{{.wave}}'
     spec:
       # El dominio lo declara cada componente en el `list`: el gobierno no
       # comparte sobre de permisos con la configuracion de un producto.
