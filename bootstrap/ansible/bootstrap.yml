@@ -125,6 +125,13 @@
     # Secretos que el bootstrap genera cuando faltan. El contenido nunca se
     # versiona: las claves salen de un aleatorio distinto en cada instalación.
     # La config de Quay es la del día-0 documentada en docs/bootstrap-and-gitops.md.
+    #
+    # quay-config-bundle es TRANSITORIO como Secret imperativo: se crea aquí
+    # porque el almacén aún no existe (huevo-gallina, ver el import de
+    # quay/ansible/config-bundle-vault.yml más abajo), pero en cuanto OpenBao
+    # está vivo se traslada ahí y el ExternalSecret correspondiente
+    # (quay/gitops/base/externalsecret-quay-config-bundle.yaml) toma posesión
+    # del mismo Secret. Cambios futuros al config.yaml van por el almacén.
     secretos_generados:
       - name: quay-config-bundle
         namespace: quay-enterprise
@@ -135,6 +142,15 @@
             AUTHENTICATION_TYPE: Database
             # Sin superusuario, las APIs de gobierno (cuotas, auto-prune) devuelven 403: es el usuario que inicializa este mismo playbook.
             SUPER_USERS: [quayadmin]
+            # SIN ESTO, escribir cuotas devuelve 403 insufficient_scope AUNQUE
+            # el usuario sea superusuario. Verificado en el codigo fuente de Quay
+            # (endpoints/api/namespacequota.py, OrganizationQuota.put): el PUT
+            # exige require_scope(scopes.SUPERUSER) Y ademas
+            # allow_if_superuser_with_full_access(), que depende de ESTE flag
+            # (default False en config.py). SUPER_USERS solo alcanza para LEER
+            # cuotas (GET) y para el resto de APIs de gobierno; escribir cuotas
+            # es un caso aparte que Quay separo a proposito por seguridad.
+            FEATURE_SUPERUSERS_FULL_ACCESS: true
             FEATURE_USER_INITIALIZE: true
             FEATURE_USER_CREATION: false
             FEATURE_ANONYMOUS_ACCESS: false
@@ -675,6 +691,15 @@
 - name: Almacén de secretos (token de acceso)
   ansible.builtin.import_playbook: ../../openbao/ansible/bootstrap.yml
   tags: [openbao, secrets]
+
+# El Secret quay-config-bundle ya existe (paso 10, arranque en frío, antes de
+# que el almacén existiera). Ahora que el almacén SÍ existe, se traslada su
+# valor ahí: a partir de este punto el ExternalSecret
+# (quay/gitops/base/externalsecret-quay-config-bundle.yaml) lo gobierna, y
+# cambios futuros al config.yaml van por el almacén, no por `oc create secret`.
+- name: Trasladar config.yaml de Quay al almacén
+  ansible.builtin.import_playbook: ../../quay/ansible/config-bundle-vault.yml
+  tags: [quay, openbao, secrets]
 
 # El almacenamiento va PRIMERO: con quay_storage_backend=s3 el operador no
 # gestiona el object storage, y hasta que la conexión al bucket no está en el
