@@ -1,6 +1,6 @@
 # Pipelines del workshop (CI/CD de imágenes)
 
-Tres pipelines de Tekton en el namespace `workshop-demo-dev`:
+Cuatro pipelines de Tekton en el namespace `workshop-demo-dev`:
 
 - `ci-build-image` — clona el monorepo de aplicación (clone COMPLETO, con
   historial) y pasa la **puerta de código** en paralelo: **tests unitarios**
@@ -25,7 +25,20 @@ Tres pipelines de Tekton en el namespace `workshop-demo-dev`:
   digest y todo despliegue va por digest.
 - `cd-deploy-application` — clona el repo de configuración, valida que el
   overlay renderiza (`oc kustomize`) y pide a Argo CD un sync explícito de la
-  Application (`app-demo-service-dev`) esperando a que quede Healthy.
+  Application (`app-demo-service-dev`) esperando a que quede Healthy. Incluye
+  la task `smoke-test` (ver "Prueba de humo tras el sync" más abajo): que la
+  Application quede Healthy no significa que el servicio responda a través
+  del gateway.
+- `validate-manifests` — la puerta de entrada de todo Pull Request a un
+  repositorio de manifiestos, disparada desde el `.tekton/` de ese repo
+  (`on-event: [pull_request]`), no desde `workshop-demo-dev`. No construye ni
+  publica nada: clona, renderiza con Kustomize y corre la task
+  `manifest-validate` — seis controles, cada uno correspondiente a un defecto
+  real que ya llegó a producción (marcador `CHANGE_ME` sin sustituir, un
+  cambio de `tcpSocket` a `exec` en una probe que rompe el sync en bucle, un
+  `LimitRange` disputado entre Argo y una Policy de ACM, un kind que el
+  AppProject destino no permite, un `ClusterRole` con verbos comodín). Barato
+  y va primero: un PR que no pasa aquí no llega a revisión humana.
 - `promote-image` — promociona una imagen YA validada entre organizaciones de
   Quay. Antes de copiar **verifica la firma cosign en el origen** (`verify-signature`,
   `"true"` por defecto): sin esa puerta, quien tiene la credencial de promoción
@@ -56,6 +69,12 @@ oc apply -k workshop-pipelines/gitops/overlays/dev
 
 # Lanzar el CI del demo-service (editar antes los CHANGE_ME del fichero)
 oc create -f workshop-pipelines/runs/pipelinerun-ci-build-image.yaml -n workshop-demo-dev
+
+# Lanzar el CI de api-service — MISMO pipeline ci-build-image, otro run: el
+# monorepo trae un Containerfile único con ARG APP, aquí fijado a api-service.
+# Si el cambio toca código común (internal/ en la raíz), lanzar TAMBIÉN el run
+# de demo-service o esa imagen queda construida con la versión antigua.
+oc create -f workshop-pipelines/runs/pipelinerun-ci-build-api-service.yaml -n workshop-demo-dev
 
 # Lanzar el CD a mano (no hay Triggers: SIEMPRE se lanza a mano; ver "Rol del CD")
 oc create -f workshop-pipelines/runs/pipelinerun-cd-deploy-application.yaml -n workshop-demo-dev
@@ -208,6 +227,21 @@ una revisión concreta y espera a que la Application quede Healthy con
 diagnóstico si no converge. Úsalo antes de una demo o al depurar un overlay;
 si algún día se quiere como puerta real, hay que desactivar el auto-sync y
 añadir un webhook (repo de config → EventListener), no solo el webhook.
+
+## Prueba de humo tras el sync
+
+Que la Application quede `Healthy` significa que los pods arrancaron y
+pasaron sus probes — no que el servicio responda a través del gateway. Un
+`HTTPRoute` mal formado, un hostname equivocado o una `AuthPolicy` que
+rechaza todo dejan la Application en verde y el servicio inalcanzable. La
+task `smoke-test`, integrada en `cd-deploy-application`, cubre esa
+diferencia en dos pasos: primero comprueba que `target-url` responde el
+`expected-status` esperado (por defecto `200`; `401` sirve para comprobar
+solo que el gateway y la `AuthPolicy` están en su sitio, sin autenticarse),
+y solo si hay una imagen de carga configurada (`k6-image`) lanza k6 — así el
+caso común no arrastra una dependencia externa. `k6` no tiene equivalente en
+`registry.redhat.io`: va espejado en el Quay corporativo y fijado por
+digest, igual que `semgrep` y `syft`.
 
 ## Secretos y config requeridos (NUNCA en Git)
 

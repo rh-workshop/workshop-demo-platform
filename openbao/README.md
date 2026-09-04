@@ -126,6 +126,13 @@ oc exec -n openbao openbao-0 -- env BAO_TOKEN="$BAO_OPERATOR_TOKEN" BAO_ADDR=htt
   "bao kv put -mount=secret platform/keycloak/db-<ambiente> user=keycloak password=$DB_PASS dbname=keycloak"
 ```
 
+**Mismo gap con `platform/acs/smtp`** (credencial SMTP del reporte de
+vulnerabilidades de ACS, ver [`acs/README.md`](../acs/README.md)): tampoco
+la siembra ningún playbook — solo `bao kv put` manual. A diferencia de
+Keycloak, aquí no hay un `Secret` materializado del que recuperar el valor
+(el `ExternalSecret acs-smtp` queda `SecretSyncedError` hasta resembrarla a
+mano con la credencial real).
+
 **`bao operator init` NO habilita ningún motor de secretos.** Solo trae
 `cubbyhole`, `identity` y `sys` — nada en `secret/`. `bootstrap.yml` ya
 incluye el paso (`bao secrets enable -path=secret -version=2 kv`,

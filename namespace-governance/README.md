@@ -35,8 +35,8 @@ convierte a ACM en el aplicador de todo, sin tocar nada mas.
 gitops/
 ├── base/
 │   ├── profiles/                  # El QUÉ: plantillas compartidas, sin namespace
-│   │   ├── app-namespace/         #   cuota + límites + RBAC (3 grupos) + 4 NetworkPolicy
 │   │   └── platform-namespace/    #   cuota + límites + RBAC (2 grupos), sin NetworkPolicy
+│   │                              #   (el perfil app-namespace vive en namespace-governance-workload/)
 │   ├── namespaces/                # El DÓNDE: un directorio por namespace gobernado
 │   │   └── <ns>/kustomization.yaml  #  consume un perfil y declara SOLO sus desviaciones
 │   ├── workload/                  # Subconjunto de namespaces/: los que existen en
@@ -103,8 +103,9 @@ y la nota en "Qué namespaces entran y cuáles no" más abajo.
 ## Cómo añadir un namespace nuevo
 
 1. Crear `gitops/base/namespaces/<ns>/kustomization.yaml` con `namespace: <ns>`
-   y el perfil como resource (`../../profiles/app-namespace` o
-   `.../platform-namespace`).
+   y `../../profiles/platform-namespace` como resource — es el único perfil de
+   este componente (el perfil `app-namespace`, para namespaces de negocio,
+   vive en [`namespace-governance-workload/`](../namespace-governance-workload/README.md)).
 2. Si el namespace es hub-only y nadie más lo declara, añadir su
    `namespace.yaml` al directorio (los multi-cluster NO: su Namespace viaja
    con el producto).
@@ -162,19 +163,27 @@ enforce. Los perfiles y la Policy deben moverse juntos si el sobre cambia.
 
 ### Perfiles RBAC (grupos genéricos, mapear a Entra/LDAP en el cluster real)
 
+Este componente solo tiene el perfil `platform-namespace` (2 grupos: RBAC de
+`app-developers` sobre namespaces de plataforma es únicamente `view`, para
+depurar su exposición — nunca `edit` aquí). El perfil `app-namespace` (3
+grupos, incluido `app-developers: edit`) vive en el componente hermano — ver
+su tabla de RBAC en
+[`namespace-governance-workload/README.md`](../namespace-governance-workload/README.md).
+
 | Grupo | Permiso | Dónde |
 |---|---|---|
-| `platform-admins` | `admin` | Todos los namespaces gobernados (en ambos perfiles) |
-| `app-developers` | `edit` | Perfil app (los 5 namespaces de aplicaciones) |
+| `platform-admins` | `admin` | Todos los namespaces de este componente |
 | `app-developers` | `view` | platform-gateway y kuadrant-system (depurar su exposición) |
-| `platform-viewers` | `view` | Todos los namespaces gobernados (en ambos perfiles) |
+| `platform-viewers` | `view` | Todos los namespaces de este componente |
 
 ### NetworkPolicy
 
-Solo el perfil `app-namespace` las trae (modelo cerrado: mismo namespace +
-gateway compartido + monitoring + routers). Los namespaces de operadores quedan
-fuera a propósito: sus flujos internos (webhooks, conversion, scanners) son del
-operador y una policy genérica los rompería sin aportar valor didáctico.
+El perfil `platform-namespace` NO las trae: los namespaces de operadores
+quedan fuera a propósito, sus flujos internos (webhooks, conversion,
+scanners) son del operador y una policy genérica los rompería sin aportar
+valor didáctico. Las 4 NetworkPolicy (modelo cerrado: mismo namespace +
+gateway compartido + monitoring + routers) solo existen en el perfil
+`app-namespace` del componente hermano, para namespaces de negocio.
 
 ## Referencias
 

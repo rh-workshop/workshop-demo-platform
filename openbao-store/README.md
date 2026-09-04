@@ -31,6 +31,7 @@ conditions:
       - open-cluster-management
       - open-cluster-management-observability
       - quay-enterprise
+      - stackrox
 ```
 
 Sin esta lista, cualquier `ExternalSecret` de cualquier namespace del cluster
