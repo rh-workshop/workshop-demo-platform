@@ -36,30 +36,28 @@ policyDefaults:
     placementName: clusters-workload
 policies:
   # Aislamiento de red: alcanza TODOS los namespaces de negocio, sin excepción.
+  # Sigue en enforce: los `*-demo-dev/test/prod/contingencia` FIJOS ya los
+  # gobierna namespace-governance-workload/ (Argo, wave -1, antes del
+  # despliegue), pero esta Policy tambien cubre `demo-service-pr-*` -- namespaces
+  # de preview efimeros que nacen y mueren con cada PR y NUNCA se pueden
+  # enumerar en un Kustomize. Retirarla dejaria esos previews sin aislamiento.
   - name: require-namespace-isolation
     manifests:
       - path: policies/require-namespace-isolation/manifests/networkpolicy-allow-same-namespace.yaml
       - path: policies/require-namespace-isolation/manifests/networkpolicy-allow-from-platform-gateway.yaml
       - path: policies/require-namespace-isolation/manifests/networkpolicy-allow-from-monitoring.yaml
       - path: policies/require-namespace-isolation/manifests/networkpolicy-allow-from-openshift-ingress.yaml
-  # RBAC por grupo. Va aparte del aislamiento para poder excluir un namespace del
-  # `edit` sin dejarlo tambien sin NetworkPolicies.
-  - name: require-namespace-rbac
-    namespaceSelector:
-      include:
-        - "*-demo-dev"
-        - "*-demo-test"
-        - "*-demo-prod"
-        - "*-demo-contingencia"
-      exclude:
-        - "openshift-*"
-        - "kube-*"
-        - "default"
-        - "open-cluster-management*"
-        # Aqui viven los Secrets del CI: namespace-governance le da un Role sin
-        # acceso a ellos, y el `edit` de este perfil lo desharia.
-        - "workshop-demo-dev"
-    manifests:
-      - path: policies/require-namespace-isolation/manifests/rolebinding-platform-admins.yaml
-      - path: policies/require-namespace-isolation/manifests/rolebinding-app-developers.yaml
-      - path: policies/require-namespace-isolation/manifests/rolebinding-platform-viewers.yaml
+  # require-namespace-rbac RETIRADA (2026-09-04): namespace-governance-workload/
+  # ya gobierna el RBAC de los namespaces de negocio FIJOS por Argo, con Roles
+  # propios acotados a lo que argocd-push puede otorgar (nunca ClusterRole/edit
+  # completo -- ver namespace-governance-workload/gitops/base/profiles/
+  # app-namespace/role-app-developers.yaml). Dejar esta Policy en enforce
+  # competia con Argo: reponia `app-developers-edit` -> ClusterRole/edit junto
+  # al RoleBinding acotado nuevo, dejando a app-developers con `edit` completo
+  # en la práctica pese al Role recortado. Verificado en vivo: NonCompliant en
+  # los 4 spokes tras el cambio, y el RoleBinding viejo seguía presente.
+  #
+  # Los previews de PR (`demo-service-pr-*`) NO entran aquí -- namespace-
+  # governance-workload solo cubre namespaces fijos enumerables. Si algún día
+  # necesitan RBAC además de aislamiento de red, es una Policy nueva y acotada
+  # a ese patrón, no revivir esta.
