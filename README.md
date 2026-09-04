@@ -258,18 +258,27 @@ se fija en el overlay del ambiente, nunca en la base.
 
 ## Qué gobierna cada producto
 
-| Producto | Va por GitOps | Va por Ansible |
-|---|---|---|
-| **Quay** | `QuayRegistry`, namespace | organizaciones, repositorios, robots |
-| **Keycloak** | `Keycloak`, `KeycloakRealmImport`, namespace | clientes y sus secretos |
-| **MetalLB** | `MetalLB`, `IPAddressPool`, `L2Advertisement` | — |
-| **cert-manager** | `ClusterIssuer` | — |
-| **Connectivity Link** | `Kuadrant`, `Gateway` | — |
-| **Pipelines** | `TektonConfig` (con Chains) | claves de firma cosign *(fuera de Git)* |
-| **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** |
-| **ACM** | `MultiClusterHub`, `Policy`/`Placement`/`PlacementBinding` | — |
-| **Developer Hub** | CR `Backstage` + ConfigMaps (app-config, plugins, RBAC csv), Software Templates | — *(todo declarativo)* |
-| **Service Mesh** | CR `Istio` + `IstioCNI` *(vía **Helm**, no Kustomize — ver nota)* | — |
+| Producto | Va por GitOps | Va por Ansible | Doc propia |
+|---|---|---|---|
+| **Quay** | `QuayRegistry`, namespace | organizaciones, repositorios, robots | [`quay/README.md`](quay/README.md) |
+| **Keycloak** | `Keycloak`, `KeycloakRealmImport`, namespace | clientes y sus secretos | — |
+| **MetalLB** | `MetalLB`, `IPAddressPool`, `L2Advertisement` | — | — |
+| **cert-manager** | `ClusterIssuer` | — | — |
+| **Connectivity Link** | `Kuadrant`, `Gateway` | — | — |
+| **Pipelines** | `TektonConfig` (con Chains) | claves de firma cosign *(fuera de Git)* | — |
+| **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** | — |
+| **ACM** | `MultiClusterHub`, `Policy`/`Placement`/`PlacementBinding` | — | [`acm/README.md`](acm/README.md) |
+| **Developer Hub** | CR `Backstage` + ConfigMaps (app-config, plugins, RBAC csv), Software Templates | — *(todo declarativo)* | — |
+| **Service Mesh** | CR `Istio` + `IstioCNI` *(vía **Helm**, no Kustomize — ver nota)* | — | — |
+| **OpenBao** | `StatefulSet` (Raft, TLS), único en el hub | inicialización, desello, tokens | [`openbao/README.md`](openbao/README.md) |
+| **openbao-store** | `ClusterSecretStore`, en cada cluster | — | [`openbao-store/README.md`](openbao-store/README.md) |
+| **Kafka** | `Kafka`, `KafkaNodePool`, `KafkaTopic`/`KafkaUser` | llaves de cifrado del pipeline de auditoría | [`kafka/README.md`](kafka/README.md) |
+| **namespace-governance** | cuota, límites, RBAC, admisión — namespaces de plataforma | — | [`namespace-governance/README.md`](namespace-governance/README.md) |
+| **namespace-governance-workload** | cuota, límites, RBAC — namespaces de negocio | — | [`namespace-governance-workload/README.md`](namespace-governance-workload/README.md) |
+| **workshop-pipelines** | `Task`/`Pipeline` de CI/CD/promoción | — | [`workshop-pipelines/README.md`](workshop-pipelines/README.md) |
+
+Los productos sin doc propia todavía se documentan solo en línea, dentro de
+cada manifiesto — pendiente de nivelar con el resto.
 
 ## Reglas que no se rompen
 

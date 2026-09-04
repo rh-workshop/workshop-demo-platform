@@ -58,6 +58,26 @@ desella solo sin que la clave viva en el clúster. Migración: añadir el bloque
 `seal` a la config y ejecutar `bao operator unseal -migrate` con las claves de
 Shamir, que pasan a ser claves de recuperación.
 
+## El modelo de tokens: NO hay ninguno persistente de escritura
+
+Solo dos tipos de token existen en el diseño actual:
+
+| Token | Alcance | Dónde vive |
+|---|---|---|
+| `eso-read-<ambiente>` / `eso-read-hub` | Solo lectura, acotado por policy a las rutas de ese ambiente | `Secret openbao-eso-token(-hub)` en `openbao`, o replicado a cada spoke por la Policy `require-vault-token` de ACM |
+| Raíz / operador (`BAO_OPERATOR_TOKEN`) | Total, incluida escritura | **Nunca se guarda en el clúster.** Lo aporta quien ejecuta el playbook, por variable de entorno, y se revoca tras el arranque |
+
+**Cualquier playbook que escriba en el almacén (`bao kv put`) necesita
+`BAO_OPERATOR_TOKEN`** — los tokens `eso-read-*` no alcanzan, son de solo
+lectura a propósito. Si un playbook de producto falla con `permission denied`
+al depositar un secreto, la causa casi siempre es que le falta esa variable, no
+que el token esté mal configurado.
+
+Si en algún fichero aparece una referencia a `openbao-dev-token`: es un
+**nombre legado**. Este playbook (la versión actual, mantenida) ya no lo crea
+ni lo usa en ningún punto — si algún playbook de producto todavía lo
+referencia, está desalineado y hay que corregirlo al patrón de arriba.
+
 ## Cambiar la plantilla del StatefulSet (imagen, probes, recursos)
 
 Argo aplica el cambio pero, por `OnDelete`, no reinicia nada. El operador lo
@@ -83,9 +103,38 @@ oc delete statefulset openbao -n openbao --cascade=orphan
 ## Recuperación completa (pérdida de los tres PVC)
 
 Solo en ese caso hay que volver a inicializar (`bootstrap.yml`), desellar y
-recargar los secretos con los playbooks de cada producto (Quay, ACM
-observability, Keycloak, Kafka). Antes de cualquier operación de riesgo,
-snapshot de Raft:
+recargar los secretos con los playbooks de cada producto:
+
+```bash
+export BAO_OPERATOR_TOKEN='<token raíz emitido en el init>'
+ansible-playbook quay/ansible/config-bundle-vault.yml   # config.yaml de Quay
+ansible-playbook quay/ansible/pull-secrets.yml          # credenciales de origen del registro
+ansible-playbook kafka/ansible/llaves-cifrado.yml       # llaves de cifrado por ambiente
+ansible-playbook acm/ansible/observability.yml          # conexión S3 de Thanos
+```
+
+**Reinicializar borra `secret/` por completo, incluida la credencial de
+PostgreSQL de Keycloak** (`platform/keycloak/db-<ambiente>`) — ningún playbook
+la siembra: se creó a mano en algún punto anterior a este repo. Si el
+`ExternalSecret keycloak-pgsql-user` de un cluster queda `SecretSyncedError`
+tras la reinicialización, el `Secret` ya materializado conserva el último
+valor bueno (ESO no lo borra al fallar el refresco) — se recupera de ahí:
+
+```bash
+DB_PASS=$(oc get secret keycloak-pgsql-user -n keycloak -o jsonpath='{.data.password}' | base64 -d)
+oc exec -n openbao openbao-0 -- env BAO_TOKEN="$BAO_OPERATOR_TOKEN" BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/ca.crt sh -c \
+  "bao kv put -mount=secret platform/keycloak/db-<ambiente> user=keycloak password=$DB_PASS dbname=keycloak"
+```
+
+**`bao operator init` NO habilita ningún motor de secretos.** Solo trae
+`cubbyhole`, `identity` y `sys` — nada en `secret/`. `bootstrap.yml` ya
+incluye el paso (`bao secrets enable -path=secret -version=2 kv`,
+idempotente), pero si se ejecuta algún `bao kv put` a mano contra un vault
+recién inicializado y sin pasar antes por el playbook, falla con
+`preflight capability check returned 403` — no es un problema de permisos del
+token, es que el `mount` ni existe todavía.
+
+Antes de cualquier operación de riesgo, snapshot de Raft:
 
 ```bash
 oc exec -n openbao openbao-0 -- sh -c \

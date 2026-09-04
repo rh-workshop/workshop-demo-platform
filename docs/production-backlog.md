@@ -37,6 +37,8 @@ intencional que se acepta.
 | Service Mesh | El chart crea `IstioCNI` pero no el namespace `istio-cni` → no arregla el `IstioCNINotFound` | ✅ |
 | ACS | El playbook parte de premisa falsa ("no hay CRD"); existe `SecurityPolicy` (Policy-as-Code) | ✅ |
 | ACM | Placement `clusters-prod` con set `global` sin binding; OperatorPolicy sin version pinning | ✅ |
+| OpenBao | `bao operator init` no habilita ningún motor KV — `bootstrap.yml` asumía `secret/` ya existente de una instalación anterior; 4 playbooks de producto apuntaban a `openbao-dev-token`, un nombre que el bootstrap actual ya no crea (solo emite tokens `eso-read-*`, de solo lectura) | ✅ |
+| Quay | `quay-config-bundle` era un `Secret` imperativo de una sola vez, sin ruta de actualización declarativa — cualquier cambio de `config.yaml` (como el hallazgo #15 de abajo) exigía `oc create secret` a mano | ✅ |
 
 ---
 
@@ -71,6 +73,49 @@ intencional que se acepta.
 | 11 | 🟠 | Bug permisos robot: fix subelements+include (todos los repos) | A | ✅ |
 | 12 | 🟠 | `400=éxito`: limitación documentada + cómo endurecer | A | ✅ |
 | 9,13,14 | 🟡 | quota+auto-prune por org (governance.yml); typo corregido | A | ✅ |
+| 15 | 🔴 | Escribir cuotas devolvía 403 con CUALQUIER superusuario — no era bug de la consola | A | ✅ |
+
+### #15 — Parecía bug de la UI. Era una feature flag que faltaba (2026-09-04)
+
+**Síntoma:** logueado como `quayadmin` (superusuario confirmado, badge visible),
+cualquier intento de cambiar una cuota desde `Organizations → ⚙️ → Configure
+Quota → Apply` fallaba con `quota update error, Unauthorized`. Se sospechó
+sesión rota, contraseña vieja, o bug de la consola.
+
+**No era ninguna de las tres.** Reproducido en vivo con Playwright, la llamada
+real es `PUT /api/v1/organization/<org>/quota/<id>` → `403`,
+`error_type: insufficient_scope`. Rastreado hasta el código fuente de Quay
+(`endpoints/api/namespacequota.py`, clase `OrganizationQuota.put`):
+
+```python
+@require_scope(scopes.SUPERUSER)
+def put(self, orgname, quota_id):
+    if not allow_if_superuser_with_full_access():
+        raise Unauthorized()
+```
+
+`allow_if_superuser_with_full_access()` depende del feature flag
+`FEATURE_SUPERUSERS_FULL_ACCESS`, cuyo default en `config.py` es **`False`**.
+`SUPER_USERS: [quayadmin]` (ya presente en este repo desde el bootstrap) solo
+cubre `GET` y el resto de las APIs de gobierno (auto-prune, etc.) — **escribir
+cuotas es un caso que Quay separó a propósito**, con su propio flag. Ningún
+superusuario puede escribir cuotas sin él, sin importar cómo se autentique.
+
+**Fix:** una línea en `config.yaml` —
+
+```yaml
+FEATURE_SUPERUSERS_FULL_ACCESS: true
+```
+
+Verificado de punta a punta: el mismo flujo de Playwright que daba `403` pasó
+a `200 OK` con `"Successfully updated quota"`.
+
+**La lección, no solo el fix:** ante un `403`/`Unauthorized` de una API de
+Quay, la primera pregunta no es "¿el usuario tiene el rol correcto?" sino
+"¿el *endpoint* tiene el feature flag correcto?" — Quay expone varias
+capacidades de superusuario detrás de flags independientes de `SUPER_USERS`
+(este caso; probablemente otros). No asumir que "ya es superusuario" agota la
+lista de configuración necesaria.
 
 ## Connectivity Link (Kuadrant)
 
