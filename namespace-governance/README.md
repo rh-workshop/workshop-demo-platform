@@ -29,17 +29,37 @@ existe. No es duplicidad: es el hueco que Argo no alcanza.
 En un cliente **sin Argo CD**, cambiar las Policies de `inform` a `enforce`
 convierte a ACM en el aplicador de todo, sin tocar nada mas.
 
-## Estructura: perfil compartido + un directorio por namespace
+## Estructura: perfil compartido + un directorio por namespace + overlay por cluster
 
 ```
-gitops/base/
-├── profiles/                    # El QUÉ: plantillas compartidas, sin namespace
-│   ├── app-namespace/           #   cuota + límites + RBAC (3 grupos) + 4 NetworkPolicy
-│   └── platform-namespace/      #   cuota + límites + RBAC (2 grupos), sin NetworkPolicy
-├── namespaces/                  # El DÓNDE: un directorio por namespace gobernado
-│   └── <ns>/kustomization.yaml  #   consume un perfil y declara SOLO sus desviaciones
-└── kustomization.yaml           # Índice: enumera los 11 namespaces gobernados
+gitops/
+├── base/
+│   ├── profiles/                  # El QUÉ: plantillas compartidas, sin namespace
+│   │   ├── app-namespace/         #   cuota + límites + RBAC (3 grupos) + 4 NetworkPolicy
+│   │   └── platform-namespace/    #   cuota + límites + RBAC (2 grupos), sin NetworkPolicy
+│   ├── namespaces/                # El DÓNDE: un directorio por namespace gobernado
+│   │   └── <ns>/kustomization.yaml  #  consume un perfil y declara SOLO sus desviaciones
+│   ├── workload/                  # Subconjunto de namespaces/: los que existen en
+│   │   │                          # TODOS los clusters (hub y spokes). Los overlays de
+│   │   │                          # spoke referencian solo esta carpeta, nunca base/
+│   │   │                          # completo — el resto de namespaces/ es exclusivo del hub.
+│   │   └── kustomization.yaml
+│   ├── identity/                  # Objetos Group (vacíos), solo hub
+│   ├── admission/                 # ValidatingAdmissionPolicy
+│   └── kustomization.yaml         # Índice: TODO lo del hub (namespaces/* + workload/)
+└── overlays/
+    ├── hub/kustomization.yaml     # -> ../../base completo
+    ├── dev/kustomization.yaml     # -> ../../base/workload (solo el subconjunto compartido)
+    ├── test/…
+    ├── prod/…
+    └── contingencia/…
 ```
+
+Cada cluster tiene su propia Application apuntando al overlay de su rol
+(`overlays/<rol>`); el hub gobierna los namespaces exclusivos suyos más los
+compartidos, cada spoke gobierna solo los compartidos. Nunca hay un directorio
+hermano de `base/`: todo lo específico de un subconjunto de clusters vive
+DENTRO de `base/`, como `workload/`.
 
 El patrón sigue la práctica documentada por Red Hat para onboarding de
 proyectos con GitOps: una **plantilla única** de gobierno (allí un Helm chart
@@ -56,24 +76,28 @@ mecanismo canónico de Kustomize para este caso es el que se usa: base sin
 namespace + transformer `namespace:` en cada consumidor. Un ApplicationSet con
 generador `git directories` sobre `namespaces/` sería el paso siguiente si los
 namespaces se contaran por cientos o el alta fuera self-service de los equipos;
-con 11 namespaces y un solo cluster destino, una única Application mantiene el
-plano de control simple.
+con 7 namespaces y 5 clusters destino (hub + 4 spokes, cada uno con su propia
+Application vía `overlays/<rol>`), una Application por cluster mantiene el
+plano de control simple sin necesitar ese generador.
 
 ## Índice de namespaces gobernados
 
-| Directorio | Perfil | Desviaciones |
-|---|---|---|
-| `workshop-demo-dev` | app | — |
-| `canary-demo-dev` | app | — |
-| `bluegreen-demo-dev` | app | — |
-| `circuit-breaker-demo-dev` | app | — |
-| `api-demo-dev` | app | — |
-| `quay-enterprise` | platform | Namespace propio; cuota 32 CPU / 56Gi req |
-| `stackrox` | platform | Namespace propio; cuota 24 CPU / 48Gi req |
-| `developer-hub` | platform | Namespace propio; limits 16 CPU / 32Gi |
-| `openshift-pipelines` | platform | Namespace propio (+label monitoring); limits 24 CPU / 48Gi |
-| `kuadrant-system` | platform | LimitRange 2Gi; `app-developers` view |
-| `platform-gateway` | platform | LimitRange 2Gi; `app-developers` view |
+7 directorios reales bajo `base/namespaces/` (2 compartidos con los spokes vía
+`base/workload/`, 5 exclusivos del hub):
+
+| Directorio | Perfil | Overlay | Desviaciones |
+|---|---|---|---|
+| `workshop-demo-dev` | app | hub | Sin `app-developers`: alberga Secrets del CI, `Role` propio sin acceso a ellos |
+| `quay-enterprise` | platform | hub | Namespace propio; cuota 32 CPU / 56Gi req |
+| `stackrox` | platform | hub | Namespace propio; cuota 24 CPU / 48Gi req |
+| `developer-hub` | platform | hub | Namespace propio; limits 16 CPU / 32Gi |
+| `openshift-pipelines` | platform | hub | Namespace propio (+label monitoring); limits 24 CPU / 48Gi |
+| `kuadrant-system` | platform | **hub + todos los spokes** | LimitRange 2Gi; `app-developers` view |
+| `platform-gateway` | platform | **hub + todos los spokes** | LimitRange 2Gi; `app-developers` view |
+
+Los namespaces de aplicaciones (`canary-demo-dev`, `bluegreen-demo-dev`,
+`circuit-breaker-demo-dev`, `api-demo-dev`) **no entran todavía** — ver
+"Qué namespaces entran y cuáles no" más abajo.
 
 ## Cómo añadir un namespace nuevo
 
@@ -86,9 +110,17 @@ plano de control simple.
 3. Si necesita una cuota o límites distintos, añadir un
    `resourcequota-patch.yaml` / `limitrange-patch.yaml` y referenciarlo en
    `patches:` — el perfil no se toca.
-4. Añadir el directorio al `resources:` de `gitops/base/kustomization.yaml`.
-5. Validar con `kubectl kustomize gitops/overlays/hub` y abrir PR: el diff
-   muestra exactamente el gobierno del namespace nuevo, nada más.
+4. Añadir el directorio a `resources:`:
+   - **Hub-only** (Quay, ACS, Developer Hub, Pipelines...): directo en
+     `gitops/base/kustomization.yaml`.
+   - **Compartido con los spokes** (como `kuadrant-system`,
+     `platform-gateway`): en `gitops/base/workload/kustomization.yaml` — así
+     llega automáticamente al hub (que incluye `workload/`) y a los 4 spokes
+     (cuyos overlays lo referencian).
+5. Validar con `oc kustomize gitops/overlays/<rol>` para **cada** overlay que
+   deba llevarlo (`hub` siempre; además `dev`/`test`/`prod`/`contingencia` si
+   es compartido) y abrir PR: el diff muestra exactamente el gobierno del
+   namespace nuevo, nada más.
 
 ## Decisiones
 
