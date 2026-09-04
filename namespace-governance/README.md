@@ -82,22 +82,23 @@ plano de control simple sin necesitar ese generador.
 
 ## Índice de namespaces gobernados
 
-7 directorios reales bajo `base/namespaces/` (2 compartidos con los spokes vía
-`base/workload/`, 5 exclusivos del hub):
+Este componente gobierna namespaces de PLATAFORMA — de privilegio (`identity/`,
+`admission/`) o exclusivos del hub. Los namespaces de NEGOCIO
+(`workshop-demo-dev`, `canary-demo-dev`...) NO viven aquí: ver
+[`namespace-governance-workload/README.md`](../namespace-governance-workload/README.md)
+y la nota en "Qué namespaces entran y cuáles no" más abajo.
+
+6 directorios bajo `base/namespaces/` (2 compartidos con los spokes vía
+`base/workload/`, 4 exclusivos del hub):
 
 | Directorio | Perfil | Overlay | Desviaciones |
 |---|---|---|---|
-| `workshop-demo-dev` | app | hub | Sin `app-developers`: alberga Secrets del CI, `Role` propio sin acceso a ellos |
 | `quay-enterprise` | platform | hub | Namespace propio; cuota 32 CPU / 56Gi req |
 | `stackrox` | platform | hub | Namespace propio; cuota 24 CPU / 48Gi req |
 | `developer-hub` | platform | hub | Namespace propio; limits 16 CPU / 32Gi |
 | `openshift-pipelines` | platform | hub | Namespace propio (+label monitoring); limits 24 CPU / 48Gi |
 | `kuadrant-system` | platform | **hub + todos los spokes** | LimitRange 2Gi; `app-developers` view |
 | `platform-gateway` | platform | **hub + todos los spokes** | LimitRange 2Gi; `app-developers` view |
-
-Los namespaces de aplicaciones (`canary-demo-dev`, `bluegreen-demo-dev`,
-`circuit-breaker-demo-dev`, `api-demo-dev`) **no entran todavía** — ver
-"Qué namespaces entran y cuáles no" más abajo.
 
 ## Cómo añadir un namespace nuevo
 
@@ -136,13 +137,16 @@ Los namespaces de aplicaciones (`canary-demo-dev`, `bluegreen-demo-dev`,
   SÍ se gobiernan aquí.
 - **No entran** open-cluster-management ni los namespaces de operadores: los
   crea el componente `acm` (dependencia del bootstrap).
-- **No entran (aún)** los Namespace de las aplicaciones (`*-demo-dev`): el
-  criterio correcto es que el namespace y su cuota son gobierno de plataforma,
-  pero hoy los declara `workshop-demo-app-config` y ese repo está en plena
-  reestructuración. Propuesta: cuando esa reestructuración termine, mover los
-  cinco Namespace a sus directorios de aquí y dejar en el repo de apps solo los
-  workloads. Mientras tanto, este componente ya gobierna sus cuotas, límites,
-  RBAC y red (recursos nuevos, sin conflicto de ownership).
+- **No entran aquí** los Namespace de las aplicaciones (`workshop-demo-dev`,
+  `canary-demo-dev`...): viven en el componente hermano
+  `namespace-governance-workload/`, en la instancia de CARGAS
+  (`openshift-gitops`), no en la de gobierno. Un RoleBinding a los ClusterRole
+  estándar `edit`/`view`/`admin` de un namespace de negocio no acuña privilegio
+  nuevo en la flota como sí hacen las Policies de ACM y los `Group` de este
+  componente — y necesita compartir instancia con las Applications de negocio
+  que dependen de él, para que el sync-wave garantice el orden entre ambas (el
+  orden entre DOS instancias de Argo no está garantizado). Ver D.2/A.2 del
+  [`governance-backlog.md`](../docs/governance-backlog.md).
 
 ### Dimensionado de cuotas
 

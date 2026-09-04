@@ -1,0 +1,20 @@
+# Perfil de namespace de APLICACIÓN (negocio): cuota + límites + RBAC de los
+# 3 grupos + aislamiento de red cerrado. Replica exactamente lo que hoy aplica
+# la Policy de ACM `require-namespace-isolation` (NetworkPolicy) y
+# `require-resourcequota`/`require-limitrange` por enforce en los namespaces
+# `*-demo-*` — ver namespace-governance/README.md, "Argo aplica, ACM verifica".
+#
+# Modelo de red cerrado: mismo namespace + gateway compartido + monitoring +
+# routers de ingress. Nada más entra por defecto.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - resourcequota-default.yaml
+  - limitrange-default.yaml
+  - rolebinding-app-developers.yaml
+  - rolebinding-platform-admins.yaml
+  - rolebinding-platform-viewers.yaml
+  - networkpolicy-allow-same-namespace.yaml
+  - networkpolicy-allow-from-platform-gateway.yaml
+  - networkpolicy-allow-from-monitoring.yaml
+  - networkpolicy-allow-from-openshift-ingress.yaml

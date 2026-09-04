@@ -1,11 +1,19 @@
-# Base del gobierno de namespaces: UN DIRECTORIO POR NAMESPACE gobernado.
-# Cada directorio consume un perfil compartido (profiles/) y declara SOLO sus
-# desviaciones; para saber qué gobierna un namespace se abre su directorio.
+# Base del gobierno de namespaces DE PLATAFORMA (privilegio: identity/admission
+# + namespaces de productos exclusivos del hub). Los namespaces de NEGOCIO
+# (workshop-demo-dev, canary-demo-dev...) viven aparte, en el componente
+# namespace-governance-workload/, porque su RBAC (edit/view/admin estándar) no
+# acuña privilegio como sí hacen las Policies de ACM y los Group de aquí — y
+# porque deben vivir en la MISMA instancia de Argo que las Applications de
+# negocio que dependen de ellos, para que el sync-wave garantice el orden.
+#
+# UN DIRECTORIO POR NAMESPACE gobernado. Cada directorio consume un perfil
+# compartido (profiles/) y declara SOLO sus desviaciones; para saber qué
+# gobierna un namespace se abre su directorio.
 #
 # workload/ es el subconjunto que existe en TODOS los clusters (hub y spokes);
 # los overlays de spoke lo referencian solo a él. El resto de esta lista son
-# namespaces EXCLUSIVOS del hub (Quay, ACS, Developer Hub, Pipelines, el CI de
-# workshop-demo-dev) y solo llegan aquí, vía overlays/hub.
+# namespaces EXCLUSIVOS del hub (Quay, ACS, Developer Hub, Pipelines) y solo
+# llegan aquí, vía overlays/hub.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -18,9 +26,6 @@ resources:
   # Reglas de admision: lo que RBAC no puede expresar (con QUE identidad corre
   # una carga, no solo quien la crea).
   - admission
-  # El perfil común lo aplica ahora la Policy require-namespace-isolation; aquí
-  # solo quedan las desviaciones propias de un namespace.
-  - namespaces/workshop-demo-dev
   # Namespaces de plataforma EXCLUSIVOS del hub (perfil platform-namespace + desviaciones).
   - namespaces/quay-enterprise
   - namespaces/stackrox

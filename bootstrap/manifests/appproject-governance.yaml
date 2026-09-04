@@ -47,18 +47,35 @@ spec:
     namespace: kuadrant-system
   - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
     namespace: platform-gateway
+  # Namespaces de NEGOCIO de dev (namespace-governance-workload): mismo dominio
+  # que workshop-demo-dev en el hub, misma logica -- el RBAC estandar
+  # edit/view/admin y las cuotas no acuñan privilegio nuevo.
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
+    namespace: canary-demo-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
+    namespace: bluegreen-demo-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
+    namespace: circuit-breaker-demo-dev
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-dev
+    namespace: api-demo-dev
   - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: kuadrant-system
   - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
     namespace: platform-gateway
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-test
+    namespace: workshop-demo-test
   - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: kuadrant-system
   - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
     namespace: platform-gateway
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-prod
+    namespace: workshop-demo-prod
   - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: kuadrant-system
   - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
     namespace: platform-gateway
+  - server: https://cluster-proxy-addon-user.multicluster-engine.svc.cluster.local:9092/cluster-contingencia
+    namespace: workshop-demo-contingencia
   clusterResourceWhitelist:
   - group: ''
     kind: Namespace

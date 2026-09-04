@@ -1,0 +1,6 @@
+# Namespace de aplicación sin desviaciones: perfil app-namespace completo.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: circuit-breaker-demo-dev
+resources:
+  - ../../profiles/app-namespace

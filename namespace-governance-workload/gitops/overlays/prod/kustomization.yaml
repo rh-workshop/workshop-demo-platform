@@ -1,0 +1,9 @@
+# Gobierno del namespace de negocio del cluster de prod.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base/namespaces/workshop-demo-prod
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: workshop-platform
+      workshop.redhat.com/environment: prod
