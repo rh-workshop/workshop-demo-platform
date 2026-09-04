@@ -1,0 +1,17 @@
+# Role ACOTADO para platform-viewers, en vez de ClusterRole/view.
+#
+# Verificado en vivo: incluso `view` falla al otorgarse via argocd-push --
+# no solo por get/list/watch (que argocd-push sí tiene con ['*']/['*']), sino
+# porque `view` AGREGA tambien reglas de escritura de algunos CRDs (p. ej.
+# trust.cert-manager.io/bundles con create/update/patch/delete). Ningun
+# ClusterRole agregado de OpenShift (edit/admin/view) es otorgable de forma
+# segura por una identidad acotada: crecen solos con cada operador que se
+# instale. Ver role-app-developers.yaml para el detalle completo.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-viewer
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]

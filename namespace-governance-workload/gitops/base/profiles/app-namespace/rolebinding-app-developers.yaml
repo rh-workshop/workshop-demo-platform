@@ -1,11 +1,14 @@
+# Referencia al Role ACOTADO (role-app-developers.yaml), no al ClusterRole
+# 'edit'. Ver el comentario de ese fichero: argocd-push no puede otorgar
+# 'edit' completo porque el mismo no lo posee (RBAC no permite escalar).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: app-developers-edit
+  name: app-developers
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: edit
+  kind: Role
+  name: app-developer
 subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group

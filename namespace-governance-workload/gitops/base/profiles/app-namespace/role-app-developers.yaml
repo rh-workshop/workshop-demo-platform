@@ -1,0 +1,46 @@
+# Role ACOTADO para app-developers, en vez de referenciar el ClusterRole
+# 'edit' de OpenShift.
+#
+# POR QUE NO ClusterRole/edit. Verificado en vivo: 'edit' usa RBAC
+# AGGREGATION -- agrega automaticamente las reglas de CUALQUIER CRD que un
+# operador instale (cientos hoy: Kafka, Istio, cert-manager, OLM...). Un
+# RoleBinding a 'edit' falla al sincronizar: Kubernetes exige que quien
+# OTORGA un rol ya lo POSEA el mismo, y argocd-push (la identidad acotada
+# de A.1 del backlog) declara sus recursos uno por uno a proposito, sin
+# comodines. Ampliar argocd-push para igualar 'edit' completo reabriria el
+# problema de permisos excesivos que A.1 cerro.
+#
+# Los recursos de aqui abajo son EXACTAMENTE el subconjunto que
+# gitops/clusters/argocd-push/clusterpermission-argocd-push-{nonprod,prod}.yaml
+# ya declara con create/update/patch/delete -- Argo puede otorgar este Role
+# porque el mismo lo tiene. Si se necesita un recurso nuevo aqui, primero hay
+# que anadirlo al ClusterPermission, o el sync queda en Forbidden.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-developer
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "serviceaccounts", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes", "routes/custom-host"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["kuadrant.io"]
+    resources: ["authpolicies", "ratelimitpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.istio.io"]
+    resources: ["destinationrules"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

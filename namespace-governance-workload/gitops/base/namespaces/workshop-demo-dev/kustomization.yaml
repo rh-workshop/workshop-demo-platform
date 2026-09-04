@@ -12,7 +12,9 @@ namespace: workshop-demo-dev
 resources:
   - resourcequota-default.yaml
   - limitrange-default.yaml
+  - role-platform-admins.yaml
   - rolebinding-platform-admins.yaml
+  - role-platform-viewers.yaml
   - rolebinding-platform-viewers.yaml
   - networkpolicy-allow-same-namespace.yaml
   - networkpolicy-allow-from-platform-gateway.yaml
