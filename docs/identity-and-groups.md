@@ -4,65 +4,56 @@ Cómo una persona pasa de iniciar sesión a tener permisos, y dónde se decide c
 paso. Complementa `governance-backlog.md`, que dice *qué falta*; esto dice *cómo
 funciona lo que ya hay*.
 
-## Dos modelos, según el cluster
+## Un solo modelo, en los 5 clusters
 
-El hub y los spokes autentican distinto, y no es una inconsistencia:
+Hub y spokes autentican igual: **solo htpasswd**, sin OIDC.
 
-| | Hub | Spokes |
-|---|---|---|
-| Proveedor | **Solo htpasswd** | Keycloak (`rhbk`) |
-| Pertenencia a grupos | `oc adm groups add-users` | Claim `groups` del OIDC |
+| | Hub y spokes |
+|---|---|
+| Proveedor | **Solo htpasswd** |
+| Pertenencia a grupos | `oc adm groups add-users` |
 
-**El hub despliega Keycloak, así que no puede depender de él para autenticar.**
-Si lo hiciera, arreglar un Keycloak caído exigiría entrar al cluster, y entrar al
-cluster exigiría Keycloak: el servidor OAuth devuelve 500 y no entra nadie,
-tampoco quien va a repararlo. Por eso el hub tiene un único proveedor htpasswd,
-que valida el propio API server contra un Secret local.
+**Ningún cluster autentica contra Keycloak, ni siquiera los spokes que lo
+despliegan como producto.** La razón original era la circularidad del hub —
+despliega Keycloak, así que no puede depender de él para autenticar, o un
+Keycloak caído deja el cluster sin forma de entrar a repararlo. Los spokes no
+tienen esa circularidad técnica (su Keycloak no depende de sí mismos), pero el
+problema de fondo es el mismo: Keycloak es un producto que la plataforma
+gobierna vía GitOps, no un IdP corporativo externo e independiente del cluster
+que lo aloja. Un `Deployment` mal sincronizado o un `RealmImport` roto tiene el
+mismo efecto que el hub quería evitar. Se unificó: **todo el mundo usa htpasswd,
+en los 5 clusters** (`bootstrap/manifests/oauth-hub.reference.yaml` y
+`oauth-spoke.reference.yaml`, mismo modelo).
 
-En los spokes no hay circularidad —su Keycloak no depende de ellos mismos— así
-que sí usan OIDC, que es lo que permite gestionar la pertenencia en un solo
-sitio.
+**Consecuencia:** la pertenencia a grupos NO llega por claim OIDC en ningún
+cluster. Los objetos `Group` los declara Git
+(`namespace-governance/.../identity/`, vacíos) y la pertenencia se da de alta a
+mano con `oc adm groups add-users`, por cluster — el hub y cada spoke tienen
+bases de identidad independientes.
 
-## La cadena (spokes)
+## Alta y baja de una persona
 
+```bash
+oc adm groups add-users <grupo> <usuario>       # alta
+oc get group <grupo> -o jsonpath='{.users}'     # comprobación
 ```
-Keycloak (realm sso)          OpenShift                    Argo CD
-  usuario ∈ grupo    ──►   Group sincronizado   ──►   rol según la política
-```
 
-1. **Keycloak** es la única fuente de la pertenencia. El cliente `idp-4-ocp` lleva
-   un mapper `groups` con `full.path=false`, que emite nombres simples
-   (`platform-admins`, no `/platform-admins`).
-2. **OpenShift** recibe el claim porque el proveedor `rhbk` declara
-   `claims.groups: [groups]`. Al iniciar sesión, el servidor OAuth **crea o
-   actualiza** el `Group` con la anotación `oauth.openshift.io/generated: true`.
-3. **Argo CD** resuelve el rol con `scopes: [groups]` y las líneas `g, <grupo>,
-   role:<rol>` de `spec.rbac.policy`.
-
-Consecuencia operativa que conviene tener presente: **la pertenencia se refresca
-al iniciar sesión**. Sacar a alguien de un grupo en Keycloak no le retira el acceso
-hasta su siguiente login.
+No hay pertenencia declarada en Git a propósito: versionarla crearía una segunda
+fuente de verdad frente a lo que el cluster ya tiene.
 
 ### Dar de baja a una persona
 
-Deshabilitarla en Keycloak **no basta**, y es el error más fácil de cometer:
-
-- El token de OpenShift ya emitido **sigue siendo válido hasta que expire** (24 h
-  por defecto). Keycloak solo interviene en el próximo inicio de sesión, que ya
-  no ocurrirá.
-- El usuario **permanece en `Group.users`** indefinidamente: el servidor OAuth
-  solo retira a alguien de un grupo *durante un login exitoso* con menos claims.
-
-El procedimiento correcto, **en cada cluster donde haya entrado** — el hub y los
-spokes tienen bases de identidad independientes:
+**En cada cluster donde tenga cuenta** — el hub y los spokes tienen bases de
+identidad independientes:
 
 ```bash
 oc delete oauthaccesstoken --field-selector=userName=<usuario>   # corta las sesiones vivas
 oc adm groups remove-users <grupo> <usuario>
-oc delete identity rhbk:<sub> ; oc delete user <usuario>
+oc delete identity htpasswd:<usuario> ; oc delete user <usuario>
 ```
 
-Y deshabilitar la cuenta en Keycloak, que es lo que impide volver a entrar.
+Y quitar la línea del usuario del fichero htpasswd (regenerar el Secret), que es
+lo que impide volver a entrar con la misma contraseña.
 
 ## Los grupos y lo que pueden hacer
 
@@ -101,25 +92,16 @@ argocd admin settings rbac can role:release-manager sync applications apps-nonpr
 argocd admin settings rbac can role:auditor         get  logs         apps-prod/app-demo-service-prod    # No
 ```
 
-## Alta de una persona
-
-1. Crearla en Keycloak (realm `sso`) y añadirla al grupo que le corresponda.
-2. Que inicie sesión una vez en la consola de OpenShift.
-3. Comprobar: `oc get group <grupo> -o jsonpath='{.users}'`.
-
-No hay paso 4: **la pertenencia** no se declara en Git. Vive en el IdP a
-propósito — versionarla crearía una segunda fuente de verdad y las bajas
-llegarían tarde.
-
 ## Qué sí está en Git, y qué no
 
 | Pieza | Dónde | Por qué |
 |---|---|---|
 | Los objetos `Group` (vacíos) | `namespace-governance/.../identity/` | Un binding a un grupo inexistente se aplica sin error y no concede nada |
-| La pertenencia (`users`) | En ningún sitio | La escribe el servidor OAuth en cada login |
+| La pertenencia (`users`) | En ningún sitio | Se da de alta a mano por cluster; versionarla crearía una segunda fuente de verdad |
 | `RoleBinding` por namespace | `namespace-governance/` | Acceso acotado; Argo puede concederlo |
 | `ClusterRoleBinding` del hub | `bootstrap/manifests/` | Conceder `cluster-admin` desde un commit sería una vía de escalada |
 | Acceso a los spokes | `gitops/clusters/human-access/` (`ClusterPermission`) | Lo aplica el agente de ACM, fuera del alcance de Argo |
+| El `OAuth` de cada cluster y su Secret htpasswd | `bootstrap/manifests/oauth-{hub,spoke}.reference.yaml` (referencia, no se aplica por GitOps) | El Secret con el hash es material sensible; el OAuth es plano de control |
 
 Los manifiestos de `Group` **omiten el campo `users`**, no lo declaran vacío. La
 diferencia no es cosmética: con `users: []` Argo se apropia del campo y cada
@@ -129,60 +111,38 @@ real. Omitirlo hace que Argo nunca lo posea.
 ## Los spokes tienen su propia identidad
 
 La autenticación es **por cluster**: cada uno resuelve los grupos contra sus
-propios objetos y sus propios bindings, y el hub no los federa. Entrar en el hub
-no da acceso a un spoke.
+propios objetos `Group` y sus propios `ClusterRoleBinding`/`ClusterPermission`, y
+el hub no los federa. Entrar en el hub no da acceso a un spoke — hay que dar de
+alta a la persona con `oc adm groups add-users` en cada cluster donde necesite
+entrar.
 
 El acceso de lectura a los spokes lo reparte ACM con una `ClusterPermission` por
-cluster (`cluster-reader` para `platform-operators` y `platform-viewers`). Los
-`Group` no hacen falta allí: los crea el servidor OAuth del spoke en el primer
-login.
+cluster (`cluster-reader` para `platform-operators` y `platform-viewers`,
+`gitops/clusters/human-access/clusterpermission-platform-groups.yaml`). El
+binding referencia el `Group` por nombre — funciona igual sin depender de si la
+pertenencia se dio de alta a mano o llegó por claim.
 
-Para eso el OAuth de cada spoke debe pedir el claim `groups`. Lo garantiza la
-Policy `require-oidc-groups-claim`, en modo **`enforce`**: si falta, ACM lo añade.
+### Las cuentas de emergencia (break-glass)
 
-La Policy no escribe un `OAuth` fijo. El proveedor `rhbk` lleva un `issuer` y un
-`clientSecret` **distintos en cada cluster**, y una plantilla con valores fijos
-los reescribiría con los de otro, dejándolo sin acceso por Keycloak. En su lugar
-usa `object-templates-raw` con `lookup`: lee el proveedor del propio cluster y lo
-reinyecta tal cual, aportando únicamente el claim. Verificado en los cuatro
-spokes — cada uno conservó su issuer.
-
-### El break-glass de los spokes
-
-Cada spoke tiene **dos** proveedores: `rhbk` para el día a día y `break-glass`
-(htpasswd) para cuando Keycloak no responde. Sin el segundo, un Keycloak caído
-deja el cluster sin forma de entrar a repararlo.
-
-Son tres piezas, y ninguna sirve sin las otras dos:
+Con un único proveedor htpasswd, la cuenta habitual y la de emergencia son el
+mismo mecanismo: no hay un segundo proveedor que añadir. Lo que distingue a las
+de break-glass es que llevan `cluster-admin` y se reservan para cuando el resto
+del acceso (grupos, roles) no está disponible o no basta.
 
 | Pieza | Cómo llega | Por qué así |
 |---|---|---|
-| El Secret con el hash | `ManifestWork` por cluster | Es un secreto: no puede vivir en Git |
-| El proveedor en el `OAuth` | Policy `require-break-glass-idp` | No lleva material sensible, solo el nombre del Secret |
-| `cluster-admin` para la cuenta | `ClusterPermission` de ACM | Autenticar sin autorizar no sirve de nada en una emergencia |
+| El Secret con el hash (todas las cuentas, nominales y break-glass) | Se crea a mano en el bootstrap, nunca en Git | Es un secreto |
+| `cluster-admin` para las cuentas de break-glass | `oc adm policy add-cluster-role-to-user` (hub) / `ClusterPermission` de ACM (spokes) | Autenticar sin autorizar no sirve de nada en una emergencia |
 
-La Policy usa `musthave` sobre la lista de `identityProviders`: **añade** el
-proveedor sin tocar `rhbk`. Verificado en los cuatro — cada uno conserva su
-issuer y su claim `groups`.
+**Ninguna cuenta se llama `admin`.** No aporta nada frente a un nombre nominal o
+`breakglass1`/`breakglass2` en el audit log, y es el nombre que confunde con
+`kubeadmin`/la consola por convención — evitarlo también evita que alguien
+intente loguearse con credenciales de otro sistema pensando que es la misma
+cuenta.
 
-**La cuenta se llama `breakglass1`, no `admin`.** Con `mappingMethod: claim`,
-OpenShift rechaza que dos identidades reclamen el mismo usuario: si ya existe un
-`admin` que entró por Keycloak, el login htpasswd falla con
-`cannot be claimed by identity ... already mapped to [rhbk:...]` y un HTTP 500.
-El nombre debe ser exclusivo de este proveedor.
-
-Probado de extremo a extremo: login correcto en los cuatro spokes, `whoami`
-devuelve `breakglass1` y `auth can-i '*' '*'` responde `yes`.
-
-## Acceso de emergencia
-
-Si Keycloak no responde, el servidor OAuth devuelve 500 y **nadie entra**, ni para
-arreglarlo. Por eso existe el proveedor `break-glass` (htpasswd, dos cuentas),
-independiente de cualquier servicio externo. Procedimiento y custodia en
-`bootstrap/manifests/oauth-hub.reference.yaml`.
-
-Su uso debería disparar una alerta: el audit log registra `breakglass1` como
-usuario, así que una regla sobre ese nombre en el SIEM avisa de cada acceso.
+Su uso debería disparar una alerta: el audit log registra el usuario real en
+cada acceso, así que una regla sobre los nombres de break-glass en el SIEM avisa
+de cada uso de emergencia. Rotar las contraseñas tras cada uso.
 
 ## `exec` está denegado a propósito
 

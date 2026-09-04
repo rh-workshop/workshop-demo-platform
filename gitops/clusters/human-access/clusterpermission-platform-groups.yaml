@@ -11,10 +11,11 @@
 # alcance del repositorio que Argo sincroniza. Es el mecanismo documentado de ACM
 # para RBAC en clusters gestionados.
 #
-# LOS OBJETOS Group NO SE DECLARAN AQUI: los crea el servidor OAuth del propio
-# spoke en el primer login, a partir del claim `groups` de Keycloak. Requisito:
-# el OAuth de cada spoke debe declarar `claims.groups: [groups]` en el proveedor
-# rhbk, o los grupos nunca llegan y estos bindings no encuentran a nadie.
+# LOS OBJETOS Group NO SE DECLARAN AQUI: los declara Git
+# (namespace-governance/.../identity/, vacios) y la pertenencia se da de alta a
+# mano con `oc adm groups add-users` (ver oauth-spoke.reference.yaml). El
+# binding referencia el Group por nombre y funciona igual sin depender de como
+# se poblo `users`.
 #
 # SOLO LECTURA. Escribir en un spoke se hace por GitOps, para que el cambio quede
 # en Git. cluster-reader no incluye Secrets, y es agregado: ve nodos, CRDs y el
