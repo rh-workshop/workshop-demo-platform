@@ -1,6 +1,7 @@
-# Overlay del HUB: hoy todo el gobierno aplica al hub (los namespaces de los
-# spokes los distribuyen las políticas de ACM). Si un día los spokes necesitan
-# cuotas o RBAC propios, se añade un overlay dev/prod que recorte la base.
+# Overlay del HUB: trae toda la base/, incluidos los namespaces exclusivos del
+# hub (Quay, ACS, Developer Hub, Pipelines, workshop-demo-dev) y el subconjunto
+# workload/ compartido con los spokes. Los spokes usan overlays/<rol>, que
+# referencia solo base/workload.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

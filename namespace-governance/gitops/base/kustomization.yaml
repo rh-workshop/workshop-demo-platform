@@ -1,9 +1,16 @@
 # Base del gobierno de namespaces: UN DIRECTORIO POR NAMESPACE gobernado.
 # Cada directorio consume un perfil compartido (profiles/) y declara SOLO sus
 # desviaciones; para saber qué gobierna un namespace se abre su directorio.
+#
+# workload/ es el subconjunto que existe en TODOS los clusters (hub y spokes);
+# los overlays de spoke lo referencian solo a él. El resto de esta lista son
+# namespaces EXCLUSIVOS del hub (Quay, ACS, Developer Hub, Pipelines, el CI de
+# workshop-demo-dev) y solo llegan aquí, vía overlays/hub.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # Los namespaces compartidos con los spokes.
+  - workload
   # Grupos de la plataforma y el acceso que dan al cluster. Solo en el hub: es
   # donde están la consola de gestión y Argo. En los spokes se escribe vía
   # GitOps, no con una sesión de consola.
@@ -14,10 +21,8 @@ resources:
   # El perfil común lo aplica ahora la Policy require-namespace-isolation; aquí
   # solo quedan las desviaciones propias de un namespace.
   - namespaces/workshop-demo-dev
-  # Namespaces de plataforma (perfil platform-namespace + desviaciones).
+  # Namespaces de plataforma EXCLUSIVOS del hub (perfil platform-namespace + desviaciones).
   - namespaces/quay-enterprise
   - namespaces/stackrox
   - namespaces/developer-hub
   - namespaces/openshift-pipelines
-  - namespaces/kuadrant-system
-  - namespaces/platform-gateway

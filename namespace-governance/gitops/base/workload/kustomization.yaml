@@ -1,0 +1,13 @@
+# Gobierno de los namespaces de plataforma que existen en TODOS los clusters
+# (hub y workload). Subconjunto de base/: los demás namespaces de base/
+# (Quay, ACS, Developer Hub, Pipelines, workshop-demo-dev) son exclusivos del
+# hub y no aplican a un spoke.
+#
+# kuadrant-system y platform-gateway alojan la ruta de datos (Authorino,
+# Limitador, Gateway) y sus CR no admiten `resources`: el LimitRange es lo unico
+# que evita que esos pods corran BestEffort.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../namespaces/kuadrant-system
+  - ../namespaces/platform-gateway
