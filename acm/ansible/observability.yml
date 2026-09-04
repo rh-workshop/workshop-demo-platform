@@ -38,12 +38,20 @@
     thanos_secret: thanos-object-storage
     # Almacen de secretos: donde se deposita la conexion y de donde la lee ESO.
     vault_namespace: openbao
-    vault_token_secret: openbao-dev-token
     # Ruta dentro del almacen. Debe coincidir con el `remoteRef.key` del
     # ExternalSecret, o este no encuentra nada que entregar.
     vault_path: platform/observability
 
   tasks:
+    - name: Exigir el token de operación
+      ansible.builtin.fail:
+        msg: >-
+          Falta el token de operación. Exportalo antes de ejecutar:
+            export BAO_OPERATOR_TOKEN='<token raiz o de un operador con permisos>'
+          Los tokens eso-read-* son de solo lectura y no sirven para escribir
+          en el almacén.
+      when: lookup('env', 'BAO_OPERATOR_TOKEN') | length == 0
+
     # El nombre del bucket es global en S3: derivarlo del identificador de
     # infraestructura evita colisionar con otra instalacion del mismo material.
     - name: Resolver el nombre de infraestructura del cluster
@@ -136,22 +144,6 @@
       retries: 30
       delay: 10
 
-    - name: Recuperar el token del almacen
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: Secret
-        namespace: "{{ vault_namespace }}"
-        name: "{{ vault_token_secret }}"
-      register: token_info
-      no_log: true
-
-    - name: Comprobar que el almacen esta inicializado
-      ansible.builtin.assert:
-        that: token_info.resources | length > 0
-        fail_msg: >-
-          No existe {{ vault_namespace }}/{{ vault_token_secret }}. Ejecuta antes
-          openbao/ansible/bootstrap.yml, que arranca el almacen y genera su token.
-
     # SE DEPOSITA EN EL ALMACEN, NO EN EL CLUSTER. Antes esta tarea escribia el
     # Secret directamente; ahora quien lo materializa es el ExternalSecret que
     # gobierna Argo (acm/gitops/base/observability/externalsecret-thanos.yaml).
@@ -164,8 +156,9 @@
         namespace: "{{ vault_namespace }}"
         pod: "{{ bao_pod.resources[0].metadata.name }}"
         command: >-
-          env BAO_TOKEN={{ token_info.resources[0].data.token | b64decode }}
-          BAO_ADDR=http://127.0.0.1:8200
+          env BAO_TOKEN={{ lookup('env', 'BAO_OPERATOR_TOKEN') }}
+          BAO_ADDR=https://127.0.0.1:8200
+          BAO_CACERT=/openbao/tls/ca.crt
           bao kv put -mount=secret {{ vault_path }}
           thanos.yaml={{ conexion_thanos | quote }}
       vars:
