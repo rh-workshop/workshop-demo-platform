@@ -18,10 +18,15 @@
 # un token OAuth de Quay que hoy solo existe como admin — contra el menor
 # privilegio; el escaneo lo hace el scanner propio de ACS con esta credencial.
 #
+# TAMBIEN activa el endurecimiento de POLITICAS BUILT-IN (--tags endurecimiento)
+# y el REPORTE PERIODICO de vulnerabilidades por correo (--tags reportes). Ver
+# el comentario de cabecera de cada bloque para el detalle.
+#
 # CREDENCIALES: del entorno, nunca versionadas. El token de API se genera en la
 # consola de ACS (Platform Configuration -> Integrations -> API Token, rol Admin).
 # El token admin de Quay sale del secreto de dia-0 quay-enterprise/quay-admin-token
 # (lo persiste bootstrap.yml) y SOLO se usa para consultar los tokens de los robots.
+# El SMTP del reporte (--tags reportes) sale del almacen (openbao) — ver ese bloque.
 #
 #   export ACS_HOST=<host-de-central>
 #   export ACS_TOKEN=<token-de-api>
@@ -63,6 +68,45 @@
     # PRODUCCION: verificar SIEMPRE el certificado de Central. false solo es un
     # atajo de lab (MITM sobre el token Admin). Sobreescribible solo explicitamente.
     validate_certs: "{{ lookup('env', 'ACS_VALIDATE_CERTS') | default(true, true) }}"
+
+    # --- Políticas built-in a endurecer (--tags endurecimiento) ---
+    # Vienen DESHABILITADAS y sin enforcement en toda instalación nueva de ACS:
+    # son oficiales de Red Hat (severidad y criterio ya calibrados), así que se
+    # activan por API en vez de reimplementarlas como CR nuevo. Dos grupos:
+    #   - bloqueo: BUILD/DEPLOY, no dependen de nada fuera del propio
+    #     Deployment: se activan CON enforcement (bloquean en admisión/build).
+    #   - alerta: o dependen de una convención que la plataforma aún no exige
+    #     (NetworkPolicy por Deployment, anotación owner/team), o son RUNTIME
+    #     (Process with UID 0: solo detecta el proceso YA corriendo; su
+    #     enforcement -KILL_POD- mataría el pod en producción y muchas
+    #     imágenes de base arrancan como root sin que el proceso principal lo
+    #     sea — activarlo a ciegas es agresivo). Quedan en "alertar" hasta que
+    #     se decida forzarlas.
+    politicas_bloqueo:
+      - Container using read-write root filesystem
+      - Drop All Capabilities
+      - Secret Mounted as Environment Variable
+      - Fixable CVSS >= 7
+    politicas_alerta:
+      - Deployments should have at least one egress Network Policy
+      - Deployments should have at least one ingress Network Policy
+      - Images with no scans
+      - "Required Annotation: Owner/Team"
+      - Process with UID 0
+
+    # --- Reporte periódico de vulnerabilidades (--tags reportes) ---
+    # CHANGE_ME_*: un adoptante los sustituye por su dominio y su lista real;
+    # el material del repo es genérico, sin datos de cliente (ver CLAUDE.md).
+    reporte_smtp_host: "{{ lookup('env', 'ACS_SMTP_HOST') | default('CHANGE_ME_SMTP_HOST', true) }}"
+    reporte_smtp_puerto: "{{ lookup('env', 'ACS_SMTP_PORT') | default(587, true) }}"
+    reporte_smtp_remitente: "{{ lookup('env', 'ACS_SMTP_FROM') | default('acs-reportes@' ~ org_email_domain, true) }}"
+    reporte_destinatarios: "{{ (lookup('env', 'ACS_REPORT_TO') | default('CHANGE_ME_SECURITY_DL@' ~ org_email_domain, true)).split(',') }}"
+    # La credencial SMTP sale de un Secret propio (acs-smtp), sincronizado por
+    # ExternalSecret desde el almacén (platform/acs/smtp) — mismo criterio que
+    # quay_admin_token y cosign_public_key arriba (secreto materializado > entorno).
+    reporte_nombre: "Vulnerabilidades Critical/Important — {{ org_prefix }}"
+    # Cron semanal, lunes 07:00 — antes del inicio de la semana laboral.
+    reporte_cron: "0 0 7 * * 1"
 
   tasks:
     # always: tambien con --tags firma hace falta la credencial de Central.
@@ -407,11 +451,313 @@
         label: "{{ item.item.item.nombre }}"
       tags: [firma]
 
+    # --- Endurecimiento: activar políticas built-in relevantes para producción ---
+    # No se reimplementan como CR nuevo: ya existen en toda instalación de ACS,
+    # solo deshabilitadas. Convergencia por NOMBRE (son policies "IMPERATIVE" del
+    # propio producto: no tienen manifiesto en Git que gestionar via Argo).
+    # El listado resumido (?query=) NO trae policySections/categories: solo sirve
+    # para resolver el ID por nombre. Un PUT con ese objeto incompleto vacia la
+    # politica ("a policy must have at least one category") — hay que releer
+    # cada una en detalle antes de tocarla, igual que hace el bloque de firma.
+    - name: Resolver el ID de cada politica a endurecer
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies?query="
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: catalogo_politicas
+      tags: [endurecimiento]
+
+    - name: Leer el detalle completo de cada politica a endurecer
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies/{{ catalogo_politicas.json.policies | selectattr('name', 'equalto', item) | map(attribute='id') | first }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: detalle_endurecimiento
+      loop: "{{ politicas_bloqueo + politicas_alerta }}"
+      loop_control:
+        label: "{{ item }}"
+      tags: [endurecimiento]
+
+    - name: Activar con bloqueo las politicas que no dependen de terceros
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies/{{ politica_actual.id }}"
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body: >-
+          {{ politica_actual | combine({
+               'disabled': false,
+               'enforcementActions': (
+                 ['FAIL_BUILD_ENFORCEMENT'] if 'BUILD' in politica_actual.lifecycleStages else []
+               ) + (
+                 ['FAIL_DEPLOYMENT_CREATE_ENFORCEMENT', 'FAIL_DEPLOYMENT_UPDATE_ENFORCEMENT'] if 'DEPLOY' in politica_actual.lifecycleStages else []
+               )
+             }) }}
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      vars:
+        politica_actual: "{{ (detalle_endurecimiento.results | selectattr('item', 'equalto', item) | first).json }}"
+      when: politica_actual.disabled | default(false)
+      loop: "{{ politicas_bloqueo }}"
+      tags: [endurecimiento]
+
+    - name: Activar en modo alerta las politicas que dependen de una convencion aun no exigida
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies/{{ politica_actual.id }}"
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body: "{{ politica_actual | combine({'disabled': false}) }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      vars:
+        politica_actual: "{{ (detalle_endurecimiento.results | selectattr('item', 'equalto', item) | first).json }}"
+      when: politica_actual.disabled | default(false)
+      loop: "{{ politicas_alerta }}"
+      tags: [endurecimiento]
+
+    - name: Verificar que el endurecimiento convergio
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/policies?query="
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: catalogo_final
+      tags: [endurecimiento]
+
+    - name: Confirmar que ninguna politica objetivo quedo deshabilitada
+      ansible.builtin.assert:
+        that: >-
+          catalogo_final.json.policies
+          | selectattr('name', 'equalto', item)
+          | map(attribute='disabled') | first == false
+        fail_msg: "La politica '{{ item }}' sigue deshabilitada tras el endurecimiento."
+      loop: "{{ politicas_bloqueo + politicas_alerta }}"
+      tags: [endurecimiento]
+
+    # --- Reporte periódico de vulnerabilidades por correo ---
+    # Sin CRD (va por API, como la firma): la ReportConfiguration referencia
+    # notifiers y collections que también viven solo en Central. Idempotente por
+    # NOMBRE, igual criterio que las integraciones de arriba.
+    - name: Leer la credencial SMTP sincronizada desde el almacen
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Secret
+        name: acs-smtp
+        namespace: stackrox
+      register: acs_smtp_secreto
+      tags: [reportes]
+
+    - name: Resolver la credencial SMTP (secreto > entorno)
+      ansible.builtin.set_fact:
+        reporte_smtp_usuario: >-
+          {{ (acs_smtp_secreto.resources[0].data.username | b64decode)
+             if acs_smtp_secreto.resources | default([]) | length > 0
+             else lookup('env', 'ACS_SMTP_USER') }}
+        reporte_smtp_password: >-
+          {{ (acs_smtp_secreto.resources[0].data.password | b64decode)
+             if acs_smtp_secreto.resources | default([]) | length > 0
+             else lookup('env', 'ACS_SMTP_PASSWORD') }}
+      no_log: true
+      tags: [reportes]
+
+    - name: Comprobar credenciales SMTP del reporte
+      ansible.builtin.assert:
+        that:
+          - reporte_smtp_host != 'CHANGE_ME_SMTP_HOST'
+          - reporte_destinatarios | reject('search', 'CHANGE_ME') | list | length > 0
+          - reporte_smtp_usuario | trim | length > 0
+          - reporte_smtp_password | trim | length > 0
+        fail_msg: >-
+          Faltan credenciales SMTP: ni el Secret acs-smtp (sembrado en
+          platform/acs/smtp del almacén) ni ACS_SMTP_USER/ACS_SMTP_PASSWORD en
+          el entorno. reporte_smtp_host / ACS_REPORT_TO también deben salir de
+          su placeholder CHANGE_ME_* en vars/platform-vars.yml o por entorno.
+      tags: [reportes]
+
+    - name: Comprobar si el notifier SMTP ya existe
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/notifiers"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: notifiers_existentes
+      tags: [reportes]
+
+    - name: Localizar el notifier SMTP por nombre
+      ansible.builtin.set_fact:
+        notifier_smtp: "{{ notifiers_existentes.json.notifiers | default([]) | selectattr('name', 'equalto', 'smtp-reportes-vulnerabilidades') | list | first | default({}) }}"
+      tags: [reportes]
+
+    # PUT con la password SIEMPRE presente: Central la exige en cada update
+    # (no la conserva de una version a otra si el campo viene vacio).
+    - name: Registrar el notifier SMTP en Central
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/notifiers{{ '/' + notifier_smtp.id if notifier_smtp else '' }}"
+        method: "{{ 'PUT' if notifier_smtp else 'POST' }}"
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          name: smtp-reportes-vulnerabilidades
+          id: "{{ notifier_smtp.id | default(omit) }}"
+          type: email
+          uiEndpoint: "https://{{ acs_host }}"
+          email:
+            server: "{{ reporte_smtp_host }}:{{ reporte_smtp_puerto }}"
+            sender: "{{ reporte_smtp_remitente }}"
+            username: "{{ reporte_smtp_usuario }}"
+            password: "{{ reporte_smtp_password }}"
+            disableTLS: false
+            startTLSAuthMethod: DISABLED
+            allowUnauthenticatedSmtp: false
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      register: notifier_registrado
+      no_log: true
+      tags: [reportes]
+
+    - name: Resolver el ID real del notifier SMTP
+      ansible.builtin.set_fact:
+        notifier_id: "{{ notifier_smtp.id | default(notifier_registrado.json.id) }}"
+      tags: [reportes]
+
+    - name: Comprobar si la coleccion "Todos los deployments" ya existe
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/collections"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: colecciones_existentes
+      tags: [reportes]
+
+    - name: Localizar la coleccion del reporte por nombre
+      ansible.builtin.set_fact:
+        coleccion_reporte: "{{ colecciones_existentes.json.collections | default([]) | selectattr('name', 'equalto', 'todos-los-deployments') | list | first | default({}) }}"
+      tags: [reportes]
+
+    # Regla "Deployment" con regex .* = matchea cualquier nombre = todos los
+    # deployments, sin filtrar por cluster ni namespace. El reporte cubre toda
+    # la flota; acotarla (p. ej. solo prod) es cambiar esta coleccion, no el
+    # ReportConfiguration.
+    - name: Crear la coleccion "todos-los-deployments" si falta
+      ansible.builtin.uri:
+        url: "{{ acs_api }}/collections"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          name: todos-los-deployments
+          description: Todos los deployments del cluster, sin filtrar — base del reporte periodico de vulnerabilidades.
+          resourceSelectors:
+            - rules:
+                - fieldName: Deployment
+                  operator: OR
+                  values:
+                    - value: ".*"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      register: coleccion_creada
+      when: not coleccion_reporte
+      tags: [reportes]
+
+    - name: Resolver el ID real de la coleccion
+      ansible.builtin.set_fact:
+        coleccion_id: "{{ coleccion_reporte.id | default(coleccion_creada.json.collection.id | default(coleccion_creada.json.id | default(''))) }}"
+      tags: [reportes]
+
+    # ReportConfiguration SOLO existe en la API v2 (v1/reports/configurations
+    # da 404 en ACS 4.11) — a diferencia del resto del playbook, que usa v1.
+    - name: Comprobar si el ReportConfiguration ya existe
+      ansible.builtin.uri:
+        url: "https://{{ acs_host }}/v2/reports/configurations"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: false
+      register: reportes_existentes
+      tags: [reportes]
+
+    - name: Localizar el ReportConfiguration por nombre
+      ansible.builtin.set_fact:
+        reporte_actual: "{{ reportes_existentes.json.reportConfigs | default([]) | selectattr('name', 'equalto', reporte_nombre) | list | first | default({}) }}"
+      tags: [reportes]
+
+    # CVEs Critical/Important, con parche disponible (FIXABLE): un reporte con
+    # todo (incluidas CVE sin fix) es ruido que nadie lee; el criterio de fix
+    # disponible es lo que convierte el reporte en una lista de trabajo real.
+    # allVuln:true es obligatorio en v2 (declara el rango temporal a cubrir;
+    # sin el, Central rechaza el request con 400).
+    - name: Registrar el reporte periodico de vulnerabilidades
+      ansible.builtin.uri:
+        url: "https://{{ acs_host }}/v2/reports/configurations{{ '/' + reporte_actual.id if reporte_actual else '' }}"
+        method: "{{ 'PUT' if reporte_actual else 'POST' }}"
+        headers:
+          Authorization: "Bearer {{ acs_token }}"
+        body_format: json
+        body:
+          id: "{{ reporte_actual.id | default(omit) }}"
+          name: "{{ reporte_nombre }}"
+          description: Reporte semanal de CVE Critical/Important con parche disponible, toda la flota.
+          type: VULNERABILITY
+          vulnReportFilters:
+            fixability: FIXABLE
+            severities: [CRITICAL_VULNERABILITY_SEVERITY, IMPORTANT_VULNERABILITY_SEVERITY]
+            imageTypes: [DEPLOYED]
+            allVuln: true
+          resourceScope:
+            collectionScope:
+              collectionId: "{{ coleccion_id }}"
+          notifiers:
+            - emailConfig:
+                notifierId: "{{ notifier_id }}"
+                mailingLists: "{{ reporte_destinatarios }}"
+                customSubject: "{{ reporte_nombre }}"
+              notifierName: smtp-reportes-vulnerabilidades
+          schedule:
+            intervalType: WEEKLY
+            hour: 7
+            minute: 0
+            daysOfWeek:
+              days: [1]
+        status_code: [200]
+        validate_certs: "{{ validate_certs }}"
+      changed_when: true
+      tags: [reportes]
+
     - name: Recordar el resto del ciclo
       ansible.builtin.debug:
         msg: >-
           Integracion ACS->Quay lista y politicas de firma verificadas contra la
-          SignatureIntegration {{ firma_nombre }}. El resto de politicas se
-          gestiona como CR SecurityPolicy via Argo (acs/gitops/base/policies/).
-          Los informes de vulnerabilidades se programan en la consola
-          (Vulnerability Management -> Reporting); nada de eso se versiona en Git.
+          SignatureIntegration {{ firma_nombre }}. Politicas built-in endurecidas
+          ({{ politicas_bloqueo | length }} con bloqueo, {{ politicas_alerta | length }}
+          en alerta). Reporte semanal de vulnerabilidades registrado, envia a
+          {{ reporte_destinatarios | join(', ') }} cada lunes 07:00. El resto de
+          politicas se gestiona como CR SecurityPolicy via Argo
+          (acs/gitops/base/policies/).

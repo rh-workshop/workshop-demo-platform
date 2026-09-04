@@ -266,7 +266,7 @@ se fija en el overlay del ambiente, nunca en la base.
 | **cert-manager** | `ClusterIssuer` | — | — |
 | **Connectivity Link** | `Kuadrant`, `Gateway` | — | — |
 | **Pipelines** | `TektonConfig` (con Chains) | claves de firma cosign *(fuera de Git)* | — |
-| **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** | — |
+| **ACS** | `Central`, `SecuredCluster` | **políticas, colecciones, informes** | [`acs/README.md`](acs/README.md) |
 | **ACM** | `MultiClusterHub`, `Policy`/`Placement`/`PlacementBinding` | — | [`acm/README.md`](acm/README.md) |
 | **Developer Hub** | CR `Backstage` + ConfigMaps (app-config, plugins, RBAC csv), Software Templates | — *(todo declarativo)* | — |
 | **Service Mesh** | CR `Istio` + `IstioCNI` *(vía **Helm**, no Kustomize — ver nota)* | — | — |
