@@ -6,13 +6,24 @@
 #
 # Modelo de red cerrado: mismo namespace + gateway compartido + monitoring +
 # routers de ingress. Nada más entra por defecto.
+#
+# RBAC con Role PROPIO, no ClusterRole edit/admin/view. Verificado en vivo
+# (2026-09-04): los tres fallan al sincronizar — `edit`/`admin`/`view` usan
+# RBAC AGGREGATION y crecen solos con cada operador instalado; argocd-push
+# (la identidad acotada de A.1) declara sus recursos uno por uno a propósito,
+# así que nunca los posee completos y Kubernetes rechaza el `RoleBinding`
+# ("attempting to grant RBAC permissions not currently held"). Ver
+# role-app-developers.yaml para el detalle.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - resourcequota-default.yaml
   - limitrange-default.yaml
+  - role-app-developers.yaml
   - rolebinding-app-developers.yaml
+  - role-platform-admins.yaml
   - rolebinding-platform-admins.yaml
+  - role-platform-viewers.yaml
   - rolebinding-platform-viewers.yaml
   - networkpolicy-allow-same-namespace.yaml
   - networkpolicy-allow-from-platform-gateway.yaml

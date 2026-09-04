@@ -1,87 +1,50 @@
-# Role de desarrollador ACOTADO para workshop-demo-dev: como `edit` pero SIN
-# secrets. En este namespace viven los Secrets del CI (argocd-env-secret,
-# git-credentials, cosign-signing-key, quay-push-credentials,
-# acs-pipeline-credentials) y con ClusterRole `edit` cualquier miembro de
-# app-developers los leía — escalada directa al GitOps de los 3 clusters.
-# Los demás namespaces de aplicación conservan `edit`: no albergan secretos de CI.
+# Role de desarrollador ACOTADO para workshop-demo-dev: sin secrets Y sin los
+# recursos que argocd-push no posee.
+#
+# DOS restricciones distintas, no una:
+#
+# 1. SIN SECRETS. Aquí viven los Secrets del CI (argocd-env-secret,
+#    git-credentials, cosign-signing-key, quay-push-credentials,
+#    acs-pipeline-credentials) y con ClusterRole `edit` cualquier miembro de
+#    app-developers los leía — escalada directa al GitOps de los 3 clusters.
+#    Los demás namespaces de aplicación conservan el Role genérico
+#    (../../profiles/app-namespace/role-app-developers.yaml): no albergan
+#    secretos de CI.
+#
+# 2. SOLO RECURSOS QUE argocd-push YA POSEE. Verificado en vivo (2026-09-04):
+#    la version anterior de este Role pedia `pods/exec`, `buildconfigs`,
+#    `imagestreams` y Tekton — ninguno declarado en
+#    gitops/clusters/argocd-push/clusterpermission-argocd-push-{nonprod,prod}.yaml.
+#    argocd-push no puede otorgar lo que no tiene ("attempting to grant RBAC
+#    permissions not currently held"), así que ese Role habría fallado al
+#    sincronizar igual que el RoleBinding a ClusterRole/edit. Se recorta al
+#    mismo subconjunto verificado del perfil genérico.
 #
 # Los verbos van enumerados y no como `*`: un comodín concede también los verbos
-# que el grupo de API gane en versiones futuras, sin que nadie los revise. Además
-# Argo no puede crear un Role con verbos que él mismo no tiene, así que un `*`
-# aquí bloquea la sincronización.
+# que el grupo de API gane en versiones futuras, sin que nadie los revise.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: app-developer-no-secrets
 rules:
-  # Workloads: despliegue y ciclo de vida completo.
   - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets", "statefulsets", "daemonsets", "deployments/scale", "statefulsets/scale"]
+    resources: ["deployments", "statefulsets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Núcleo del namespace SIN secrets ni serviceaccounts (identidades del CI).
   - apiGroups: [""]
-    resources: ["pods", "services", "configmaps", "persistentvolumeclaims", "replicationcontrollers"]
+    resources: ["services", "configmaps", "persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Depuración: abrir una shell o un túnel contra un pod se pide con `create`.
   - apiGroups: [""]
-    resources: ["pods/exec", "pods/portforward"]
-    verbs: ["get", "create"]
-  # Los logs solo se leen; no existe escribir en ellos.
-  - apiGroups: [""]
-    resources: ["pods/log"]
+    resources: ["pods", "pods/log", "events", "endpoints"]
     verbs: ["get", "list", "watch"]
-  # Los Endpoints los mantiene el controlador de Services. Escribirlos a mano
-  # permitiría desviar el tráfico de un Service a una IP arbitraria.
-  - apiGroups: [""]
-    resources: ["endpoints"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources: ["events", "resourcequotas", "limitranges"]
-    verbs: ["get", "list", "watch"]
-  # Jobs y CronJobs.
-  - apiGroups: ["batch"]
-    resources: ["jobs", "cronjobs"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Autoescalado.
-  - apiGroups: ["autoscaling"]
-    resources: ["horizontalpodautoscalers"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Exposición: Route clásica y Gateway API.
   - apiGroups: ["route.openshift.io"]
-    resources: ["routes"]
+    resources: ["routes", "routes/custom-host"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Políticas de Connectivity Link a nivel de ruta (ámbito de app).
   - apiGroups: ["kuadrant.io"]
     resources: ["authpolicies", "ratelimitpolicies"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Circuit breaker del servicio (DestinationRule de Istio).
   - apiGroups: ["networking.istio.io"]
     resources: ["destinationrules"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Builds e imágenes del flujo S2I del workshop.
-  - apiGroups: ["build.openshift.io"]
-    resources: ["buildconfigs", "builds"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Lanzar un build es `create` sobre el subrecurso; no admite otro verbo.
-  - apiGroups: ["build.openshift.io"]
-    resources: ["buildconfigs/instantiate"]
-    verbs: ["create"]
-  - apiGroups: ["build.openshift.io"]
-    resources: ["builds/log"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["image.openshift.io"]
-    resources: ["imagestreams", "imagestreamtags", "imagestreamimages"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # CI en SOLO LECTURA. Crear un PipelineRun o un TaskRun equivale a leer los
-  # Secrets del namespace: quien puede crearlos declara un `taskSpec` propio que
-  # monta cualquier Secret como workspace y lo imprime en el log — la llave cosign
-  # de firma, el PAT de push a Git, la credencial del robot de Quay y el token de
-  # Argo CD. Por eso no basta con retirar 'secrets' del Role.
-  # Lanzar el CI es tarea de plataforma (platform-admins) o de un disparador
-  # automático; el desarrollador ve los runs y sus logs, y nada más.
-  - apiGroups: ["tekton.dev"]
-    resources: ["pipelineruns", "taskruns", "pipelines", "tasks", "taskruns/log", "pipelineruns/log"]
-    verbs: ["get", "list", "watch"]

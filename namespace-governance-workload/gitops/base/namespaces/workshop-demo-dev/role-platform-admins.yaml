@@ -1,0 +1,41 @@
+# Role ACOTADO para platform-admins, en vez de ClusterRole/admin.
+#
+# Mismo problema que edit/view: `admin` es agregado y crece con cada CRD
+# nuevo instalado. Cubre lectura amplia (como platform-viewer) más los
+# mismos recursos de escritura que app-developer, más RBAC local
+# (roles/rolebindings) -- que argocd-push SÍ posee
+# (gitops/clusters/argocd-push/clusterpermission-argocd-push-*.yaml), a
+# diferencia de las decenas de recursos que 'admin' agrega y argocd-push
+# nunca declaro a proposito.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-admin
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "serviceaccounts", "persistentvolumeclaims"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes", "routes/custom-host"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["kuadrant.io"]
+    resources: ["authpolicies", "ratelimitpolicies"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["networking.istio.io"]
+    resources: ["destinationrules"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["create", "update", "patch", "delete"]
