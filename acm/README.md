@@ -35,11 +35,27 @@ gitops/base/
 ├── placements/            # los Placement, COMPARTIDOS entre políticas
 │   ├── placement-clusters-hub.yaml       # role=hub (el cluster de management)
 │   └── placement-clusters-workload.yaml  # environment in [dev, prod]
-└── policies/              # una carpeta por política
-    └── <política>/
-        ├── policy.yaml           # la política (o <ámbito>-policy.yaml si tiene varias)
-        └── placementbinding.yaml # a qué Placement se dirige
+└── policies/              # una carpeta por política, tres patrones según destino
+    ├── <política>/                   # UN solo destino (hub o workload): un
+    │   ├── policy.yaml               # PlacementBinding, sin sufijo
+    │   └── placementbinding.yaml
+    ├── <política>/                   # DOS destinos (hub Y workload, reglas
+    │   ├── policy.yaml                # distintas o el mismo objeto con dos
+    │   ├── placementbinding.yaml       # Placement): un policy.yaml + DOS
+    │   └── placementbinding-workload.yaml  # PlacementBinding — ej. require-limitrange
+    └── <política>/                   # objetos DISTINTOS por destino (ej.
+        ├── policy-hub.yaml            # install-operators: paquetes de hub y
+        ├── policy-workload.yaml       # de spoke no son los mismos) — policy Y
+        ├── placementbinding-hub.yaml  # binding llevan el sufijo del destino
+        └── placementbinding-workload.yaml
 ```
+
+`require-namespace-isolation` es un cuarto patrón, generado en vez de escrito
+a mano: usa `PolicyGenerator` (`policy-generator-config.yaml` +
+`manifests/`), porque la política envuelve varios manifiestos de
+NetworkPolicy que conviene mantener como YAML plano y no como `object-templates`
+inline. El generador produce la `Policy` y el `PlacementBinding` — solo hay
+`placementbinding-hub.yaml` versionado porque el generador crea el resto.
 
 Los `Placement` van en un directorio propio y NO dentro de la carpeta de una
 política: un mismo Placement puede dirigir varias políticas (varios
