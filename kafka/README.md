@@ -24,7 +24,7 @@ ambiente lo recibe solo, sin tocar estos manifiestos.
 | `kafkanodepool-controller.yaml` | Controladores dedicados: sostienen el quórum de metadatos |
 | `kafkanodepool-broker.yaml` | Brokers dedicados: reciben y sirven los mensajes |
 | `configmap-kafka-metrics.yaml` | Reglas de exposición de métricas de los brokers |
-| `kafka-podmonitor.yaml` | Recolección de esas métricas: brokers, Cruise Control y el exportador de retraso |
+| `podmonitor-kafka.yaml` | Recolección de esas métricas: brokers, Cruise Control y el exportador de retraso |
 | `kafkatopic-demo-events.yaml` | Tópico de eventos de la aplicación de demostración |
 | `kafkatopic-demo-events-dlq.yaml` | Cola de descarte de los mensajes no procesables |
 | `kafkauser-demo-producer.yaml` | Identidad del productor: solo escribe |
@@ -115,7 +115,7 @@ No es un manifiesto: es material sensible que no puede vivir en Git. Se deposita
 almacen de la plataforma con
 
 ```bash
-ansible-playbook kafka/ansible/llaves-cifrado.yml
+ansible-playbook kafka/ansible/encryption-keys.yml
 ```
 
 **Una llave por ambiente**, en `platform/kafka-audit/<ambiente>`. Compartirla entre

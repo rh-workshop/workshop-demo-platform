@@ -12,12 +12,12 @@ resources:
   - task-python-test.yaml
   - task-go-test.yaml
   # Deteccion de secretos en arbol e historial de Git (gitleaks); falla cerrado.
-  - secret-scan-task.yaml
+  - task-secret-scan.yaml
   # Analisis estatico del CODIGO, antes de construir: encuentra lo que el escaneo
   # de imagen no ve (defectos escritos por el equipo, no CVEs de dependencias).
   - task-code-scan.yaml
   # Politicas DEPLOY de ACS sobre el overlay renderizado, antes de promocionar el digest.
-  - deployment-check-task.yaml
+  - task-deployment-check.yaml
   - task-image-sign.yaml
   - task-manifest-validate.yaml
   - task-image-scan.yaml

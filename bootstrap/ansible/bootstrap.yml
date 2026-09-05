@@ -182,7 +182,7 @@
         definition: "{{ lookup('file', item) }}"
       loop:
         - "{{ repo_root }}/bootstrap/manifests/subscription-openshift-gitops.yaml"
-        - "{{ repo_root }}/bootstrap/manifests/acm-subscription.yaml"
+        - "{{ repo_root }}/bootstrap/manifests/subscription-acm.yaml"
       # Etiqueta propia para reaplicar SOLO las Subscription sin repetir la
       # instalacion entera: su `config.env` cambia (p. ej. al autorizar el
       # namespace de un RolloutManager cluster-scoped) y esos ajustes son de dia 2.

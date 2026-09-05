@@ -7,10 +7,10 @@ resources:
   - applicationset-workload-test.yaml
   - applicationset-workload-prod.yaml
   - applicationset-workload-contingencia.yaml
-  - service-mesh-dev-applicationset.yaml
-  - service-mesh-test-applicationset.yaml
-  - service-mesh-prod-applicationset.yaml
-  - service-mesh-contingencia-applicationset.yaml
+  - applicationset-service-mesh-dev.yaml
+  - applicationset-service-mesh-test.yaml
+  - applicationset-service-mesh-prod.yaml
+  - applicationset-service-mesh-contingencia.yaml
   # A todos los clusters (hub incluido): derivan el overlay de 'environment'.
   - applicationset-monitoring.yaml
   # El agente de ACS. Central va aparte y solo en el hub (gitops/apps/hub/).

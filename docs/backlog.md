@@ -145,14 +145,14 @@ datos, no responsabilidades):
   imagen Red Hat (`ubi9/go-toolset`), cobertura como result. El monorepo hoy NO
   tiene tests: la task lo detecta y lo informa sin romper
   (`fail-on-no-tests: "false"`); ponerlo en `"true"` los hará obligatorios.
-- **Detección de secretos** (`secret-scan-task.yaml`): gitleaks sobre árbol e
+- **Detección de secretos** (`task-secret-scan.yaml`): gitleaks sobre árbol e
   HISTORIAL completo (el clone del CI pasó a `DEPTH: "0"`; un shallow haría el
   escaneo decorativo y la task lo detecta y corta). Falla CERRADO por defecto
   (`fail-on-violation: "true"`): un secreto filtrado no admite "informar y
   seguir". Tercera excepción documentada a "solo Red Hat" (no existe detector de
   secretos en registry.redhat.io), espejada en `company-tooling` como semgrep y
   syft (`quay/ansible/organizations.yml`).
-- **Chequeo de manifiestos** (`deployment-check-task.yaml`): `roxctl deployment
+- **Chequeo de manifiestos** (`task-deployment-check.yaml`): `roxctl deployment
   check` sobre el overlay RENDERIZADO con kustomize — políticas DEPLOY de ACS
   (privilegios, límites, montajes) antes de promocionar el digest. Cero
   dependencias nuevas: misma imagen roxctl y mismas credenciales que

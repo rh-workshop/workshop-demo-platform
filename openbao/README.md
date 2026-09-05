@@ -109,7 +109,7 @@ recargar los secretos con los playbooks de cada producto:
 export BAO_OPERATOR_TOKEN='<token raíz emitido en el init>'
 ansible-playbook quay/ansible/config-bundle-vault.yml   # config.yaml de Quay
 ansible-playbook quay/ansible/pull-secrets.yml          # credenciales de origen del registro
-ansible-playbook kafka/ansible/llaves-cifrado.yml       # llaves de cifrado por ambiente
+ansible-playbook kafka/ansible/encryption-keys.yml       # llaves de cifrado por ambiente
 ansible-playbook acm/ansible/observability.yml          # conexión S3 de Thanos
 ```
 
