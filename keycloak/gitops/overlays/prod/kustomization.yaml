@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: keycloak
 resources:
   - ../../base
-  - keycloak-pdb.yaml
+  - poddisruptionbudget-keycloak.yaml
   # El valor vive en un ConfigMap y no suelto para que quede VISIBLE en el
   # cluster como documentacion del origen del dato.
   - configmap-cluster-values.yaml

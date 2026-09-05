@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - configmap-kafka-metrics.yaml
-  - kafka-podmonitor.yaml
+  - podmonitor-kafka.yaml
   - kafkanodepool-controller.yaml
   - kafkanodepool-broker.yaml
   - kafka.yaml

@@ -5,7 +5,7 @@ resources:
   - ../../base
 patches:
   - path: capacity-patch.yaml
-  - path: quitar-limite-cpu-patch.yaml
+  - path: remove-cpu-limit-patch.yaml
     target:
       kind: KafkaNodePool
       name: broker

@@ -363,7 +363,7 @@
       kubernetes.core.k8s_info:
         api_version: config.stackrox.io/v1alpha1
         kind: SecurityPolicy
-        name: "{{ item.file | basename | regex_replace('-securitypolicy\\.yaml$', '') }}"
+        name: "{{ item.file | basename | regex_replace('^securitypolicy-(.*)\\.yaml$', '\\1') }}"
         namespace: stackrox
       register: crs_firma
       loop: "{{ politicas_firma }}"

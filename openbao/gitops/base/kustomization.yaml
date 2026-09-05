@@ -12,14 +12,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - service.yaml
+  - service-openbao.yaml
   # Permiso para que el almacen etiquete sus pods (service_registration).
-  - rbac.yaml
+  - role-openbao.yaml
   # TLS entre replicas y con los clientes: el almacen ya no habla en claro.
-  - certificate.yaml
+  - certificate-openbao.yaml
   # Entrada desde los clusters de carga: sus ExternalSecret viven fuera de este cluster.
-  - route.yaml
+  - route-openbao.yaml
   # Permite la ENTRADA desde el namespace de ESO. La regla de SALIDA vive en
   # openbao-store, porque hace falta en CADA cluster y no solo aqui.
-  - networkpolicy.yaml
-  - statefulset.yaml
+  - networkpolicy-openbao.yaml
+  - statefulset-openbao.yaml

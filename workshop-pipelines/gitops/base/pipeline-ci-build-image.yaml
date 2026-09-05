@@ -90,7 +90,7 @@ spec:
     # por PR. Por eso hay UNA task por lenguaje y no una por versión.
     - {name: test-image, default: ""}
     # Detector de secretos espejado en el registro corporativo (tercera excepción a
-    # "solo Red Hat", junto a semgrep y syft): ver la cabecera de secret-scan-task.yaml.
+    # "solo Red Hat", junto a semgrep y syft): ver la cabecera de task-secret-scan.yaml.
     - {name: secret-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/gitleaks:v8.29.1"}
     # Generador de SBOM, tambien espejado en el registro corporativo.
     - {name: sbom-scanner-image, default: "CHANGE_ME_QUAY_HOST/company-tooling/syft:v1.19.0"}

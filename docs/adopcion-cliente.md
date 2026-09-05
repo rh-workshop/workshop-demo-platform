@@ -137,7 +137,7 @@ ansible-playbook keycloak/ansible/clients.yml        # clients M2M
 
 export ACS_HOST=... ACS_TOKEN=...
 ansible-playbook openbao/ansible/bootstrap.yml       # almacen de secretos + su token
-ansible-playbook kafka/ansible/llaves-cifrado.yml    # llave de cifrado del pipeline, una por ambiente
+ansible-playbook kafka/ansible/encryption-keys.yml    # llave de cifrado del pipeline, una por ambiente
 ansible-playbook acs/ansible/integrations.yml        # registro (una integración por org, robot acs-scanner) + firma + políticas verificadas
 ```
 
