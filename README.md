@@ -229,18 +229,42 @@ limita.
 
 ```
 workshop-demo-platform-config/
-├── bootstrap/              # día 0: manifiestos del plano de control + playbook (ansible/)
-├── vars/                   # platform-vars.yml: el ÚNICO fichero de datos de los playbooks
-│                           # de producto (prefijo de orgs, ambientes, apps, clients)
-├── gitops/                 # el árbol GitOps central (clusters, appsets, apps)
-├── quay/{gitops,ansible}/       # QuayRegistry → Argo · orgs/robots → API
-├── keycloak/{gitops,ansible}/   # Keycloak/RealmImport → Argo · clientes → API
-├── metallb/gitops/         # MetalLB, IPAddressPool, L2Advertisement
-├── cert-manager/gitops/    # ClusterIssuer
-├── connectivity-link/gitops/    # Kuadrant, Gateway
-├── pipelines/gitops/       # TektonConfig (+ firma con Chains)
-├── workshop-pipelines/     # gitops/: CI, CD y promoción entre orgs de Quay · runs/: PipelineRun de ejemplo
-└── acs/{gitops,ansible}/        # Central/SecuredCluster → Argo · políticas → API
+├── bootstrap/                        # día 0: manifiestos del plano de control (manifests/) + playbook (ansible/)
+├── vars/                             # platform-vars.yml: el ÚNICO fichero de datos de los playbooks
+│                                     # de producto (prefijo de orgs, ambientes, apps, clients)
+├── gitops/                           # el árbol GitOps central: apps/ (Applications sueltas del hub),
+│                                     # apps-governance/ (instancia de gobierno), appsets/, clusters/ (ACM)
+│
+│                                     # --- Productos hub-only (Application directa) ---
+├── quay/{gitops,ansible}/            # QuayRegistry → Argo · orgs/robots/cuotas/informes → API
+├── acs/{gitops,ansible}/             # Central/SecuredCluster → Argo · políticas/integraciones/informes → API
+├── developer-hub/gitops/             # CR Backstage + ConfigMaps + Software Templates (todo declarativo)
+├── pipelines/gitops/                 # TektonConfig (+ firma con Chains) — el operador de Tekton, no los pipelines del workshop
+├── workshop-pipelines/               # gitops/: CI, CD y promoción entre orgs de Quay · runs/: PipelineRun de ejemplo
+├── openbao/{gitops,ansible}/         # StatefulSet Raft del almacén (único, hub) → Argo · init/desello/tokens → Ansible
+│
+│                                     # --- Productos workload (ApplicationSet, van a hub + spokes) ---
+├── keycloak/{gitops,ansible}/        # Keycloak/RealmImport → Argo · clientes → API
+├── metallb/gitops/                   # MetalLB, IPAddressPool, L2Advertisement (solo bare-metal)
+├── cert-manager/gitops/              # ClusterIssuer
+├── connectivity-link/gitops/         # Kuadrant, Gateway
+├── kafka/{gitops,ansible}/           # Kafka/KafkaNodePool/KafkaTopic/KafkaUser → Argo · llaves de cifrado → Ansible
+├── service-mesh/helm/                # CR Istio + IstioCNI, vía Helm (única excepción a Kustomize — ver más abajo)
+├── openbao-store/gitops/             # ClusterSecretStore + controlador ESO, en cada cluster (el puente al almacén)
+├── monitoring/gitops/                # ConfigMap que habilita UserWorkloadMonitoring — el stack lo trae
+│                                     # OpenShift de serie, aquí solo viaja su configuración
+├── tuning/gitops/                    # activa el plugin de consola de Connectivity Link (Console.spec.plugins) —
+│                                     # sin Application/ApplicationSet propio hoy; ninguna App lo despliega todavía
+│
+│                                     # --- Gobierno de namespaces (Argo, no ACM) ---
+├── namespace-governance/gitops/      # cuota, límites, RBAC — namespaces de PLATAFORMA
+├── namespace-governance-workload/gitops/  # cuota, límites, RBAC — namespaces de NEGOCIO
+│
+├── acm/{gitops,ansible}/             # MultiClusterHub, Policy/Placement/PlacementBinding, GitOpsCluster
+├── docs/                             # arquitectura, runbooks, backlog de producción, adopción por un cliente
+├── scripts/                          # validate-kustomize.sh y utilidades sueltas
+├── .tekton/                          # PipelineRun de CI del PROPIO repo (valida PRs a esta config, vía Pipelines as Code)
+└── .github/                          # CODEOWNERS
 ```
 
 > **Por qué los pipelines del workshop viven aquí y no en el repo de
